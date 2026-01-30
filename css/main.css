@@ -1,0 +1,223 @@
+/**
+ * MAIN.CSS - Haupt-Styling
+ */
+
+:root {
+  --panel: #0b1324cc;
+  --border: #1f2937;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --accent: #60a5fa;
+  --danger: #f87171;
+  --safe: #34d399;
+  --bg-0: #020617;
+  --bg-1: #030712;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: radial-gradient(1200px 800px at 10% 10%, #132033 0%, #0b0f14 55%, #070b12 100%);
+  color: var(--text);
+}
+
+/* Canvas */
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-0);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Selection */
+::selection {
+  background: var(--accent);
+  color: var(--bg-0);
+}
+
+/* Focus outline */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Buttons */
+button {
+  appearance: none;
+  border: 1px solid #25324a;
+  background: linear-gradient(180deg, #0f1b2f 0%, #0b1324 100%);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 11px;
+  cursor: pointer;
+  transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s ease;
+  font-family: inherit;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  border-color: #324563;
+}
+
+button:active {
+  transform: translateY(0) scale(0.99);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+button.ghost {
+  background: transparent;
+}
+
+button.small {
+  font-size: 10px;
+  padding: 4px 6px;
+}
+
+/* Inputs */
+input[type="range"] {
+  width: 150px;
+  accent-color: var(--accent);
+}
+
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+select {
+  background: var(--bg-0);
+  color: var(--text);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  background: var(--bg-0);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+  padding: 6px 8px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+/* Labels */
+label {
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* Pills/Badges */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #233047;
+  background: #0b1324;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 10px;
+  color: var(--muted);
+  margin: 0 6px 6px 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-0);
+  font-size: 10px;
+  margin-right: 4px;
+}
+
+.kbd {
+  font-family: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #0a0f1d;
+  border: 1px solid #223047;
+  color: #cbd5e1;
+}
+
+/* Loading */
+.loading {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 920px) {
+  body {
+    font-size: 14px;
+  }
+  button {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+}
+
+/* Performance */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

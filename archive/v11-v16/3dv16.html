@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini Curve Fever 3D – 2-Spieler Split-Screen + Map Editor</title>
+  <style>
+    :root {
+      --panel: #0b1324cc;
+      --border: #1f2937;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #60a5fa;
+      --accent2: #22c55e;
+      --danger: #f87171;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: radial-gradient(1200px 800px at 10% 10%, #132033 0%, #0b0f14 55%, #070b12 100%);
+      color: var(--text);
+    }
+
+    /* UI Panel */
+    #ui {
+      position: fixed;
+      inset: 16px auto auto 16px;
+      width: 320px;
+      z-index: 10;
+      background: linear-gradient(180deg, var(--panel), #0b1220cc);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    }
+
+    h1 {
+      font-size: 16px;
+      margin: 0 0 6px 0;
+    }
+
+    .sub {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.35;
+      margin: 0 0 10px 0;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 0;
+      border-top: 1px dashed #1f2937;
+    }
+
+    .row:first-of-type {
+      border-top: none;
+    }
+
+    label {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    input[type="range"] {
+      width: 140px;
+    }
+
+    select {
+      background: #020617;
+      color: var(--text);
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      padding: 2px 6px;
+      font-size: 11px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid #25324a;
+      background: linear-gradient(180deg, #0f1b2f 0%, #0b1324 100%);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 11px;
+      cursor: pointer;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button.ghost {
+      background: transparent;
+    }
+
+    /* HUD Elements */
+    .hud {
+      position: fixed;
+      z-index: 10;
+      background: #0b1324cc;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--muted);
+      backdrop-filter: blur(8px);
+    }
+
+    .hud strong {
+      color: var(--text);
+    }
+
+    #p1Score {
+      top: 16px;
+      right: 16px;
+    }
+
+    #p2Score {
+      top: 16px;
+      left: 420px;
+      display: none;
+    }
+
+    #timer {
+      top: 50px;
+      right: 16px;
+    }
+
+    /* Player Labels for Split-Screen */
+    .playerLabel {
+      position: fixed;
+      top: 20px;
+      z-index: 15;
+      font-size: 18px;
+      font-weight: 700;
+      padding: 8px 16px;
+      background: rgba(11, 19, 36, 0.9);
+      border: 2px solid;
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+    }
+
+    #p1Label {
+      left: 20px;
+      color: #60a5fa;
+      border-color: #60a5fa;
+      display: none;
+    }
+
+    #p2Label {
+      right: 20px;
+      color: #22c55e;
+      border-color: #22c55e;
+      display: none;
+    }
+
+    /* Overlay */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 20;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    .card {
+      width: min(92%, 600px);
+      background: linear-gradient(180deg, #0b1324ee, #0a1120ee);
+      border: 1px solid #223047;
+      border-radius: 18px;
+      padding: 22px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .45);
+      backdrop-filter: blur(8px);
+    }
+
+    .title {
+      font-size: 22px;
+      margin: 0 0 8px 0;
+    }
+
+    .desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin: 0 0 14px 0;
+    }
+
+    .overlayRow {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* Map Editor Overlay */
+    #editorOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .editorCard {
+      width: 90%;
+      max-width: 1200px;
+      background: #0a1120;
+      border: 1px solid #223047;
+      border-radius: 16px;
+      padding: 20px;
+    }
+
+    #editorCanvas {
+      width: 100%;
+      height: 500px;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      background: #020617;
+      cursor: crosshair;
+    }
+
+    .editorTools {
+      margin: 12px 0;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      background: #020617;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      color: var(--text);
+      font-family: monospace;
+      font-size: 11px;
+      padding: 8px;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="ui">
+    <h1>Mini Curve Fever 3D</h1>
+    <p class="sub">
+      ✨ <strong>NEU:</strong> 2-Spieler Split-Screen + Map-Editor!<br>
+      Portale, Items, Boost, 1st/3rd Kamera
+    </p>
+
+    <div style="margin-bottom:8px;">
+      <button id="btnStart">Start / Neustart</button>
+      <button id="btnPause" class="ghost">Pause</button>
+      <button id="btnEditor" class="ghost">Map Editor</button>
+    </div>
+
+    <div class="row">
+      <label>Spieler-Modus</label>
+      <select id="selPlayers">
+        <option value="1">1 Spieler</option>
+        <option value="2">2 Spieler (Split-Screen)</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label>Map</label>
+      <select id="selMap">
+        <option value="basic">Standard Arena</option>
+        <option value="complex">Komplexes Labyrinth</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label>Geschwindigkeit</label>
+      <input id="rngSpeed" type="range" min="1" max="6" step="1" value="4" />
+    </div>
+
+    <div class="row">
+      <label>Rohr-Dicke</label>
+      <input id="rngTube" type="range" min="2" max="12" step="1" value="6" />
+    </div>
+
+    <div class="row">
+      <label>Lücken</label>
+      <input id="chkGaps" type="checkbox" checked />
+    </div>
+  </div>
+
+  <!-- HUD Elements -->
+  <div id="p1Score" class="hud"><strong>P1</strong> <span id="p1ScoreText">0</span></div>
+  <div id="p2Score" class="hud"><strong>P2</strong> <span id="p2ScoreText">0</span></div>
+  <div id="timer" class="hud"><strong>Zeit</strong> <span id="timerText">00:00</span></div>
+
+  <!-- Player Labels for Split Screen -->
+  <div id="p1Label" class="playerLabel">Spieler 1</div>
+  <div id="p2Label" class="playerLabel">Spieler 2</div>
+
+  <!-- Main Overlay -->
+  <div id="overlay">
+    <div class="card">
+      <div class="title">Mini Curve Fever 3D – v16</div>
+      <p class="desc">
+        <strong>Neu:</strong> 2-Spieler Split-Screen Modus!<br>
+        <strong>Spieler 1:</strong> WASD + Q/E (Roll) + Shift (Boost)<br>
+        <strong>Spieler 2:</strong> Pfeiltasten + N/M (Roll) + RShift (Boost)<br><br>
+        Portale teleportieren dich zwischen Wänden · Items spawnen in der Arena<br>
+        Map-Editor über Pause-Menü erreichbar
+      </p>
+      <div class="overlayRow">
+        <button id="btnPlay">Spiel starten</button>
+        <button id="btnHide" class="ghost">Ausblenden</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Editor Overlay -->
+  <div id="editorOverlay">
+    <div class="editorCard">
+      <h2 style="margin:0 0 12px 0;">Map Editor</h2>
+      <canvas id="editorCanvas"></canvas>
+      <div class="editorTools">
+        <button class="editorTool" data-tool="tunnel">Tunnel</button>
+        <button class="editorTool" data-tool="hard">Block (Hart)</button>
+        <button class="editorTool" data-tool="foam">Block (Schaum)</button>
+        <button class="editorTool" data-tool="spawn">Spawn</button>
+        <button class="editorTool" data-tool="erase">Löschen</button>
+      </div>
+      <textarea id="mapJSON" placeholder="Map JSON..."></textarea>
+      <div>
+        <button id="btnExportMap">Export JSON</button>
+        <button id="btnImportMap">Import JSON</button>
+        <button id="btnNewMap">Neue Map</button>
+        <button id="btnCloseEditor">Zurück zum Spiel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+  <script>
+    (() => {
+      "use strict";
+
+      /* ======================
+         CONFIG
+      ====================== */
+      const CONFIG = {
+        ARENA_W: 2800,
+        ARENA_H: 950,
+        ARENA_D: 2400,
+        WALL_MARGIN: 18,
+
+        SPEED_BASE: 100,
+        SPEED_MULT: 1.5,
+
+        TUBE_RADIUS: 3.5,
+        SEGMENT_LENGTH: 5,
+        MAX_SEGMENTS: 8000,
+
+        PORTAL_RADIUS: 120,
+        PORTAL_COOLDOWN: 0.4,
+
+        FIXED_STEP: 1 / 120
+      };
+
+      /* ======================
+         STATE
+      ====================== */
+      const state = {
+        phase: "idle",
+        playerCount: 1,
+        roundTime: 0,
+        lastReal: performance.now(),
+        acc: 0,
+        scores: [0, 0],
+        currentMap: "basic"
+      };
+
+      /* ======================
+         SCENE SETUP
+      ====================== */
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0x070b12, 800, 6500);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+
+      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+      sun.position.set(600, 1200, 400);
+      scene.add(sun);
+
+      const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 16000);
+      const camera2 = new THREE.PerspectiveCamera(75, 1, 0.1, 16000);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      /* ======================
+         ARENA
+      ====================== */
+      const floorGeo = new THREE.PlaneGeometry(CONFIG.ARENA_W, CONFIG.ARENA_D);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x1a2332,
+        roughness: 0.95
+      });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      scene.add(floor);
+
+      const ceilingMat = new THREE.MeshStandardMaterial({
+        color: 0x0f1a2a,
+        roughness: 0.95
+      });
+      const ceiling = new THREE.Mesh(floorGeo, ceilingMat);
+      ceiling.rotation.x = Math.PI / 2;
+      ceiling.position.y = CONFIG.ARENA_H;
+      scene.add(ceiling);
+
+      // Walls
+      const wallMat = new THREE.MeshStandardMaterial({
+        color: 0x152238,
+        roughness: 0.9,
+        transparent: true,
+        opacity: 0.8
+      });
+      const halfW = CONFIG.ARENA_W / 2;
+      const halfD = CONFIG.ARENA_D / 2;
+
+      const wallGeoLR = new THREE.PlaneGeometry(CONFIG.ARENA_D, CONFIG.ARENA_H);
+      const wallGeoFB = new THREE.PlaneGeometry(CONFIG.ARENA_W, CONFIG.ARENA_H);
+
+      const wallLeft = new THREE.Mesh(wallGeoLR, wallMat);
+      wallLeft.position.set(-halfW, CONFIG.ARENA_H / 2, 0);
+      wallLeft.rotation.y = Math.PI / 2;
+      scene.add(wallLeft);
+
+      const wallRight = new THREE.Mesh(wallGeoLR, wallMat);
+      wallRight.position.set(halfW, CONFIG.ARENA_H / 2, 0);
+      wallRight.rotation.y = -Math.PI / 2;
+      scene.add(wallRight);
+
+      const wallFront = new THREE.Mesh(wallGeoFB, wallMat);
+      wallFront.position.set(0, CONFIG.ARENA_H / 2, -halfD);
+      scene.add(wallFront);
+
+      const wallBack = new THREE.Mesh(wallGeoFB, wallMat);
+      wallBack.position.set(0, CONFIG.ARENA_H / 2, halfD);
+      wallBack.rotation.y = Math.PI;
+      scene.add(wallBack);
+
+      /* ======================
+         PORTALS
+      ====================== */
+      const portals = [];
+      const portalGroup = new THREE.Group();
+      scene.add(portalGroup);
+
+      function addPortal(posA, normalA, colorA, posB, normalB, colorB) {
+        const radius = CONFIG.PORTAL_RADIUS;
+        const idx = portals.length;
+
+        portals.push({
+          pos: posA.clone(),
+          normal: normalA.clone().normalize(),
+          radius,
+          partner: idx + 1
+        });
+
+        portals.push({
+          pos: posB.clone(),
+          normal: normalB.clone().normalize(),
+          radius,
+          partner: idx
+        });
+
+        // Visual rings
+        [posA, posB].forEach((pos, i) => {
+          const color = i === 0 ? colorA : colorB;
+          const ringGeo = new THREE.RingGeometry(radius * 0.7, radius, 40);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color, side: THREE.DoubleSide, transparent: true, opacity: 0.8
+          });
+          const ring = new THREE.Mesh(ringGeo, ringMat);
+          ring.position.copy(pos);
+          ring.lookAt(pos.clone().add(i === 0 ? normalA : normalB));
+          portalGroup.add(ring);
+        });
+      }
+
+      // Add portal pairs
+      addPortal(
+        new THREE.Vector3(-halfW + 1, CONFIG.ARENA_H * 0.5, 0),
+        new THREE.Vector3(1, 0, 0), 0x22c55e,
+        new THREE.Vector3(halfW - 1, CONFIG.ARENA_H * 0.5, 0),
+        new THREE.Vector3(-1, 0, 0), 0x3b82f6
+      );
+
+      addPortal(
+        new THREE.Vector3(0, CONFIG.ARENA_H * 0.6, -halfD + 1),
+        new THREE.Vector3(0, 0, 1), 0xf97316,
+        new THREE.Vector3(0, CONFIG.ARENA_H * 0.6, halfD - 1),
+        new THREE.Vector3(0, 0, -1), 0xa855f7
+      );
+
+      /* ======================
+         PLAYER SYSTEM
+      ====================== */
+      function makePlayer(id, color) {
+        return {
+          id,
+          alive: true,
+          color,
+          pos: new THREE.Vector3(),
+          q: new THREE.Quaternion(),
+          vel: new THREE.Vector3(1, 0, 0),
+
+          yaw: 0,
+          pitch: 0,
+          roll: 0,
+
+          segments: [],
+          trailGroup: new THREE.Group(),
+
+          portalCooldown: 0,
+          grace: 3.0
+        };
+      }
+
+      const players = [
+        makePlayer(1, 0x60a5fa),
+        makePlayer(2, 0x22c55e)
+      ];
+
+      scene.add(players[0].trailGroup);
+      scene.add(players[1].trailGroup);
+
+      /* ======================
+         INPUT
+      ====================== */
+      const keys = new Set();
+      window.addEventListener("keydown", e => keys.add(e.code));
+      window.addEventListener("keyup", e => keys.delete(e.code));
+
+      function getPlayerInput(p) {
+        if (p.id === 1) {
+          return {
+            yaw: (keys.has("KeyA") ? 1 : 0) + (keys.has("KeyD") ? -1 : 0),
+            pitch: (keys.has("KeyW") ? 1 : 0) + (keys.has("KeyS") ? -1 : 0),
+            roll: (keys.has("KeyQ") ? -1 : 0) + (keys.has("KeyE") ? 1 : 0),
+            boost: keys.has("ShiftLeft")
+          };
+        } else {
+          return {
+            yaw: (keys.has("ArrowLeft") ? 1 : 0) + (keys.has("ArrowRight") ? -1 : 0),
+            pitch: (keys.has("ArrowUp") ? 1 : 0) + (keys.has("ArrowDown") ? -1 : 0),
+            roll: (keys.has("KeyN") ? -1 : 0) + (keys.has("KeyM") ? 1 : 0),
+            boost: keys.has("ShiftRight")
+          };
+        }
+      }
+
+      /* ======================
+         GAME LOGIC
+      ====================== */
+      function resetPlayer(p, side) {
+        p.alive = true;
+        const yMid = CONFIG.ARENA_H * 0.5;
+        const xOff = side === 1 ? -400 : 400;
+        p.pos.set(xOff, yMid, 0);
+        p.q.identity();
+        p.vel.set(1, 0, 0);
+        p.yaw = p.pitch = p.roll = 0;
+
+        // Clear trail
+        while (p.trailGroup.children.length) {
+          const m = p.trailGroup.children.pop();
+          m.geometry?.dispose();
+        }
+        p.segments = [];
+        p.grace = 3.0;
+        p.portalCooldown = 0;
+      }
+
+      function startRound() {
+        document.getElementById("overlay").style.display = "none";
+        state.phase = "running";
+        state.roundTime = 0;
+        state.acc = 0;
+        state.lastReal = performance.now();
+
+        const playerCount = parseInt(document.getElementById("selPlayers").value);
+        state.playerCount = playerCount;
+
+        resetPlayer(players[0], 1);
+        if (playerCount === 2) {
+          resetPlayer(players[1], 2);
+          document.getElementById("p2Score").style.display = "block";
+          document.getElementById("p1Label").style.display = "block";
+          document.getElementById("p2Label").style.display = "block";
+        } else {
+          document.getElementById("p2Score").style.display = "none";
+          document.getElementById("p1Label").style.display = "none";
+          document.getElementById("p2Label").style.display = "none";
+        }
+      }
+
+      function updatePlayer(p, dt) {
+        if (!p.alive) return;
+
+        if (p.grace > 0) p.grace -= dt;
+        if (p.portalCooldown > 0) p.portalCooldown -= dt;
+
+        const input = getPlayerInput(p);
+        const turnSpeed = 1.8 * dt;
+
+        p.yaw += input.yaw * turnSpeed;
+        p.pitch += input.pitch * turnSpeed;
+        p.roll += input.roll * turnSpeed * 1.5;
+
+        // Apply rotation
+        const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), p.yaw);
+        const qp = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), p.pitch);
+        const qr = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), p.roll);
+        p.q.copy(qy).multiply(qp).multiply(qr);
+
+        // Movement
+        const speed = CONFIG.SPEED_BASE * CONFIG.SPEED_MULT * (input.boost ? 1.8 : 1.0);
+        p.vel.set(1, 0, 0).applyQuaternion(p.q).normalize().multiplyScalar(speed * dt);
+
+        const prevPos = p.pos.clone();
+        p.pos.add(p.vel);
+
+        // Bounds check
+        if (Math.abs(p.pos.x) > halfW - CONFIG.WALL_MARGIN ||
+          Math.abs(p.pos.z) > halfD - CONFIG.WALL_MARGIN ||
+          p.pos.y < CONFIG.WALL_MARGIN ||
+          p.pos.y > CONFIG.ARENA_H - CONFIG.WALL_MARGIN) {
+          p.alive = false;
+          endRound(p.id === 1 ? 2 : 1);
+          return;
+        }
+
+        // Portal teleport
+        if (p.portalCooldown <= 0) {
+          for (const portal of portals) {
+            const toPortal = new THREE.Vector3().subVectors(p.pos, portal.pos);
+            const dist = toPortal.length();
+            if (dist < portal.radius) {
+              const partner = portals[portal.partner];
+              p.pos.copy(partner.pos).addScaledVector(partner.normal, 50);
+              p.portalCooldown = CONFIG.PORTAL_COOLDOWN;
+              break;
+            }
+          }
+        }
+
+        // Add trail segment
+        if (p.segments.length === 0 || prevPos.distanceTo(p.pos) > CONFIG.SEGMENT_LENGTH) {
+          addTrailSegment(p, prevPos, p.pos);
+        }
+      }
+
+      function addTrailSegment(p, a, b) {
+        const dir = new THREE.Vector3().subVectors(b, a);
+        const len = dir.length();
+        if (len < 0.1) return;
+
+        const geo = new THREE.CylinderGeometry(CONFIG.TUBE_RADIUS, CONFIG.TUBE_RADIUS, len, 12);
+        const mat = new THREE.MeshStandardMaterial({ color: p.color });
+        const mesh = new THREE.Mesh(geo, mat);
+
+        const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+        mesh.position.copy(mid);
+
+        const axis = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+        const angle = Math.acos(new THREE.Vector3(0, 1, 0).dot(dir.normalize()));
+        if (axis.length() > 0.001) {
+          mesh.quaternion.setFromAxisAngle(axis.normalize(), angle);
+        }
+
+        p.trailGroup.add(mesh);
+        p.segments.push({ a: a.clone(), b: b.clone(), mesh });
+
+        if (p.segments.length > CONFIG.MAX_SEGMENTS) {
+          const old = p.segments.shift();
+          p.trailGroup.remove(old.mesh);
+          old.mesh.geometry.dispose();
+        }
+      }
+
+      function endRound(winnerId) {
+        state.phase = "gameover";
+        if (winnerId) {
+          state.scores[winnerId - 1]++;
+          document.getElementById(`p${winnerId}ScoreText`).textContent = state.scores[winnerId - 1];
+        }
+
+        setTimeout(() => {
+          const overlay = document.getElementById("overlay");
+          overlay.querySelector(".title").textContent = winnerId ? `Spieler ${winnerId} gewinnt!` : "Unentschieden!";
+          overlay.style.display = "flex";
+        }, 1000);
+      }
+
+      /* ======================
+         UPDATE LOOP
+      ====================== */
+      function updateGame(dt) {
+        if (state.phase !== "running") return;
+
+        state.roundTime += dt;
+
+        const activeCount = state.playerCount;
+        updatePlayer(players[0], dt);
+        if (activeCount === 2) updatePlayer(players[1], dt);
+
+        // Check collisions between players
+        if (activeCount === 2 && players[0].alive && players[1].alive) {
+          if (players[0].pos.distanceTo(players[1].pos) < CONFIG.TUBE_RADIUS * 2) {
+            players[0].alive = players[1].alive = false;
+            endRound(null); // Draw
+          }
+        }
+
+        // Update timer
+        const mins = Math.floor(state.roundTime / 60);
+        const secs = Math.floor(state.roundTime % 60);
+        document.getElementById("timerText").textContent =
+          `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+
+      function updateCamera() {
+        const p1 = players[0];
+        const p2 = players[1];
+
+        if (state.playerCount === 1) {
+          // Single player - full screen
+          const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(p1.q);
+          const up = new THREE.Vector3(0, 1, 0).applyQuaternion(p1.q);
+          camera.position.copy(p1.pos).addScaledVector(fwd, -80).addScaledVector(up, 30);
+          camera.lookAt(p1.pos);
+          camera.up.copy(up);
+        } else {
+          // Split screen
+          // Player 1 camera (left half)
+          const fwd1 = new THREE.Vector3(1, 0, 0).applyQuaternion(p1.q);
+          const up1 = new THREE.Vector3(0, 1, 0).applyQuaternion(p1.q);
+          camera.position.copy(p1.pos).addScaledVector(fwd1, -80).addScaledVector(up1, 30);
+          camera.lookAt(p1.pos);
+          camera.up.copy(up1);
+
+          // Player 2 camera (right half)
+          const fwd2 = new THREE.Vector3(1, 0, 0).applyQuaternion(p2.q);
+          const up2 = new THREE.Vector3(0, 1, 0).applyQuaternion(p2.q);
+          camera2.position.copy(p2.pos).addScaledVector(fwd2, -80).addScaledVector(up2, 30);
+          camera2.lookAt(p2.pos);
+          camera2.up.copy(up2);
+        }
+      }
+
+      function render() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+
+        if (state.playerCount === 1) {
+          renderer.setViewport(0, 0, w, h);
+          renderer.setScissor(0, 0, w, h);
+          renderer.setScissorTest(false);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.render(scene, camera);
+        } else {
+          // Split screen rendering
+          renderer.setScissorTest(true);
+
+          // Left half - Player 1
+          renderer.setViewport(0, 0, w / 2, h);
+          renderer.setScissor(0, 0, w / 2, h);
+          camera.aspect = (w / 2) / h;
+          camera.updateProjectionMatrix();
+          renderer.render(scene, camera);
+
+          // Right half - Player 2
+          renderer.setViewport(w / 2, 0, w / 2, h);
+          renderer.setScissor(w / 2, 0, w / 2, h);
+          camera2.aspect = (w / 2) / h;
+          camera2.updateProjectionMatrix();
+          renderer.render(scene, camera2);
+
+          renderer.setScissorTest(false);
+        }
+      }
+
+      function animate() {
+        const now = performance.now();
+        if (state.phase === "running") {
+          const dtReal = Math.min(0.05, (now - state.lastReal) / 1000);
+          state.lastReal = now;
+          state.acc += dtReal;
+
+          while (state.acc >= CONFIG.FIXED_STEP) {
+            updateGame(CONFIG.FIXED_STEP);
+            state.acc -= CONFIG.FIXED_STEP;
+          }
+
+          updateCamera();
+        }
+
+        render();
+        requestAnimationFrame(animate);
+      }
+
+      /* ======================
+         UI EVENTS
+      ====================== */
+      document.getElementById("btnStart").addEventListener("click", startRound);
+      document.getElementById("btnPlay").addEventListener("click", startRound);
+      document.getElementById("btnHide").addEventListener("click", () => {
+        document.getElementById("overlay").style.display = "none";
+      });
+
+      document.getElementById("btnPause").addEventListener("click", () => {
+        if (state.phase === "running") {
+          state.phase = "paused";
+          document.getElementById("overlay").style.display = "flex";
+          document.getElementById("overlay").querySelector(".title").textContent = "Pause";
+        }
+      });
+
+      /* Map Editor */
+      document.getElementById("btnEditor").addEventListener("click", () => {
+        document.getElementById("editorOverlay").style.display = "flex";
+        initEditor();
+      });
+
+      document.getElementById("btnCloseEditor").addEventListener("click", () => {
+        document.getElementById("editorOverlay").style.display = "none";
+      });
+
+      let editorTool = "tunnel";
+      document.querySelectorAll(".editorTool").forEach(btn => {
+        btn.addEventListener("click", () => {
+          editorTool = btn.dataset.tool;
+          document.querySelectorAll(".editorTool").forEach(b => b.style.background = "");
+          btn.style.background = "#1e40af";
+        });
+      });
+
+      function initEditor() {
+        const canvas = document.getElementById("editorCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+
+        ctx.fillStyle = "#020617";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = "#1f2937";
+        ctx.lineWidth = 1;
+        for (let x = 0; x < canvas.width; x += 40) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, canvas.height);
+          ctx.stroke();
+        }
+        for (let y = 0; y < canvas.height; y += 40) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = "#60a5fa";
+        ctx.font = "14px system-ui";
+        ctx.fillText("Map Editor - Coming soon!", 20, 30);
+        ctx.fillText("Klicken um Objekte zu platzieren", 20, 50);
+      }
+
+      document.getElementById("btnExportMap").addEventListener("click", () => {
+        const mapData = {
+          tunnels: [],
+          blocks: [],
+          spawn: { x: 0, y: CONFIG.ARENA_H * 0.5, z: 0 }
+        };
+        document.getElementById("mapJSON").value = JSON.stringify(mapData, null, 2);
+      });
+
+      /* ======================
+         RESIZE
+      ====================== */
+      window.addEventListener("resize", () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      /* ======================
+         START
+      ====================== */
+      animate();
+
+    })();
+  </script>
+</body>
+
+</html>

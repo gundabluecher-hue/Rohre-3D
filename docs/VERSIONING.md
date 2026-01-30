@@ -1,0 +1,136 @@
+# Versionierungs-System
+
+Automatisches Backup-System für alle wichtigen Projektdateien.
+
+## 🎯 Funktion
+
+Bei jeder wichtigen Änderung wird automatisch eine versionierte Kopie aller Dateien erstellt.
+
+## 📋 Verwendung
+
+### Version erstellen (Vor Änderungen)
+
+```powershell
+cd c:\Users\gunda\Desktop\3d
+.\scripts\create-version.ps1
+```
+
+Oder mit Beschreibung:
+```powershell
+.\scripts\create-version.ps1 -Message "Touch-Steuerung verbessert"
+```
+
+**Das passiert:**
+- ✅ Erstellt Ordner `archive/vX.X.X`
+- ✅ Kopiert alle wichtigen Dateien (HTML, JS, CSS)
+- ✅ Aktualisiert `version.json`
+- ✅ Fügt Eintrag in `CHANGELOG.md` hinzu
+- ✅ Versionsnummer wird automatisch erhöht
+
+### Alle Versionen anzeigen
+
+```powershell
+.\scripts\list-versions.ps1
+```
+
+Zeigt:
+```
+📦 Alle Versionen:
+================================================================================
+
+📌 v2.0.3
+   Datum: 2026-01-29 20:15:00
+   Beschreibung: Bug fixes
+   Dateien: 7
+
+📌 v2.0.2
+   Datum: 2026-01-29 19:30:00
+   Beschreibung: Touch-Steuerung verbessert
+   Dateien: 7
+...
+```
+
+### Alte Version wiederherstellen
+
+```powershell
+.\scripts\restore-version.ps1 -Version "2.0.1"
+```
+
+**ACHTUNG:** Erstellt automatisch Backup der aktuellen Version, bevor wiederhergestellt wird!
+
+## 📁 Struktur
+
+```
+3d/
+├── scripts/
+│   ├── create-version.ps1    # Version erstellen
+│   ├── list-versions.ps1     # Versionen auflisten
+│   └── restore-version.ps1   # Version wiederherstellen
+├── archive/
+│   ├── v2.0.0/               # Automatisches Backup
+│   ├── v2.0.1/
+│   └── v2.0.2/
+├── version.json              # Aktuelle Version
+└── CHANGELOG.md              # Versions-Historie
+```
+
+## 🔄 Workflow
+
+### Standard-Ablauf
+
+1. **Vor Änderung:** `.\scripts\create-version.ps1 -Message "Was du ändern wirst"`
+2. **Änderungen vornehmen** in den Dateien
+3. **(Optional)** Weitere Version erstellen nach großen Änderungen
+
+### Bei Problemen
+
+- **Fehler gemacht?** → `.\scripts\restore-version.ps1 -Version "X.X.X"`
+- **Alte Version ansehen?** → Öffne `archive/vX.X.X/3dv16_full.html`
+
+## 🎨 Features
+
+✅ **Automatische Versionsnummern** (Major.Minor.Patch)  
+✅ **Timestamps** für jede Version  
+✅ **Beschreibungen** pro Version  
+✅ **Changelog** wird automatisch geführt  
+✅ **Restore-Funktion** mit Sicherheits-Backup  
+✅ **Übersichtliche Auflistung** aller Versionen  
+
+## 📊 Gesicherte Dateien
+
+Bei jedem Backup:
+- `3dv17.html`
+- `index.html`
+- `map-editor.html`
+- `README.md`
+- `DEVELOPER.md`
+- Komplette `css/` Ordner
+- Komplette `js/` Ordner
+
+## 💡 Tipps
+
+- **Häufig versionieren:** Vor jeder größeren Änderung
+- **Aussagekräftige Beschreibungen:** `-Message "Was geändert wurde"`
+- **Regelmäßig aufräumen:** Alte Versionen löschen (manuell)
+- **Backup vor Restore:** Das Script macht das automatisch!
+
+## 🚀 Beispiele
+
+```powershell
+# Neue Funktion hinzufügen
+.\scripts\create-version.ps1 -Message "Gyroscope-Steuerung hinzugefügt"
+
+# Bug beheben
+.\scripts\create-version.ps1 -Message "Kollisions-Bug behoben"
+
+# Design-Änderung
+.\scripts\create-version.ps1 -Message "UI modernisiert"
+
+# Vor großem Refactoring
+.\scripts\create-version.ps1 -Message "Vor Physik-System Überarbeitung"
+```
+
+---
+
+**Versionierungs-System aktiviert!** 🎉  
+Jetzt kannst du sicher experimentieren - alte Versionen sind immer einen Befehl entfernt!

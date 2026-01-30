@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini Curve Fever 3D – Start-Crash Fix</title>
+  <style>
+    :root{
+      --panel:#0b1324cc;
+      --border:#1f2937;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --accent:#60a5fa;
+      --danger:#f87171;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0; overflow:hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: radial-gradient(1200px 800px at 10% 10%, #132033 0%, #0b0f14 55%, #070b12 100%);
+      color:var(--text);
+    }
+    #ui{
+      position:fixed; inset:16px auto auto 16px;
+      width:320px; z-index:10;
+      background: linear-gradient(180deg, var(--panel), #0b1220cc);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:14px 14px 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    h1{font-size:16px; margin:0 0 6px 0;}
+    .sub{font-size:11px; color:var(--muted); line-height:1.35; margin:0 0 10px 0;}
+    .row{
+      display:grid; grid-template-columns: 1fr auto;
+      gap:10px; align-items:center;
+      padding:8px 0; border-top:1px dashed #1f2937;
+    }
+    .row:first-of-type{border-top:none;}
+    label{font-size:11px; color:var(--muted);}
+    input[type="checkbox"]{width:18px;height:18px; accent-color: var(--accent);}
+    input[type="range"]{width:140px;}
+    button{
+      appearance:none; border:1px solid #25324a;
+      background: linear-gradient(180deg, #0f1b2f 0%, #0b1324 100%);
+      color:var(--text);
+      padding:8px 10px; border-radius:10px;
+      font-weight:600; font-size:11px; cursor:pointer;
+      margin-right:6px;
+    }
+    button.ghost{background:transparent;}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      border:1px solid #233047; background:#0b1324;
+      border-radius:999px; padding:5px 9px;
+      font-size:10px; color:var(--muted);
+      margin:0 6px 6px 0;
+    }
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      font-size:10px; padding:1px 5px;
+      border-radius:6px; background:#0a0f1d;
+      border:1px solid #223047; color:#cbd5e1;
+    }
+    #status{
+      position:fixed; right:16px; top:16px; z-index:10;
+      background: #0b1324cc; border:1px solid var(--border);
+      border-radius:999px; padding:6px 10px;
+      font-size:11px; color:var(--muted);
+      backdrop-filter: blur(8px);
+    }
+    #status strong{color:var(--text);}
+    #overlay{
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      padding:24px; z-index:20;
+    }
+    .card{
+      width:min(92%,520px);
+      background: linear-gradient(180deg, #0b1324ee, #0a1120ee);
+      border:1px solid #223047; border-radius:18px;
+      padding:22px 22px 18px;
+      text-align:center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      backdrop-filter: blur(8px);
+    }
+    .title{font-size:22px; margin:0 0 8px 0;}
+    .desc{font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 14px 0;}
+    .danger{color:var(--danger);}
+    canvas{display:block;}
+    @media (max-width: 820px){
+      #ui{width:280px;}
+    }
+  </style>
+</head>
+<body>
+
+  <div id="ui">
+    <h1>Mini Curve Fever 3D – Start-Crash Fix</h1>
+    <p class="sub">
+      Fix gegen sofortiges „Grund: Spur“.<br>
+      Self-Collision wird bewusst später scharf geschaltet.
+    </p>
+
+    <div>
+      <span class="pill">Yaw: <span class="kbd">A</span>/<span class="kbd">D</span></span>
+      <span class="pill">Pitch: <span class="kbd">W</span>/<span class="kbd">S</span> oder <span class="kbd">↑</span>/<span class="kbd">↓</span></span>
+      <span class="pill">Pause: <span class="kbd">Space</span></span>
+      <span class="pill">Neu: <span class="kbd">Enter</span></span>
+    </div>
+
+    <div style="margin-top:6px;">
+      <button id="btnStart">Start / Neustart</button>
+      <button id="btnPause" class="ghost">Pause</button>
+      <button id="btnClear" class="ghost">Spur löschen</button>
+    </div>
+
+    <div class="row">
+      <label for="chkGaps">Zufällige Lücken</label>
+      <input id="chkGaps" type="checkbox" checked />
+    </div>
+    <div class="row">
+      <label for="chkWrap">3D-Wrap (Box)</label>
+      <input id="chkWrap" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="rngSpeed">Geschwindigkeit</label>
+      <input id="rngSpeed" type="range" min="1" max="6" step="1" value="3" />
+    </div>
+    <div class="row">
+      <label for="rngTurnYaw">Yaw-Empfindlichkeit</label>
+      <input id="rngTurnYaw" type="range" min="1" max="10" step="1" value="6" />
+    </div>
+    <div class="row">
+      <label for="rngTurnPitch">Pitch-Empfindlichkeit</label>
+      <input id="rngTurnPitch" type="range" min="1" max="10" step="1" value="6" />
+    </div>
+    <div class="row">
+      <label for="rngGapRate">Lücken-Häufigkeit</label>
+      <input id="rngGapRate" type="range" min="1" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="rngGapDur">Lücken-Dauer</label>
+      <input id="rngGapDur" type="range" min="1" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="rngTube">Rohr-Dicke</label>
+      <input id="rngTube" type="range" min="2" max="12" step="1" value="7" />
+    </div>
+  </div>
+
+  <div id="status"><strong>Status</strong> <span id="statusText">Bereit</span></div>
+
+  <div id="overlay">
+    <div class="card">
+      <div class="title">Mini Curve Fever 3D</div>
+      <p class="desc">
+        Du fliegst konstant vorwärts in einer 3D-Box und hinterlässt ein leuchtendes Rohr.<br>
+        Fix: Kein sofortiges Eigenkollisions-Ende mehr.
+      </p>
+      <div>
+        <button id="btnOverlayStart">Runde starten</button>
+        <button id="btnOverlayHide" class="ghost">Overlay ausblenden</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const CONFIG = {
+      FIXED_STEP: 1/120,
+
+      ARENA_W: 800,
+      ARENA_H: 320,
+      ARENA_D: 520,
+      WALL_MARGIN: 10,
+
+      SPEED_MAP: [0, 9.0, 12.0, 15.0, 19.0, 23.0, 27.0],
+
+      YAW_MIN: 1.4,
+      YAW_MAX: 4.3,
+      PITCH_MIN: 1.1,
+      PITCH_MAX: 3.6,
+      PITCH_LIMIT: Math.PI * 0.42,
+      INPUT_SMOOTH: 0.55,
+
+      SEGMENT_LEN_TARGET: 1.6,
+
+      TUBE_RADIUS_BASE: 3.4,
+      TUBE_RADIUS_MIN: 2.6,
+      HEAD_RADIUS: 3.2,
+
+      GAP_INTERVAL_MIN: 0.9,
+      GAP_INTERVAL_MAX: 5.5,
+      GAP_DUR_MIN: 0.06,
+      GAP_DUR_MAX: 0.26,
+
+      // ====== WICHTIGE START-FIXES ======
+      START_GRACE_SEC: 1.2,       // absolute Schonzeit
+      SPAWN_NODRAW: 0.22,
+
+      SELF_IGNORE_BASE: 0.25,
+      SELF_IGNORE_SLOW_EXTRA: 0.25,
+      SELF_IGNORE_MIN: 0.22,
+      SELF_IGNORE_MAX: 0.65,
+
+      SELF_SKIP_LAST_N: 8,        // viel mehr "recent segments" ignorieren
+      SELF_MIN_SEGMENTS: 10,      // solange weniger Segmente existieren: keine Self-Kollision
+
+      MAX_SEGMENTS: 6000,
+    };
+
+    // UI
+    const statusTextEl = document.getElementById("statusText");
+    const overlay = document.getElementById("overlay");
+
+    const btnStart = document.getElementById("btnStart");
+    const btnPause = document.getElementById("btnPause");
+    const btnClear = document.getElementById("btnClear");
+    const btnOverlayStart = document.getElementById("btnOverlayStart");
+    const btnOverlayHide = document.getElementById("btnOverlayHide");
+
+    const chkGaps = document.getElementById("chkGaps");
+    const chkWrap = document.getElementById("chkWrap");
+    const rngSpeed = document.getElementById("rngSpeed");
+    const rngTurnYaw = document.getElementById("rngTurnYaw");
+    const rngTurnPitch = document.getElementById("rngTurnPitch");
+    const rngGapRate = document.getElementById("rngGapRate");
+    const rngGapDur = document.getElementById("rngGapDur");
+    const rngTube = document.getElementById("rngTube");
+
+    // Helpers
+    const clamp = (v,min,max) => Math.max(min, Math.min(max, v));
+    const rand = (min,max) => Math.random() * (max - min) + min;
+
+    function eased01(v, min, max){
+      const t = clamp((v - min) / (max - min), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function speedUnitsPerSec(){
+      const v = Number(rngSpeed.value);
+      return CONFIG.SPEED_MAP[v] || CONFIG.SPEED_MAP[3];
+    }
+    function yawRateRadPerSec(){
+      const v = Number(rngTurnYaw.value);
+      const e = eased01(v, 1, 10);
+      return CONFIG.YAW_MIN + (CONFIG.YAW_MAX - CONFIG.YAW_MIN) * e;
+    }
+    function pitchRateRadPerSec(){
+      const v = Number(rngTurnPitch.value);
+      const e = eased01(v, 1, 10);
+      return CONFIG.PITCH_MIN + (CONFIG.PITCH_MAX - CONFIG.PITCH_MIN) * e;
+    }
+    function gapAvgIntervalSec(){
+      const v = Number(rngGapRate.value);
+      const e = eased01(v, 1, 10);
+      return CONFIG.GAP_INTERVAL_MAX + (CONFIG.GAP_INTERVAL_MIN - CONFIG.GAP_INTERVAL_MAX) * e;
+    }
+    function gapDurationSec(){
+      const v = Number(rngGapDur.value);
+      const e = eased01(v, 1, 10);
+      return CONFIG.GAP_DUR_MIN + (CONFIG.GAP_DUR_MAX - CONFIG.GAP_DUR_MIN) * e;
+    }
+    function tubeRadius(){
+      const v = Number(rngTube.value);
+      const r = CONFIG.TUBE_RADIUS_BASE * (v / 7);
+      return Math.max(CONFIG.TUBE_RADIUS_MIN, r);
+    }
+
+    function distPointToSegmentSq3(px, py, pz, ax, ay, az, bx, by, bz){
+      const abx = bx - ax, aby = by - ay, abz = bz - az;
+      const apx = px - ax, apy = py - ay, apz = pz - az;
+      const abLenSq = abx*abx + aby*aby + abz*abz || 1e-9;
+      let t = (apx*abx + apy*aby + apz*abz) / abLenSq;
+      t = clamp(t, 0, 1);
+      const cx = ax + abx * t;
+      const cy = ay + aby * t;
+      const cz = az + abz * t;
+      const dx = px - cx, dy = py - cy, dz = pz - cz;
+      return dx*dx + dy*dy + dz*dz;
+    }
+
+    // Three.js
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x070b12, 260, 1400);
+
+    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 5000);
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    dir.position.set(200, 400, 150);
+    scene.add(dir);
+
+    // Floor & Grid
+    const floorGeo = new THREE.PlaneGeometry(CONFIG.ARENA_W, CONFIG.ARENA_D);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x0a1323, roughness: 0.98, metalness: 0.0 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI/2;
+    floor.position.y = 0;
+    scene.add(floor);
+
+    const grid = new THREE.GridHelper(CONFIG.ARENA_W, 40, 0x20304a, 0x101827);
+    grid.position.y = 0.02;
+    scene.add(grid);
+
+    // Box Wireframe
+    const boxGeo = new THREE.BoxGeometry(CONFIG.ARENA_W, CONFIG.ARENA_H, CONFIG.ARENA_D);
+    const edges = new THREE.EdgesGeometry(boxGeo);
+    const line = new THREE.LineSegments(
+      edges,
+      new THREE.LineBasicMaterial({ color: 0x1f2937, transparent:true, opacity:0.45 })
+    );
+    line.position.set(0, CONFIG.ARENA_H/2, 0);
+    scene.add(line);
+
+    // Player + Trail
+    const player = {
+      alive: true,
+      pos: new THREE.Vector3(0, 40, 0),
+
+      yaw: 0,
+      pitch: 0,
+
+      yawTarget: 0,
+      pitchTarget: 0,
+      yawInput: 0,
+      pitchInput: 0,
+
+      gapUntil: 0,
+      nextGapAt: Infinity,
+
+      safeUntil: 0,
+      noDrawUntil: 0,
+
+      lastSegPoint: new THREE.Vector3(),
+    };
+
+    const trailGroup = new THREE.Group();
+    scene.add(trailGroup);
+
+    const segmentMaterial = new THREE.MeshStandardMaterial({
+      color: 0x60a5fa,
+      roughness: 0.35,
+      metalness: 0.25,
+      emissive: new THREE.Color(0x1b4d9a),
+      emissiveIntensity: 0.55
+    });
+
+    const segments = [];
+
+    function clearTrail(){
+      for (const s of segments){
+        if (s.mesh) trailGroup.remove(s.mesh);
+        if (s.mesh?.geometry) s.mesh.geometry.dispose();
+      }
+      segments.length = 0;
+    }
+
+    function addTubeSegment(a, b, r, t){
+      const dirV = new THREE.Vector3().subVectors(b, a);
+      const len = dirV.length();
+      if (len < 0.001) return;
+
+      const geo = new THREE.CylinderGeometry(r, r, len, 14, 1, false);
+      const mesh = new THREE.Mesh(geo, segmentMaterial);
+
+      const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+      mesh.position.copy(mid);
+
+      const up = new THREE.Vector3(0, 1, 0);
+      const dirN = dirV.clone().normalize();
+      const axis = new THREE.Vector3().copy(up).cross(dirN);
+      const axisLen = axis.length();
+      const angle = Math.acos(clamp(up.dot(dirN), -1, 1));
+
+      if (axisLen > 1e-6){
+        axis.normalize();
+        mesh.quaternion.setFromAxisAngle(axis, angle);
+      }
+
+      trailGroup.add(mesh);
+
+      segments.push({
+        ax:a.x, ay:a.y, az:a.z,
+        bx:b.x, by:b.y, bz:b.z,
+        r, t, mesh
+      });
+
+      if (segments.length > CONFIG.MAX_SEGMENTS){
+        const old = segments.shift();
+        if (old.mesh) trailGroup.remove(old.mesh);
+        if (old.mesh?.geometry) old.mesh.geometry.dispose();
+      }
+    }
+
+    // Gaps
+    function scheduleNextGap(){
+      const avg = gapAvgIntervalSec();
+      const jitter = avg * 0.5;
+      player.nextGapAt = state.roundTime + rand(avg - jitter, avg + jitter);
+    }
+
+    function updateGapState(){
+      if (!chkGaps.checked){
+        player.gapUntil = 0;
+        player.nextGapAt = Infinity;
+        return;
+      }
+      if (!isFinite(player.nextGapAt)) scheduleNextGap();
+
+      if (state.roundTime >= player.gapUntil && state.roundTime >= player.nextGapAt){
+        player.gapUntil = state.roundTime + gapDurationSec();
+        scheduleNextGap();
+      }
+    }
+
+    // Self-Ignore
+    function computeSelfIgnoreSec(){
+      const sp = speedUnitsPerSec();
+      const speedMul = clamp(sp / CONFIG.SPEED_MAP[3], 0.35, 1.8);
+      const extraSlow = (1 / speedMul) * CONFIG.SELF_IGNORE_SLOW_EXTRA;
+      const sec = CONFIG.SELF_IGNORE_BASE + extraSlow;
+      return clamp(sec, CONFIG.SELF_IGNORE_MIN, CONFIG.SELF_IGNORE_MAX);
+    }
+
+    function selfCollidesAt(x,y,z, headR){
+      // extra guard: early trail is always safe
+      if (segments.length < CONFIG.SELF_MIN_SEGMENTS) return false;
+
+      const ignore = computeSelfIgnoreSec();
+      const cutoff = state.roundTime - ignore;
+
+      // slightly softer radius to avoid "fat-tube insta kill"
+      const r = headR + tubeRadius() * 0.7;
+
+      const endIndex = Math.max(0, segments.length - CONFIG.SELF_SKIP_LAST_N);
+
+      for (let i = 0; i < endIndex; i++){
+        const s = segments[i];
+        if (s.t > cutoff) continue;
+
+        const d2 = distPointToSegmentSq3(
+          x,y,z,
+          s.ax,s.ay,s.az,
+          s.bx,s.by,s.bz
+        );
+        if (d2 <= r*r) return true;
+      }
+      return false;
+    }
+
+    // Bounds
+    function handleBounds(){
+      const halfW = CONFIG.ARENA_W/2 - CONFIG.WALL_MARGIN;
+      const halfH = CONFIG.ARENA_H - CONFIG.WALL_MARGIN;
+      const halfD = CONFIG.ARENA_D/2 - CONFIG.WALL_MARGIN;
+
+      if (chkWrap.checked){
+        if (player.pos.x < -halfW) player.pos.x = halfW;
+        else if (player.pos.x > halfW) player.pos.x = -halfW;
+
+        if (player.pos.z < -halfD) player.pos.z = halfD;
+        else if (player.pos.z > halfD) player.pos.z = -halfD;
+
+        if (player.pos.y < CONFIG.WALL_MARGIN) player.pos.y = halfH;
+        else if (player.pos.y > halfH) player.pos.y = CONFIG.WALL_MARGIN;
+
+        return true;
+      } else {
+        if (player.pos.x < -halfW || player.pos.x > halfW) return false;
+        if (player.pos.z < -halfD || player.pos.z > halfD) return false;
+        if (player.pos.y < CONFIG.WALL_MARGIN || player.pos.y > halfH) return false;
+        return true;
+      }
+    }
+
+    // Input
+    const held = new Set();
+    window.addEventListener("keydown", (e) => {
+      if (["Space","ArrowUp","ArrowDown"].includes(e.code)) e.preventDefault();
+      held.add(e.code);
+      if (e.code === "Space") togglePause();
+      if (e.code === "Enter") startRound();
+    });
+    window.addEventListener("keyup", (e) => held.delete(e.code));
+
+    function updateTurnTargets(){
+      const rawYaw = (held.has("KeyA") ? -1 : 0) + (held.has("KeyD") ? 1 : 0);
+      const rawPitch =
+        (held.has("KeyW") || held.has("ArrowUp") ? 1 : 0) +
+        (held.has("KeyS") || held.has("ArrowDown") ? -1 : 0);
+
+      player.yawTarget = rawYaw;
+      player.pitchTarget = rawPitch;
+    }
+
+    // State
+    const state = {
+      phase: "idle",
+      roundTime: 0,
+      lastReal: performance.now(),
+      acc: 0,
+    };
+
+    function setPhase(p){
+      state.phase = p;
+      statusTextEl.textContent =
+        p === "idle" ? "Bereit" :
+        p === "running" ? "Läuft" :
+        p === "paused" ? "Pausiert" : "Runde vorbei";
+    }
+
+    function showOverlay(title, html){
+      overlay.querySelector(".title").textContent = title;
+      overlay.querySelector(".desc").innerHTML = html;
+      overlay.style.display = "flex";
+    }
+
+    // Round control
+    function resetPlayer(){
+      player.alive = true;
+      player.pos.set(-CONFIG.ARENA_W*0.25, CONFIG.ARENA_H*0.45, 0);
+
+      player.yaw = 0;
+      player.pitch = 0;
+
+      player.yawTarget = 0;
+      player.pitchTarget = 0;
+      player.yawInput = 0;
+      player.pitchInput = 0;
+
+      player.gapUntil = 0;
+      player.nextGapAt = Infinity;
+
+      // ====== KEY FIX ======
+      player.safeUntil = state.roundTime + CONFIG.START_GRACE_SEC;
+      player.noDrawUntil = state.roundTime + CONFIG.SPAWN_NODRAW;
+
+      player.lastSegPoint.copy(player.pos);
+
+      if (chkGaps.checked) scheduleNextGap();
+    }
+
+    function resetRound(){
+      clearTrail();
+      resetPlayer();
+    }
+
+    function startRound(){
+      overlay.style.display = "none";
+      state.roundTime = 0;
+      state.acc = 0;
+      state.lastReal = performance.now();
+
+      resetRound();
+      setPhase("running");
+      requestAnimationFrame(loop);
+    }
+
+    function endRound(reason){
+      setPhase("roundOver");
+      showOverlay("Runde vorbei",
+        `<strong class="danger">Grund:</strong> ${reason}<br>Drücke <span class="kbd">Enter</span> für Neustart.`
+      );
+    }
+
+    function togglePause(){
+      if (state.phase === "running"){
+        setPhase("paused");
+        showOverlay("Pause", `Weiter mit <span class="kbd">Space</span>.`);
+      } else if (state.phase === "paused"){
+        overlay.style.display = "none";
+        setPhase("running");
+        state.lastReal = performance.now();
+        requestAnimationFrame(loop);
+      }
+    }
+
+    btnStart.addEventListener("click", startRound);
+    btnOverlayStart.addEventListener("click", startRound);
+    btnOverlayHide.addEventListener("click", () => overlay.style.display = "none");
+    btnPause.addEventListener("click", togglePause);
+    btnClear.addEventListener("click", () => { clearTrail(); player.lastSegPoint.copy(player.pos); });
+
+    // Movement + Camera
+    function forwardVector(){
+      const cp = Math.cos(player.pitch);
+      const sp = Math.sin(player.pitch);
+      const cy = Math.cos(player.yaw);
+      const sy = Math.sin(player.yaw);
+      return new THREE.Vector3(cp * cy, sp, cp * sy).normalize();
+    }
+
+    function updateCamera(){
+      const eyeOffset = new THREE.Vector3(0, 2.2, 0);
+      camera.position.copy(player.pos).add(eyeOffset);
+
+      const fwd = forwardVector();
+      const look = player.pos.clone().add(fwd.multiplyScalar(40));
+      camera.lookAt(look.x, look.y, look.z);
+    }
+
+    // Step
+    function step(dt){
+      if (!player.alive) return;
+
+      updateTurnTargets();
+      updateGapState();
+
+      player.yawInput   += (player.yawTarget   - player.yawInput)   * CONFIG.INPUT_SMOOTH;
+      player.pitchInput += (player.pitchTarget - player.pitchInput) * CONFIG.INPUT_SMOOTH;
+
+      player.yaw   += player.yawInput   * yawRateRadPerSec()   * dt;
+      player.pitch += player.pitchInput * pitchRateRadPerSec() * dt;
+      player.pitch = clamp(player.pitch, -CONFIG.PITCH_LIMIT, CONFIG.PITCH_LIMIT);
+
+      const sp = speedUnitsPerSec();
+      const fwd = forwardVector();
+      player.pos.addScaledVector(fwd, sp * dt);
+
+      if (!handleBounds()){
+        player.alive = false;
+        endRound("Wand");
+        return;
+      }
+
+      const armed = state.roundTime >= player.safeUntil;
+
+      if (armed){
+        if (selfCollidesAt(player.pos.x, player.pos.y, player.pos.z, CONFIG.HEAD_RADIUS)){
+          player.alive = false;
+          endRound("Spur");
+          return;
+        }
+      }
+
+      const inGap = state.roundTime < player.gapUntil;
+      const drawingAllowed = !inGap && state.roundTime >= player.noDrawUntil;
+
+      if (drawingAllowed){
+        const last = player.lastSegPoint;
+        const dist = last.distanceTo(player.pos);
+
+        if (dist >= CONFIG.SEGMENT_LEN_TARGET){
+          addTubeSegment(last.clone(), player.pos.clone(), tubeRadius(), state.roundTime);
+          player.lastSegPoint.copy(player.pos);
+        }
+      } else {
+        player.lastSegPoint.copy(player.pos);
+      }
+
+      updateCamera();
+    }
+
+    // Loop
+    function loop(){
+      if (state.phase !== "running"){
+        renderer.render(scene, camera);
+        return;
+      }
+
+      const nowMs = performance.now();
+      const dtReal = Math.min(0.05, (nowMs - state.lastReal) / 1000);
+      state.lastReal = nowMs;
+      state.acc += dtReal;
+
+      while (state.acc >= CONFIG.FIXED_STEP){
+        state.roundTime += CONFIG.FIXED_STEP;
+        step(CONFIG.FIXED_STEP);
+        state.acc -= CONFIG.FIXED_STEP;
+        if (state.phase !== "running") break;
+      }
+
+      renderer.render(scene, camera);
+      if (state.phase === "running") requestAnimationFrame(loop);
+    }
+
+    // Resize
+    function onResize(){
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener("resize", onResize);
+    onResize();
+
+    // Boot
+    function boot(){
+      setPhase("idle");
+      updateCamera();
+      renderer.render(scene, camera);
+
+      showOverlay(
+        "Mini Curve Fever 3D",
+        `Start-Fix aktiv.<br>
+         <span class="kbd">Enter</span> startet.`
+      );
+    }
+    boot();
+
+  })();
+  </script>
+</body>
+</html>

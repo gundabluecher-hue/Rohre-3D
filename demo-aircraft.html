@@ -1,0 +1,189 @@
+/**
+* DEMO-AIRCRAFT.JS - Demo für Flugzeug & Projektil-System
+* Zeigt wie das System verwendet wird
+*/
+
+import { AircraftMesh } from './js/entities/aircraft-mesh.js';
+import { Player } from './js/entities/player.js';
+import { ProjectileSystem } from './js/systems/projectile-system.js';
+import { ParticlePool } from './js/rendering/particle-pool.js';
+import { spawnCollectEffect } from './js/systems/projectile-effects.js';
+
+// === Setup ===
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 8000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Beleuchtung
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(100, 200, 100);
+scene.add(dirLight);
+
+// === Partikel-Pool ===
+const particlePool = new ParticlePool(scene, 1000);
+
+// === Projektil-System ===
+const projectileSystem = new ProjectileSystem(scene, particlePool);
+
+// === Spieler erstellen ===
+const player1 = new Player(1, 0x3b82f6); // Blau
+player1.pos.set(-200, 100, 0);
+
+const player2 = new Player(2, 0xf59e0b); // Orange
+player2.pos.set(200, 100, 0);
+
+const players = [player1, player2];
+
+// === Flugzeuge erstellen ===
+players.forEach(player => {
+player.aircraftMesh = new AircraftMesh(player.color);
+scene.add(player.aircraftMesh);
+player.updateMesh();
+});
+
+// Kamera-Position
+camera.position.set(0, 150, 500);
+camera.lookAt(0, 100, 0);
+
+// === Power-Types (vereinfacht) ===
+const DEMO_POWER_TYPES = {
+speed_up: {
+id: 'speed_up',
+name: 'Schneller',
+icon: '⚡',
+color: 0x22c55e,
+apply: (p) => {
+console.log(`${p.id} ist jetzt schneller!`);
+p.mod.speed = 1.5;
+}
+},
+slow_down: {
+id: 'slow_down',
+name: 'Langsamer',
+icon: '🐢',
+color: 0x8b5cf6,
+apply: (p) => {
+console.log(`${p.id} ist jetzt langsamer!`);
+p.mod.speed = 0.6;
+}
+},
+fat: {
+id: 'fat',
+name: 'Dick',
+icon: '🧱',
+color: 0xf59e0b,
+apply: (p) => {
+console.log(`${p.id} hat jetzt dickere Spur!`);
+p.mod.thickness = 2.2;
+}
+}
+};
+
+// === Inventar befüllen (Demo) ===
+player1.inventory.push({ id: 'inv1', typeId: 'speed_up' });
+player1.inventory.push({ id: 'inv2', typeId: 'slow_down' });
+player2.inventory.push({ id: 'inv3', typeId: 'fat' });
+
+// === Input ===
+const keys = {};
+document.addEventListener('keydown', (e) => {
+keys[e.code] = true;
+
+// Player 1 schießt (Space)
+if (e.code === 'Space') {
+const item = player1.inventory[player1.selectedSlot];
+if (item) {
+const powerType = DEMO_POWER_TYPES[item.typeId];
+if (projectileSystem.shoot(player1, powerType)) {
+player1.removeFromInventory(player1.selectedSlot);
+console.log('Player 1 schießt!');
+}
+}
+}
+
+// Player 2 schießt (Enter)
+if (e.code === 'Enter') {
+const item = player2.inventory[player2.selectedSlot];
+if (item) {
+const powerType = DEMO_POWER_TYPES[item.typeId];
+if (projectileSystem.shoot(player2, powerType)) {
+player2.removeFromInventory(player2.selectedSlot);
+console.log('Player 2 schießt!');
+}
+}
+}
+});
+
+document.addEventListener('keyup', (e) => {
+keys[e.code] = false;
+});
+
+// === Animation ===
+let lastTime = performance.now();
+
+function animate() {
+requestAnimationFrame(animate);
+
+const now = performance.now();
+const dt = Math.min((now - lastTime) / 1000, 0.1);
+lastTime = now;
+
+// === Spieler-Bewegung (vereinfacht) ===
+
+// Player 1 (WASD)
+if (keys['KeyW']) player1.pos.z -= 100 * dt;
+if (keys['KeyS']) player1.pos.z += 100 * dt;
+if (keys['KeyA']) player1.pos.x -= 100 * dt;
+if (keys['KeyD']) player1.pos.x += 100 * dt;
+
+// Player 2 (Arrow Keys)
+if (keys['ArrowUp']) player2.pos.z -= 100 * dt;
+if (keys['ArrowDown']) player2.pos.z += 100 * dt;
+if (keys['ArrowLeft']) player2.pos.x -= 100 * dt;
+if (keys['ArrowRight']) player2.pos.x += 100 * dt;
+
+// Rotation (Demo - Spieler zeigt immer vorwärts)
+const time = now / 1000;
+player1.q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.sin(time * 0.5) * 0.3);
+player2.q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.cos(time * 0.5) * 0.3 + Math.PI);
+
+// === Update Flugzeuge ===
+players.forEach(player => player.updateMesh());
+
+// === Update Projektile ===
+projectileSystem.update(dt, players, [], (target, powerType) => {
+console.log(`TREFFER! ${target.id} wurde mit ${powerType.name} getroffen!`);
+if (powerType.apply) {
+powerType.apply(target);
+}
+});
+
+// === Update Partikel ===
+particlePool.update(dt);
+
+// === Rendering ===
+renderer.render(scene, camera);
+}
+
+animate();
+
+// === Info ===
+console.log(`
+🎮 DEMO CONTROLS:
+
+Player 1 (Blau):
+- Bewegung: W/A/S/D
+- Schießen: Space
+
+Player 2 (Orange):
+- Bewegung: Arrow Keys
+- Schießen: Enter
+
+Projektile haben Item-Effekte!
+Triff den Gegner und sieh was passiert! 🎯
+`);

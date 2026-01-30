@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini Curve Fever 3D – Schachbrett-Tunnel + Arena (Open Ends)</title>
+  <style>
+    :root{
+      --panel:#0b1324cc;
+      --border:#1f2937;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --accent:#60a5fa;
+      --danger:#f87171;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0; overflow:hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: radial-gradient(1200px 800px at 10% 10%, #132033 0%, #0b0f14 55%, #070b12 100%);
+      color:var(--text);
+    }
+
+    #ui{
+      position:fixed; inset:16px auto auto 16px;
+      width:330px; z-index:10;
+      background: linear-gradient(180deg, var(--panel), #0b1220cc);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:14px 14px 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    h1{font-size:16px; margin:0 0 6px 0;}
+    .sub{font-size:11px; color:var(--muted); line-height:1.35; margin:0 0 10px 0;}
+    .row{
+      display:grid; grid-template-columns: 1fr auto;
+      gap:10px; align-items:center;
+      padding:8px 0; border-top:1px dashed #1f2937;
+    }
+    .row:first-of-type{border-top:none;}
+    label{font-size:11px; color:var(--muted);}
+    input[type="checkbox"]{width:18px;height:18px; accent-color: var(--accent);}
+    input[type="range"]{width:150px;}
+    button{
+      appearance:none; border:1px solid #25324a;
+      background: linear-gradient(180deg, #0f1b2f 0%, #0b1324 100%);
+      color:var(--text);
+      padding:8px 10px; border-radius:10px;
+      font-weight:600; font-size:11px; cursor:pointer;
+      margin-right:6px;
+    }
+    button.ghost{background:transparent;}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      border:1px solid #233047; background:#0b1324;
+      border-radius:999px; padding:5px 9px;
+      font-size:10px; color:var(--muted);
+      margin:0 6px 6px 0;
+    }
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      font-size:10px; padding:1px 5px;
+      border-radius:6px; background:#0a0f1d;
+      border:1px solid #223047; color:#cbd5e1;
+    }
+
+    #status{
+      position:fixed; right:16px; top:16px; z-index:10;
+      background: #0b1324cc; border:1px solid var(--border);
+      border-radius:999px; padding:6px 10px;
+      font-size:11px; color:var(--muted);
+      backdrop-filter: blur(8px);
+    }
+    #status strong{color:var(--text);}
+    #timerHud{
+      position:fixed; right:16px; top:50px; z-index:10;
+      background: #0b1324cc; border:1px solid var(--border);
+      border-radius:999px; padding:6px 10px;
+      font-size:11px; color:var(--muted);
+      backdrop-filter: blur(8px);
+    }
+    #timerHud strong{color:var(--text);}
+
+    #proximityHud{
+      position:fixed;
+      left:50%; top:50%;
+      transform: translate(-50%, -50%);
+      z-index:11;
+      pointer-events:none;
+      display:flex; align-items:center; justify-content:center;
+      width:180px; height:180px;
+      background: transparent;
+    }
+    #proximitySvg{
+      width:140px; height:140px;
+      filter: drop-shadow(0 8px 18px rgba(0,0,0,.35));
+    }
+    .hudCircle{
+      fill: transparent;
+      stroke: #223047;
+      stroke-width: 5;
+      opacity: 0.9;
+    }
+    .hudCross{
+      stroke: var(--accent);
+      stroke-width: 6;
+      stroke-linecap: round;
+      transition: stroke 0.12s ease, opacity 0.12s ease;
+      opacity: 0.7;
+    }
+    .hudText{
+      font-size: 12px;
+      font-weight: 800;
+      fill: #e5e7eb;
+      paint-order: stroke;
+      stroke: rgba(0,0,0,0.55);
+      stroke-width: 2.5px;
+      letter-spacing: 0.4px;
+    }
+
+    #overlay{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      padding:24px; z-index:20;
+      background: transparent;
+    }
+    .card{
+      width:min(92%,580px);
+      background: linear-gradient(180deg, #0b1324ee, #0a1120ee);
+      border:1px solid #223047; border-radius:18px;
+      padding:22px 22px 18px;
+      text-align:center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      backdrop-filter: blur(8px);
+    }
+    .title{font-size:22px; margin:0 0 8px 0;}
+    .desc{font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 14px 0;}
+    .danger{color:var(--danger);}
+    .overlayRow{display:flex; gap:8px; justify-content:center; flex-wrap:wrap;}
+
+    @media (max-width: 820px){
+      #ui{width:290px;}
+      #proximityHud{ width:150px; height:150px; }
+      #proximitySvg{ width:120px; height:120px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="ui">
+    <h1>Mini Curve Fever 3D</h1>
+    <p class="sub">
+      <strong>Schachbrett-Arena + Schachbrett-Tunnel</strong>.<br>
+      <strong>Hart-Blöcke</strong>: sofort tot.<br>
+      <strong>Schaumstoff</strong>: weich + elastisch.<br>
+      <strong>Tunnel-Ausgänge sind offen</strong>.
+    </p>
+
+    <div>
+      <span class="pill">Yaw: <span class="kbd">A</span>/<span class="kbd">D</span></span>
+      <span class="pill">Pitch: <span class="kbd">W</span>/<span class="kbd">S</span> oder <span class="kbd">↑</span>/<span class="kbd">↓</span></span>
+      <span class="pill">Pause: <span class="kbd">Space</span></span>
+      <span class="pill">Neu: <span class="kbd">Enter</span></span>
+    </div>
+
+    <div style="margin-top:6px;">
+      <button id="btnStart">Start / Neustart</button>
+      <button id="btnPause" class="ghost">Pause</button>
+      <button id="btnClear" class="ghost">Spur löschen</button>
+    </div>
+
+    <div class="row">
+      <label for="chkSnap90">90°-Schnelldrehen</label>
+      <input id="chkSnap90" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="chkGaps">Zufällige Lücken</label>
+      <input id="chkGaps" type="checkbox" checked />
+    </div>
+    <div class="row">
+      <label for="chkWrap">3D-Wrap (Box)</label>
+      <input id="chkWrap" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="rngSpeed">Geschwindigkeit</label>
+      <input id="rngSpeed" type="range" min="1" max="6" step="1" value="4" />
+    </div>
+    <div class="row">
+      <label for="rngTurnYaw">Yaw-Empfindlichkeit</label>
+      <input id="rngTurnYaw" type="range" min="1" max="10" step="1" value="6" />
+    </div>
+    <div class="row">
+      <label for="rngTurnPitch">Pitch-Empfindlichkeit</label>
+      <input id="rngTurnPitch" type="range" min="1" max="10" step="1" value="6" />
+    </div>
+    <div class="row">
+      <label for="rngGapRate">Lücken-Häufigkeit</label>
+      <input id="rngGapRate" type="range" min="1" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="rngGapDur">Lücken-Dauer</label>
+      <input id="rngGapDur" type="range" min="1" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="rngTube">Rohr-Dicke (Spur)</label>
+      <input id="rngTube" type="range" min="2" max="12" step="1" value="7" />
+    </div>
+  </div>
+
+  <div id="status"><strong>Status</strong> <span id="statusText">Bereit</span></div>
+  <div id="timerHud"><strong>Zeit</strong> <span id="timerText">00:00</span></div>
+
+  <div id="proximityHud">
+    <svg id="proximitySvg" viewBox="0 0 100 100">
+      <circle class="hudCircle" cx="50" cy="50" r="34"></circle>
+      <line id="hudH" class="hudCross" x1="38" y1="50" x2="62" y2="50"></line>
+      <line id="hudV" class="hudCross" x1="50" y1="38" x2="50" y2="62"></line>
+      <text id="hudDist" class="hudText" x="50" y="55" text-anchor="middle">--</text>
+    </svg>
+  </div>
+
+  <div id="overlay">
+    <div class="card">
+      <div class="title">Mini Curve Fever 3D</div>
+      <p class="desc">
+        <span class="kbd">Enter</span> startet eine Runde.
+      </p>
+      <div class="overlayRow">
+        <button id="btnOverlayPrimary">Runde starten</button>
+        <button id="btnOverlaySecondary" class="ghost">Overlay ausblenden</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* =========================
+       CONFIG
+    ========================= */
+    const CONFIG = {
+      FIXED_STEP: 1/120,
+
+      // Welt
+      ARENA_W: 2800,
+      ARENA_H: 950,
+      ARENA_D: 2400,
+      WALL_MARGIN: 18,
+
+      // Bewegung
+      SPEED_MAP: [0, 10.0, 14.0, 18.0, 23.0, 28.0, 34.0],
+      SPEED_MULT: 6.0,
+
+      YAW_MIN: 1.1,
+      YAW_MAX: 3.8,
+      PITCH_MIN: 1.0,
+      PITCH_MAX: 3.4,
+
+      INPUT_SMOOTH: 0.55,
+
+      // Spur
+      SEGMENT_LEN_TARGET: 5.0,
+      TUBE_RADIUS_BASE: 3.6,
+      TUBE_RADIUS_MIN: 2.8,
+      HEAD_RADIUS: 3.6,
+
+      // Lücken
+      GAP_INTERVAL_MIN: 0.9,
+      GAP_INTERVAL_MAX: 5.5,
+      GAP_DUR_MIN: 0.06,
+      GAP_DUR_MAX: 0.26,
+
+      // Start/Grace
+      START_GRACE_SEC: 3.0,
+      SPAWN_NODRAW: 0.28,
+
+      // Self collision
+      SELF_IGNORE_BASE: 0.70,
+      SELF_IGNORE_SLOW_EXTRA: 0.45,
+      SELF_IGNORE_MIN: 0.45,
+      SELF_IGNORE_MAX: 1.60,
+      SELF_SKIP_LAST_N: 24,
+      SELF_MIN_SEGMENTS: 22,
+      MAX_SEGMENTS: 9000,
+
+      // Snap
+      SNAP_ANGLE: Math.PI/2,
+
+      // HUD
+      WALL_HUD_MAX_DIST: 300,
+      WALL_HUD_MIN_ARM: 12,
+      WALL_HUD_RADIUS: 34,
+
+      // Inspect
+      INSPECT_MIN_DIST: 120,
+      INSPECT_MAX_DIST: 4500,
+
+      // Tunnel
+      TUNNEL_RADIUS: 160,
+      TUNNEL_SAFE_FACTOR: 0.82,
+      TUNNEL_INFLUENCE_PAD: 1.05,
+
+      // ✅ wichtig für offene Ausgänge
+      TUNNEL_END_FADE: 220,
+
+      // Blöcke
+      HARD_BLOCK_COUNT: 18,
+      FOAM_BLOCK_COUNT: 16,
+      BLOCK_MIN: 28,
+      BLOCK_MAX: 78,
+
+      FOAM_BOUNCE_COOLDOWN: 0.16,
+      FOAM_REFLECT_STRENGTH: 1.0,
+      FOAM_PUSH_EXTRA: 2.4,
+    };
+
+    /* =========================
+       UI refs
+    ========================= */
+    const statusTextEl = document.getElementById("statusText");
+    const timerTextEl = document.getElementById("timerText");
+    const overlay = document.getElementById("overlay");
+
+    const btnStart = document.getElementById("btnStart");
+    const btnPause = document.getElementById("btnPause");
+    const btnClear = document.getElementById("btnClear");
+
+    const btnOverlayPrimary = document.getElementById("btnOverlayPrimary");
+    const btnOverlaySecondary = document.getElementById("btnOverlaySecondary");
+
+    const chkSnap90 = document.getElementById("chkSnap90");
+    const chkGaps = document.getElementById("chkGaps");
+    const chkWrap = document.getElementById("chkWrap");
+    const rngSpeed = document.getElementById("rngSpeed");
+    const rngTurnYaw = document.getElementById("rngTurnYaw");
+    const rngTurnPitch = document.getElementById("rngTurnPitch");
+    const rngGapRate = document.getElementById("rngGapRate");
+    const rngGapDur = document.getElementById("rngGapDur");
+    const rngTube = document.getElementById("rngTube");
+
+    const hudH = document.getElementById("hudH");
+    const hudV = document.getElementById("hudV");
+    const hudDist = document.getElementById("hudDist");
+
+    /* =========================
+       Helpers
+    ========================= */
+    const clamp = (v,min,max) => Math.max(min, Math.min(max, v));
+    const rand = (min,max) => Math.random() * (max - min) + min;
+
+    const smooth01 = (t) => {
+      t = clamp(t, 0, 1);
+      return t * t * (3 - 2 * t);
+    };
+    function eased01(v, min, max){
+      const t = clamp((v - min) / (max - min), 0, 1);
+      return smooth01(t);
+    }
+
+    function speedUnitsPerSec(){
+      const v = Number(rngSpeed.value);
+      const base = CONFIG.SPEED_MAP[v] || CONFIG.SPEED_MAP[3];
+      return base * CONFIG.SPEED_MULT;
+    }
+    function yawRateRadPerSec(){
+      const v = Number(rngTurnYaw.value);
+      const e = eased01(v, 1, 10);
+      return CONFIG.YAW_MIN + (CONFIG.YAW_MAX - CONFIG.YAW_MIN) * e;
+    }
+    function pitchRateRadPerSec(){
+      const v = Number(rngTurnPitch.value);
+      const e = eased01(v, 1, 10);
+      return CONFIG.PITCH_MIN + (CONFIG.PITCH_MAX - CONFIG.PITCH_MIN) * e;
+    }
+    function gapAvgIntervalSec(){
+      const v = Number(rngGapRate.value);
+      const e = eased01(v, 1, 10);
+      return CONFIG.GAP_INTERVAL_MAX + (CONFIG.GAP_INTERVAL_MIN - CONFIG.GAP_INTERVAL_MAX) * e;
+    }
+    function gapDurationSec(){
+      const v = Number(rngGapDur.value);
+      const e = eased01(v, 1, 10);
+      return CONFIG.GAP_DUR_MIN + (CONFIG.GAP_DUR_MAX - CONFIG.GAP_DUR_MIN) * e;
+    }
+    function tubeRadius(){
+      const v = Number(rngTube.value);
+      const r = CONFIG.TUBE_RADIUS_BASE * (v / 7);
+      return Math.max(CONFIG.TUBE_RADIUS_MIN, r);
+    }
+
+    function distPointToSegmentSq3(px, py, pz, ax, ay, az, bx, by, bz){
+      const abx = bx - ax, aby = by - ay, abz = bz - az;
+      const apx = px - ax, apy = py - ay, apz = pz - az;
+      const abLenSq = abx*abx + aby*aby + abz*abz || 1e-9;
+      let t = (apx*abx + apy*aby + apz*abz) / abLenSq;
+      t = clamp(t, 0, 1);
+      const cx = ax + abx * t;
+      const cy = ay + aby * t;
+      const cz = az + abz * t;
+      const dx = px - cx, dy = py - cy, dz = pz - cz;
+      return dx*dx + dy*dy + dz*dz;
+    }
+
+    const tmpAB = new THREE.Vector3();
+    const tmpAP = new THREE.Vector3();
+    function closestPointOnSegment(P, A, B, out){
+      const AB = tmpAB.copy(B).sub(A);
+      const AP = tmpAP.copy(P).sub(A);
+      const len2 = AB.lengthSq() || 1e-9;
+      let t = AP.dot(AB) / len2;
+      t = clamp(t, 0, 1);
+      out.copy(A).addScaledVector(AB, t);
+      return t;
+    }
+
+    /* =========================
+       Timer
+    ========================= */
+    function formatTime(sec){
+      const s = Math.max(0, Math.floor(sec));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return `${String(m).padStart(2,"0")}:${String(r).padStart(2,"0")}`;
+    }
+    function updateTimerUI(){
+      timerTextEl.textContent = formatTime(state.roundTime);
+    }
+
+    /* =========================
+       THREE setup
+    ========================= */
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x070b12, 800, 6500);
+
+    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 16000);
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.32));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.95);
+    sun.position.set(600, 1200, 400);
+    scene.add(sun);
+
+    /* =========================
+       Checker texture generator
+    ========================= */
+    function makeCheckerTexture({
+      size=512, cells=8,
+      c1="#0b1224", c2="#0f1c33",
+      accent=null, accentAlpha=0.14
+    } = {}){
+      const c = document.createElement("canvas");
+      c.width = size; c.height = size;
+      const g = c.getContext("2d");
+
+      const cell = size / cells;
+
+      for (let y=0; y<cells; y++){
+        for (let x=0; x<cells; x++){
+          g.fillStyle = (x+y)%2===0 ? c1 : c2;
+          g.fillRect(x*cell, y*cell, cell, cell);
+
+          if (accent && Math.random() < 0.18){
+            g.fillStyle = accent;
+            g.globalAlpha = accentAlpha;
+            g.fillRect(x*cell, y*cell, cell, cell);
+            g.globalAlpha = 1;
+          }
+        }
+      }
+
+      g.globalAlpha = 0.08;
+      g.strokeStyle = "#ffffff";
+      for (let i=0; i<=cells; i++){
+        const p = i*cell;
+        g.beginPath(); g.moveTo(p,0); g.lineTo(p,size); g.stroke();
+        g.beginPath(); g.moveTo(0,p); g.lineTo(size,p); g.stroke();
+      }
+      g.globalAlpha = 1;
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return tex;
+    }
+
+    /* =========================
+       Arena
+    ========================= */
+    const halfW = CONFIG.ARENA_W / 2;
+    const halfD = CONFIG.ARENA_D / 2;
+    const wallH = CONFIG.ARENA_H;
+
+    const wallLRGeo = new THREE.PlaneGeometry(CONFIG.ARENA_D, wallH);
+    const wallFBGeo = new THREE.PlaneGeometry(CONFIG.ARENA_W, wallH);
+    const floorGeo  = new THREE.PlaneGeometry(CONFIG.ARENA_W, CONFIG.ARENA_D);
+
+    const arenaTex = makeCheckerTexture({
+      cells: 12,
+      c1:"#070d1c",
+      c2:"#0b1630",
+      accent:"#60a5fa",
+      accentAlpha:0.10
+    });
+    arenaTex.repeat.set(6, 3);
+
+    function makeArenaMat(){
+      return new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: arenaTex,
+        roughness: 0.95,
+        metalness: 0.0,
+        side: THREE.DoubleSide
+      });
+    }
+
+    const wallLeft = new THREE.Mesh(wallLRGeo, makeArenaMat());
+    wallLeft.position.set(-halfW, wallH/2, 0);
+    wallLeft.rotation.y = Math.PI/2;
+    scene.add(wallLeft);
+
+    const wallRight = new THREE.Mesh(wallLRGeo, makeArenaMat());
+    wallRight.position.set(halfW, wallH/2, 0);
+    wallRight.rotation.y = -Math.PI/2;
+    scene.add(wallRight);
+
+    const wallFront = new THREE.Mesh(wallFBGeo, makeArenaMat());
+    wallFront.position.set(0, wallH/2, -halfD);
+    scene.add(wallFront);
+
+    const wallBack = new THREE.Mesh(wallFBGeo, makeArenaMat());
+    wallBack.position.set(0, wallH/2, halfD);
+    wallBack.rotation.y = Math.PI;
+    scene.add(wallBack);
+
+    const floorTex = makeCheckerTexture({
+      cells: 16,
+      c1:"#060a16",
+      c2:"#0a1328",
+      accent:"#34d399",
+      accentAlpha:0.08
+    });
+    floorTex.repeat.set(8, 8);
+
+    const floor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: floorTex,
+      roughness: 0.98,
+      metalness: 0.0,
+      side: THREE.DoubleSide
+    }));
+    floor.rotation.x = -Math.PI/2;
+    floor.position.y = 0;
+    scene.add(floor);
+
+    const ceilTex = makeCheckerTexture({
+      cells: 14,
+      c1:"#050913",
+      c2:"#091a2f",
+      accent:"#a78bfa",
+      accentAlpha:0.08
+    });
+    ceilTex.repeat.set(7, 7);
+
+    const ceiling = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: ceilTex,
+      roughness: 0.98,
+      metalness: 0.0,
+      side: THREE.DoubleSide
+    }));
+    ceiling.rotation.x = Math.PI/2;
+    ceiling.position.y = CONFIG.ARENA_H;
+    scene.add(ceiling);
+
+    const boxGeo = new THREE.BoxGeometry(CONFIG.ARENA_W, CONFIG.ARENA_H, CONFIG.ARENA_D);
+    const edges = new THREE.EdgesGeometry(boxGeo);
+    const wire = new THREE.LineSegments(
+      edges,
+      new THREE.LineBasicMaterial({ color: 0x1f2937, transparent:true, opacity:0.22 })
+    );
+    wire.position.set(0, CONFIG.ARENA_H/2, 0);
+    scene.add(wire);
+
+    /* =========================
+       Simple Orbit (inspect)
+    ========================= */
+    class SimpleOrbit {
+      constructor(camera, dom){
+        this.camera = camera;
+        this.dom = dom;
+        this.enabled = false;
+        this.target = new THREE.Vector3(0, CONFIG.ARENA_H * 0.5, 0);
+        this.distance = 1300;
+        this.minDistance = CONFIG.INSPECT_MIN_DIST;
+        this.maxDistance = CONFIG.INSPECT_MAX_DIST;
+        this.yaw = Math.PI * 0.18;
+        this.pitch = Math.PI * 0.16;
+        this._dragging = false;
+        this._lastX = 0; this._lastY = 0;
+
+        this._onDown = (e) => {
+          if (!this.enabled) return;
+          this._dragging = true;
+          this._lastX = e.clientX; this._lastY = e.clientY;
+          this.dom.setPointerCapture?.(e.pointerId);
+        };
+        this._onMove = (e) => {
+          if (!this.enabled || !this._dragging) return;
+          const dx = e.clientX - this._lastX;
+          const dy = e.clientY - this._lastY;
+          this._lastX = e.clientX; this._lastY = e.clientY;
+          const rotSpeed = 0.0052;
+          this.yaw   -= dx * rotSpeed;
+          this.pitch -= dy * rotSpeed;
+          const lim = Math.PI/2 - 0.04;
+          this.pitch = clamp(this.pitch, -lim, lim);
+        };
+        this._onUp = (e) => {
+          if (!this.enabled) return;
+          this._dragging = false;
+          this.dom.releasePointerCapture?.(e.pointerId);
+        };
+        this._onWheel = (e) => {
+          if (!this.enabled) return;
+          e.preventDefault();
+          const zoom = Math.sign(e.deltaY) * 70;
+          this.distance = clamp(this.distance + zoom, this.minDistance, this.maxDistance);
+        };
+
+        dom.addEventListener("pointerdown", this._onDown);
+        dom.addEventListener("pointermove", this._onMove);
+        dom.addEventListener("pointerup", this._onUp);
+        dom.addEventListener("pointercancel", this._onUp);
+        dom.addEventListener("wheel", this._onWheel, { passive:false });
+      }
+      setHome(){
+        this.target.set(0, CONFIG.ARENA_H * 0.5, 0);
+        this.distance = 1300;
+        this.yaw = Math.PI * 0.18;
+        this.pitch = Math.PI * 0.16;
+      }
+      update(){
+        if (!this.enabled) return;
+        const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
+        const cy = Math.cos(this.yaw),   sy = Math.sin(this.yaw);
+        const x = this.target.x + this.distance * cp * cy;
+        const z = this.target.z + this.distance * cp * sy;
+        const y = this.target.y + this.distance * sp;
+        this.camera.position.set(x,y,z);
+        this.camera.lookAt(this.target);
+      }
+    }
+    const orbit = new SimpleOrbit(camera, renderer.domElement);
+
+    /* =========================
+       TUNNELS (checker)
+    ========================= */
+    const tunnels = [];
+    const tunnelGroup = new THREE.Group();
+    scene.add(tunnelGroup);
+
+    function clearTunnels(){
+      while (tunnelGroup.children.length){
+        const m = tunnelGroup.children.pop();
+        if (m.geometry) m.geometry.dispose();
+        if (m.material){
+          const mats = Array.isArray(m.material) ? m.material : [m.material];
+          for (const mm of mats){
+            mm.map?.dispose?.();
+          }
+        }
+      }
+      tunnels.length = 0;
+    }
+
+    function orientMeshToDir(mesh, dir){
+      const up = new THREE.Vector3(0,1,0);
+      const q = new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize());
+      mesh.quaternion.copy(q);
+    }
+
+    function makeTunnelWallMat(){
+      const tex = makeCheckerTexture({
+        cells: 10,
+        c1:"#0a1636",
+        c2:"#183b7a",
+        accent:"#f59e0b",
+        accentAlpha:0.12
+      });
+      tex.repeat.set(10, 2);
+
+      return new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: tex,
+        roughness: 0.25,
+        metalness: 0.2,
+        emissive: new THREE.Color(0x1b4d9a),
+        emissiveIntensity: 1.0,
+        transparent: true,
+        opacity: 0.62,
+        side: THREE.DoubleSide
+      });
+    }
+
+    function makeTunnelSafeMat(){
+      const tex = makeCheckerTexture({
+        cells: 8,
+        c1:"#0a2a1f",
+        c2:"#1d6b55",
+        accent:"#bfe6ff",
+        accentAlpha:0.10
+      });
+      tex.repeat.set(8, 2);
+
+      return new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: tex,
+        roughness: 0.35,
+        metalness: 0.0,
+        emissive: new THREE.Color(0x4fd2ff),
+        emissiveIntensity: 0.85,
+        transparent: true,
+        opacity: 0.50,
+        side: THREE.DoubleSide
+      });
+    }
+
+    function makeBoundaryRingMat(){
+      return new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.2,
+        metalness: 0.1,
+        emissive: new THREE.Color(0x7dd3fc),
+        emissiveIntensity: 1.1,
+        transparent:true,
+        opacity: 0.75
+      });
+    }
+
+    function addTunnel(A, B){
+      const radius = CONFIG.TUNNEL_RADIUS;
+      const safeRadius = radius * CONFIG.TUNNEL_SAFE_FACTOR;
+
+      const dir = new THREE.Vector3().subVectors(B, A);
+      const len = dir.length();
+      const dirN = dir.clone().normalize();
+      const mid = new THREE.Vector3().addVectors(A,B).multiplyScalar(0.5);
+
+      const wallGeo = new THREE.CylinderGeometry(radius, radius, len, 40, 1, true);
+      const wallMesh = new THREE.Mesh(wallGeo, makeTunnelWallMat());
+      wallMesh.position.copy(mid);
+      orientMeshToDir(wallMesh, dirN);
+      tunnelGroup.add(wallMesh);
+
+      const safeGeo = new THREE.CylinderGeometry(safeRadius, safeRadius, len, 32, 1, true);
+      const safeMesh = new THREE.Mesh(safeGeo, makeTunnelSafeMat());
+      safeMesh.position.copy(mid);
+      orientMeshToDir(safeMesh, dirN);
+      tunnelGroup.add(safeMesh);
+
+      // ✅ Ringe NICHT an den Enden
+      const ringMat = makeBoundaryRingMat();
+      const ringCount = Math.max(5, Math.floor(len / 220));
+      for (let i = 1; i < ringCount; i++){
+        const t = i / ringCount;
+        const p = new THREE.Vector3().lerpVectors(A, B, t);
+
+        const torusGeo = new THREE.TorusGeometry(safeRadius, 3.5, 10, 50);
+        const ring = new THREE.Mesh(torusGeo, ringMat);
+        ring.position.copy(p);
+
+        const q = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0,1,0),
+          dirN
+        );
+        ring.quaternion.copy(q);
+        ring.rotateX(Math.PI/2);
+
+        tunnelGroup.add(ring);
+      }
+
+      tunnels.push({
+        A: A.clone(),
+        B: B.clone(),
+        radius,
+        safeRadius,
+        dirN,
+        len
+      });
+    }
+
+    function buildTunnels(){
+      clearTunnels();
+      const y1 = CONFIG.ARENA_H * 0.55;
+      const y2 = CONFIG.ARENA_H * 0.42;
+      const y3 = CONFIG.ARENA_H * 0.62;
+
+      addTunnel(
+        new THREE.Vector3(-980, y1, 0),
+        new THREE.Vector3( 980, y1, 0)
+      );
+
+      addTunnel(
+        new THREE.Vector3(-520, y2, -900),
+        new THREE.Vector3(-520, y2,  900)
+      );
+
+      addTunnel(
+        new THREE.Vector3( 820, y3, -720),
+        new THREE.Vector3(-220, y3,  720)
+      );
+    }
+    buildTunnels();
+
+    const tmpClosest = new THREE.Vector3();
+
+    // ✅ Exit-Fix: keine Kollision außerhalb der Tunnel-Länge
+    function checkTunnelCollision(playerPos){
+      const endFade = CONFIG.TUNNEL_END_FADE;
+
+      for (const t of tunnels){
+        const A = t.A, dirN = t.dirN, len = t.len;
+
+        // axiale Position
+        const AP = new THREE.Vector3().subVectors(playerPos, A);
+        const s = AP.dot(dirN);
+
+        // ✅ außerhalb -> Tunnel ist "nicht zuständig"
+        if (s < 0 || s > len) continue;
+
+        const sClamped = clamp(s, 0, len);
+        tmpClosest.copy(A).addScaledVector(dirN, sClamped);
+
+        const d = tmpClosest.distanceTo(playerPos);
+
+        const influence = t.radius * CONFIG.TUNNEL_INFLUENCE_PAD;
+        if (d > influence) continue;
+
+        // ✅ End-Fade NUR innen
+        const fadeIn  = smooth01(clamp(s / endFade, 0, 1));
+        const fadeOut = smooth01(clamp((len - s) / endFade, 0, 1));
+        const axialFade = Math.min(fadeIn, fadeOut);
+
+        const effectiveSafe =
+          t.safeRadius + (t.radius - t.safeRadius) * (1 - axialFade);
+
+        if (d > effectiveSafe){
+          return { hit:true, reason:"Tunnelwand" };
+        }
+      }
+      return { hit:false, reason:"" };
+    }
+
+    /* =========================
+       Obstacles
+    ========================= */
+    const obstacles = [];
+    const obstacleGroup = new THREE.Group();
+    scene.add(obstacleGroup);
+
+    const hardMat = new THREE.MeshStandardMaterial({
+      color: 0xf87171,
+      roughness: 0.35,
+      metalness: 0.25,
+      emissive: new THREE.Color(0x7a1010),
+      emissiveIntensity: 0.65
+    });
+
+    const foamMat = new THREE.MeshStandardMaterial({
+      color: 0x34d399,
+      roughness: 0.85,
+      metalness: 0.0,
+      emissive: new THREE.Color(0x0b6b4f),
+      emissiveIntensity: 0.25,
+      transparent:true,
+      opacity: 0.78
+    });
+
+    function clearObstacles(){
+      while (obstacleGroup.children.length){
+        const m = obstacleGroup.children.pop();
+        if (m.geometry) m.geometry.dispose();
+      }
+      obstacles.length = 0;
+    }
+
+    function spawnBlock(type){
+      const size = rand(CONFIG.BLOCK_MIN, CONFIG.BLOCK_MAX);
+      const geo = new THREE.BoxGeometry(size, size, size);
+      const mat = type === "hard" ? hardMat : foamMat;
+      const mesh = new THREE.Mesh(geo, mat);
+
+      const halfWm = CONFIG.ARENA_W/2 - CONFIG.WALL_MARGIN - 140;
+      const halfDm = CONFIG.ARENA_D/2 - CONFIG.WALL_MARGIN - 140;
+
+      mesh.position.set(
+        rand(-halfWm, halfWm),
+        rand(CONFIG.ARENA_H*0.18, CONFIG.ARENA_H*0.82),
+        rand(-halfDm, halfDm)
+      );
+      mesh.rotation.set(rand(0,Math.PI), rand(0,Math.PI), rand(0,Math.PI));
+      obstacleGroup.add(mesh);
+
+      const radius = size * 0.62;
+      obstacles.push({ type, mesh, radius });
+    }
+
+    function buildObstacles(){
+      clearObstacles();
+      for (let i=0; i<CONFIG.HARD_BLOCK_COUNT; i++) spawnBlock("hard");
+      for (let i=0; i<CONFIG.FOAM_BLOCK_COUNT; i++) spawnBlock("foam");
+    }
+    buildObstacles();
+
+    function checkObstacleCollision(playerPos){
+      const headR = CONFIG.HEAD_RADIUS;
+      for (const o of obstacles){
+        const c = o.mesh.position;
+        const dx = playerPos.x - c.x;
+        const dy = playerPos.y - c.y;
+        const dz = playerPos.z - c.z;
+        const rr = (o.radius + headR) ** 2;
+        const d2 = dx*dx + dy*dy + dz*dz;
+        if (d2 <= rr){
+          return { hit:true, type:o.type, obstacle:o };
+        }
+      }
+      return { hit:false };
+    }
+
+    /* =========================
+       Player + Trail
+    ========================= */
+    const player = {
+      alive: true,
+      pos: new THREE.Vector3(0, 40, 0),
+      q: new THREE.Quaternion(),
+
+      yawTarget: 0,
+      pitchTarget: 0,
+      yawInput: 0,
+      pitchInput: 0,
+
+      gapUntil: 0,
+      nextGapAt: Infinity,
+
+      safeUntil: 0,
+      noDrawUntil: 0,
+
+      lastSegPoint: new THREE.Vector3(),
+
+      foamCooldownUntil: 0,
+    };
+
+    const trailGroup = new THREE.Group();
+    scene.add(trailGroup);
+
+    const segmentMaterial = new THREE.MeshStandardMaterial({
+      color: 0x60a5fa,
+      roughness: 0.35,
+      metalness: 0.25,
+      emissive: new THREE.Color(0x1b4d9a),
+      emissiveIntensity: 0.55
+    });
+
+    const segments = [];
+
+    function clearTrail(){
+      for (const s of segments){
+        if (s.mesh) trailGroup.remove(s.mesh);
+        if (s.mesh?.geometry) s.mesh.geometry.dispose();
+      }
+      segments.length = 0;
+    }
+
+    function addTubeSegment(a, b, r, t){
+      const dirV = new THREE.Vector3().subVectors(b, a);
+      const len = dirV.length();
+      if (len < 0.001) return;
+
+      const geo = new THREE.CylinderGeometry(r, r, len, 14, 1, false);
+      const mesh = new THREE.Mesh(geo, segmentMaterial);
+
+      const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+      mesh.position.copy(mid);
+
+      const up = new THREE.Vector3(0, 1, 0);
+      const dirN = dirV.clone().normalize();
+      const axis = new THREE.Vector3().copy(up).cross(dirN);
+      const axisLen = axis.length();
+      const angle = Math.acos(clamp(up.dot(dirN), -1, 1));
+
+      if (axisLen > 1e-6){
+        axis.normalize();
+        mesh.quaternion.setFromAxisAngle(axis, angle);
+      }
+
+      trailGroup.add(mesh);
+
+      segments.push({
+        ax:a.x, ay:a.y, az:a.z,
+        bx:b.x, by:b.y, bz:b.z,
+        r, t, mesh
+      });
+
+      if (segments.length > CONFIG.MAX_SEGMENTS){
+        const old = segments.shift();
+        if (old.mesh) trailGroup.remove(old.mesh);
+        if (old.mesh?.geometry) old.mesh.geometry.dispose();
+      }
+    }
+
+    /* =========================
+       Gap scheduling
+    ========================= */
+    function scheduleNextGap(){
+      const avg = gapAvgIntervalSec();
+      const jitter = avg * 0.5;
+      player.nextGapAt = state.roundTime + rand(avg - jitter, avg + jitter);
+    }
+
+    function updateGapState(){
+      if (!chkGaps.checked){
+        player.gapUntil = 0;
+        player.nextGapAt = Infinity;
+        return;
+      }
+      if (!isFinite(player.nextGapAt)) scheduleNextGap();
+
+      if (state.roundTime >= player.gapUntil && state.roundTime >= player.nextGapAt){
+        player.gapUntil = state.roundTime + gapDurationSec();
+        scheduleNextGap();
+      }
+    }
+
+    /* =========================
+       Self-collision
+    ========================= */
+    function computeSelfIgnoreSec(){
+      const sp = speedUnitsPerSec();
+      const ref = (CONFIG.SPEED_MAP[3] || 18) * CONFIG.SPEED_MULT;
+      const speedMul = clamp(sp / ref, 0.35, 2.6);
+      const extraSlow = (1 / speedMul) * CONFIG.SELF_IGNORE_SLOW_EXTRA;
+      const sec = CONFIG.SELF_IGNORE_BASE + extraSlow;
+      return clamp(sec, CONFIG.SELF_IGNORE_MIN, CONFIG.SELF_IGNORE_MAX);
+    }
+
+    function selfCollidesAt(pos){
+      if (segments.length < CONFIG.SELF_MIN_SEGMENTS) return false;
+
+      const ignore = computeSelfIgnoreSec();
+      const cutoff = state.roundTime - ignore;
+
+      const r = CONFIG.HEAD_RADIUS + tubeRadius() * 0.75;
+      const endIndex = Math.max(0, segments.length - CONFIG.SELF_SKIP_LAST_N);
+
+      for (let i = 0; i < endIndex; i++){
+        const s = segments[i];
+        if (s.t > cutoff) continue;
+
+        const d2 = distPointToSegmentSq3(
+          pos.x,pos.y,pos.z,
+          s.ax,s.ay,s.az,
+          s.bx,s.by,s.bz
+        );
+        if (d2 <= r*r) return true;
+      }
+      return false;
+    }
+
+    /* =========================
+       Bounds
+    ========================= */
+    function handleBounds(){
+      const halfW2 = CONFIG.ARENA_W/2 - CONFIG.WALL_MARGIN;
+      const halfH2 = CONFIG.ARENA_H - CONFIG.WALL_MARGIN;
+      const halfD2 = CONFIG.ARENA_D/2 - CONFIG.WALL_MARGIN;
+
+      if (chkWrap.checked){
+        if (player.pos.x < -halfW2) player.pos.x = halfW2;
+        else if (player.pos.x > halfW2) player.pos.x = -halfW2;
+
+        if (player.pos.z < -halfD2) player.pos.z = halfD2;
+        else if (player.pos.z > halfD2) player.pos.z = -halfD2;
+
+        if (player.pos.y < CONFIG.WALL_MARGIN) player.pos.y = halfH2;
+        else if (player.pos.y > halfH2) player.pos.y = CONFIG.WALL_MARGIN;
+
+        return true;
+      } else {
+        if (player.pos.x < -halfW2 || player.pos.x > halfW2) return false;
+        if (player.pos.z < -halfD2 || player.pos.z > halfD2) return false;
+        if (player.pos.y < CONFIG.WALL_MARGIN || player.pos.y > halfH2) return false;
+        return true;
+      }
+    }
+
+    /* =========================
+       Orientation + Camera
+    ========================= */
+    const BASE_FORWARD = new THREE.Vector3(1, 0, 0);
+    const BASE_UP      = new THREE.Vector3(0, 1, 0);
+    const BASE_RIGHT   = new THREE.Vector3(0, 0, 1);
+
+    const tmpUp = new THREE.Vector3();
+    const tmpRight = new THREE.Vector3();
+    const tmpForward = new THREE.Vector3();
+    const tmpN = new THREE.Vector3();
+    const axisTmp = new THREE.Vector3();
+
+    const qYaw = new THREE.Quaternion();
+    const qPitch = new THREE.Quaternion();
+    const qSnap = new THREE.Quaternion();
+
+    function forwardVector(){
+      return tmpForward.copy(BASE_FORWARD).applyQuaternion(player.q).normalize();
+    }
+
+    function setOrientationFromForward(desired){
+      const d = desired.clone().normalize();
+      const base = BASE_FORWARD;
+      let dot = clamp(base.dot(d), -1, 1);
+
+      if (dot > 0.999999){
+        player.q.identity();
+        return;
+      }
+      if (dot < -0.999999){
+        player.q.setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI);
+        return;
+      }
+      axisTmp.copy(base).cross(d).normalize();
+      const angle = Math.acos(dot);
+      player.q.setFromAxisAngle(axisTmp, angle).normalize();
+    }
+
+    function applySnapYaw(dir){
+      tmpUp.copy(BASE_UP).applyQuaternion(player.q).normalize();
+      qSnap.setFromAxisAngle(tmpUp, dir * CONFIG.SNAP_ANGLE);
+      player.q.premultiply(qSnap).normalize();
+    }
+    function applySnapPitch(dir){
+      tmpRight.copy(BASE_RIGHT).applyQuaternion(player.q).normalize();
+      qSnap.setFromAxisAngle(tmpRight, dir * CONFIG.SNAP_ANGLE);
+      player.q.premultiply(qSnap).normalize();
+    }
+
+    function updateCameraFirstPerson(){
+      const upVec = tmpUp.copy(BASE_UP).applyQuaternion(player.q).normalize();
+      camera.up.copy(upVec);
+
+      const eyeOffset = new THREE.Vector3(0, 2.2, 0).applyQuaternion(player.q);
+      camera.position.copy(player.pos).add(eyeOffset);
+
+      const fwd = forwardVector().clone();
+      const look = player.pos.clone().add(fwd.multiplyScalar(60));
+      camera.lookAt(look.x, look.y, look.z);
+    }
+
+    function enterInspect(){
+      orbit.enabled = true;
+      orbit.setHome();
+      orbit.update();
+    }
+    function leaveInspect(){
+      orbit.enabled = false;
+    }
+
+    /* =========================
+       HUD: wall distance
+    ========================= */
+    function getNearestWallMin(pos){
+      const halfWm = CONFIG.ARENA_W / 2 - CONFIG.WALL_MARGIN;
+      const halfDm = CONFIG.ARENA_D / 2 - CONFIG.WALL_MARGIN;
+      const minY = CONFIG.WALL_MARGIN;
+      const maxY = CONFIG.ARENA_H - CONFIG.WALL_MARGIN;
+
+      const dLeft   = pos.x - (-halfWm);
+      const dRight  = (halfWm) - pos.x;
+      const dFront  = pos.z - (-halfDm);
+      const dBack   = (halfDm) - pos.z;
+      const dFloor  = pos.y - minY;
+      const dCeil   = maxY - pos.y;
+
+      return Math.min(dLeft, dRight, dFront, dBack, dFloor, dCeil);
+    }
+
+    function getForwardWallDistance(pos, fwd){
+      const eps = 1e-6;
+
+      const xL = -(CONFIG.ARENA_W/2 - CONFIG.WALL_MARGIN);
+      const xR =  (CONFIG.ARENA_W/2 - CONFIG.WALL_MARGIN);
+      const zF = -(CONFIG.ARENA_D/2 - CONFIG.WALL_MARGIN);
+      const zB =  (CONFIG.ARENA_D/2 - CONFIG.WALL_MARGIN);
+      const yFloor = CONFIG.WALL_MARGIN;
+      const yCeil  = CONFIG.ARENA_H - CONFIG.WALL_MARGIN;
+
+      let best = Infinity;
+
+      if (Math.abs(fwd.x) > eps){
+        const tL = (xL - pos.x) / fwd.x;
+        const tR = (xR - pos.x) / fwd.x;
+        if (tL > 0 && tL < best) best = tL;
+        if (tR > 0 && tR < best) best = tR;
+      }
+      if (Math.abs(fwd.z) > eps){
+        const tF = (zF - pos.z) / fwd.z;
+        const tB = (zB - pos.z) / fwd.z;
+        if (tF > 0 && tF < best) best = tF;
+        if (tB > 0 && tB < best) best = tB;
+      }
+      if (Math.abs(fwd.y) > eps){
+        const tFl = (yFloor - pos.y) / fwd.y;
+        const tCe = (yCeil  - pos.y) / fwd.y;
+        if (tFl > 0 && tFl < best) best = tFl;
+        if (tCe > 0 && tCe < best) best = tCe;
+      }
+      return isFinite(best) ? best : Infinity;
+    }
+
+    function updateProximityHud(){
+      const dist = Math.max(0, getNearestWallMin(player.pos));
+      const t = smooth01(1 - dist / CONFIG.WALL_HUD_MAX_DIST);
+
+      const R = CONFIG.WALL_HUD_RADIUS;
+      const Lmin = CONFIG.WALL_HUD_MIN_ARM;
+      const L = Lmin + (R - Lmin) * t;
+
+      hudH.setAttribute("x1", (50 - L).toFixed(2));
+      hudH.setAttribute("x2", (50 + L).toFixed(2));
+      hudV.setAttribute("y1", (50 - L).toFixed(2));
+      hudV.setAttribute("y2", (50 + L).toFixed(2));
+
+      const color =
+        t > 0.85 ? "#f87171" :
+        t > 0.55 ? "#fbbf24" :
+        "#60a5fa";
+
+      hudH.style.stroke = color;
+      hudV.style.stroke = color;
+
+      const op = 0.22 + 0.78 * t;
+      hudH.style.opacity = op.toFixed(2);
+      hudV.style.opacity = op.toFixed(2);
+
+      const fwd = forwardVector().clone();
+      const dFwd = getForwardWallDistance(player.pos, fwd);
+      hudDist.textContent = isFinite(dFwd) ? `${Math.max(0, Math.round(dFwd))}` : "--";
+    }
+
+    /* =========================
+       Foam bounce
+    ========================= */
+    function applyFoamBounce(ob){
+      const nowT = state.roundTime;
+      if (nowT < player.foamCooldownUntil) return;
+
+      const c = ob.mesh.position;
+      const normal = tmpN.copy(player.pos).sub(c);
+      const nLen = normal.length();
+
+      if (nLen < 1e-4){
+        normal.copy(forwardVector()).multiplyScalar(-1);
+      } else {
+        normal.multiplyScalar(1 / nLen);
+      }
+
+      const pushDist = ob.radius + CONFIG.HEAD_RADIUS + CONFIG.FOAM_PUSH_EXTRA;
+      player.pos.copy(c).addScaledVector(normal, pushDist);
+
+      const fwd = forwardVector().clone();
+      const dot = fwd.dot(normal);
+      const refl = fwd.sub(normal.multiplyScalar(2 * dot * CONFIG.FOAM_REFLECT_STRENGTH)).normalize();
+
+      setOrientationFromForward(refl);
+
+      player.lastSegPoint.copy(player.pos);
+      player.noDrawUntil = Math.max(player.noDrawUntil, nowT + 0.08);
+      player.safeUntil = Math.max(player.safeUntil, nowT + 0.14);
+
+      player.foamCooldownUntil = nowT + CONFIG.FOAM_BOUNCE_COOLDOWN;
+    }
+
+    /* =========================
+       State + Overlay
+    ========================= */
+    const state = {
+      phase: "idle",  // idle | running | paused | inspect
+      roundTime: 0,
+      lastReal: performance.now(),
+      acc: 0,
+    };
+
+    function setPhase(p){
+      state.phase = p;
+      statusTextEl.textContent =
+        p === "idle" ? "Bereit" :
+        p === "running" ? "Läuft" :
+        p === "paused" ? "Pausiert" :
+        "Betrachten";
+    }
+
+    let overlayPrimaryAction = null;
+    let overlaySecondaryAction = null;
+
+    function showOverlay(title, html, mode){
+      overlay.querySelector(".title").textContent = title;
+      overlay.querySelector(".desc").innerHTML = html;
+      overlay.style.display = "flex";
+
+      if (mode === "start"){
+        btnOverlayPrimary.textContent = "Runde starten";
+        btnOverlaySecondary.textContent = "Overlay ausblenden";
+        overlayPrimaryAction = () => startRound();
+        overlaySecondaryAction = () => overlay.style.display = "none";
+      } else if (mode === "pause"){
+        btnOverlayPrimary.textContent = "Weiter";
+        btnOverlaySecondary.textContent = "Overlay ausblenden";
+        overlayPrimaryAction = () => togglePause();
+        overlaySecondaryAction = () => overlay.style.display = "none";
+      } else if (mode === "inspect"){
+        btnOverlayPrimary.textContent = "Nächste Runde starten";
+        btnOverlaySecondary.textContent = "Betrachten";
+        overlayPrimaryAction = () => startRound();
+        overlaySecondaryAction = () => overlay.style.display = "none";
+      } else {
+        btnOverlayPrimary.textContent = "OK";
+        btnOverlaySecondary.textContent = "Schließen";
+        overlayPrimaryAction = () => overlay.style.display = "none";
+        overlaySecondaryAction = () => overlay.style.display = "none";
+      }
+    }
+
+    btnOverlayPrimary.addEventListener("click", () => overlayPrimaryAction?.());
+    btnOverlaySecondary.addEventListener("click", () => overlaySecondaryAction?.());
+
+    /* =========================
+       Round control
+    ========================= */
+    function resetPlayer(){
+      player.alive = true;
+
+      // Spawn bewusst in Tunnel 1 Safe-Zone
+      const yMid = CONFIG.ARENA_H * 0.55;
+      player.pos.set(-CONFIG.ARENA_W*0.32, yMid, 0);
+      player.q.identity();
+
+      player.yawTarget = 0;
+      player.pitchTarget = 0;
+      player.yawInput = 0;
+      player.pitchInput = 0;
+
+      player.gapUntil = 0;
+      player.nextGapAt = Infinity;
+
+      player.safeUntil = state.roundTime + CONFIG.START_GRACE_SEC;
+      player.noDrawUntil = state.roundTime + CONFIG.SPAWN_NODRAW;
+
+      player.lastSegPoint.copy(player.pos);
+      player.foamCooldownUntil = 0;
+
+      if (chkGaps.checked) scheduleNextGap();
+
+      updateProximityHud();
+      updateCameraFirstPerson();
+    }
+
+    function resetRound(){
+      clearTrail();
+      resetPlayer();
+    }
+
+    function startRound(){
+      overlay.style.display = "none";
+      leaveInspect();
+
+      state.roundTime = 0;
+      state.acc = 0;
+      state.lastReal = performance.now();
+
+      resetRound();
+      setPhase("running");
+      updateTimerUI();
+    }
+
+    function endRound(reason){
+      player.alive = false;
+      setPhase("inspect");
+      enterInspect();
+
+      showOverlay(
+        "Runde vorbei",
+        `<strong class="danger">Grund:</strong> ${reason}<br><br>
+         Tunnel-Ausgänge sind jetzt offen (keine Kollision außerhalb der Länge).`,
+        "inspect"
+      );
+    }
+
+    function togglePause(){
+      if (state.phase === "running"){
+        setPhase("paused");
+        showOverlay("Pause", `Weiter mit <span class="kbd">Space</span>.`, "pause");
+      } else if (state.phase === "paused"){
+        overlay.style.display = "none";
+        setPhase("running");
+        state.lastReal = performance.now();
+      }
+    }
+
+    btnStart.addEventListener("click", startRound);
+    btnPause.addEventListener("click", togglePause);
+    btnClear.addEventListener("click", () => {
+      if (state.phase === "running" || state.phase === "paused" || state.phase === "idle"){
+        clearTrail();
+        player.lastSegPoint.copy(player.pos);
+      }
+    });
+
+    chkSnap90.addEventListener("change", () => {
+      if (chkSnap90.checked){
+        player.yawTarget = 0; player.pitchTarget = 0;
+        player.yawInput = 0;  player.pitchInput = 0;
+      }
+    });
+
+    /* =========================
+       Input
+    ========================= */
+    const held = new Set();
+
+    window.addEventListener("keydown", (e) => {
+      if (["Space","ArrowUp","ArrowDown"].includes(e.code)) e.preventDefault();
+      held.add(e.code);
+
+      if (e.code === "Space") togglePause();
+      if (e.code === "Enter") startRound();
+
+      if (chkSnap90.checked && !e.repeat && state.phase === "running"){
+        if (e.code === "KeyA") applySnapYaw(+1);
+        if (e.code === "KeyD") applySnapYaw(-1);
+        if (e.code === "KeyW" || e.code === "ArrowUp") applySnapPitch(+1);
+        if (e.code === "KeyS" || e.code === "ArrowDown") applySnapPitch(-1);
+      }
+    });
+    window.addEventListener("keyup", (e) => held.delete(e.code));
+
+    function updateTurnTargets(){
+      const snap = chkSnap90.checked;
+
+      const rawYaw = snap
+        ? 0
+        : (held.has("KeyA") ? 1 : 0) + (held.has("KeyD") ? -1 : 0);
+
+      const rawPitch = snap
+        ? 0
+        : (held.has("KeyW") || held.has("ArrowUp") ? 1 : 0) +
+          (held.has("KeyS") || held.has("ArrowDown") ? -1 : 0);
+
+      player.yawTarget = rawYaw;
+      player.pitchTarget = rawPitch;
+    }
+
+    /* =========================
+       Main step
+    ========================= */
+    const tmpEyeOffset = new THREE.Vector3();
+
+    function step(dt){
+      if (state.phase !== "running") return;
+      if (!player.alive) return;
+
+      updateTurnTargets();
+      updateGapState();
+
+      player.yawInput   += (player.yawTarget   - player.yawInput)   * CONFIG.INPUT_SMOOTH;
+      player.pitchInput += (player.pitchTarget - player.pitchInput) * CONFIG.INPUT_SMOOTH;
+
+      tmpUp.copy(BASE_UP).applyQuaternion(player.q).normalize();
+      tmpRight.copy(BASE_RIGHT).applyQuaternion(player.q).normalize();
+
+      const yawDelta = player.yawInput * yawRateRadPerSec() * dt;
+      const pitchDelta = player.pitchInput * pitchRateRadPerSec() * dt;
+
+      qYaw.setFromAxisAngle(tmpUp, yawDelta);
+      qPitch.setFromAxisAngle(tmpRight, pitchDelta);
+
+      player.q.premultiply(qYaw);
+      player.q.premultiply(qPitch);
+      player.q.normalize();
+
+      const sp = speedUnitsPerSec();
+      const fwd = forwardVector();
+      player.pos.addScaledVector(fwd, sp * dt);
+
+      updateProximityHud();
+
+      if (!handleBounds()){
+        endRound("Wand");
+        return;
+      }
+
+      const tCol = checkTunnelCollision(player.pos);
+      if (tCol.hit){
+        endRound(tCol.reason);
+        return;
+      }
+
+      const oCol = checkObstacleCollision(player.pos);
+      if (oCol.hit){
+        if (oCol.type === "hard"){
+          endRound("Block (hart)");
+          return;
+        } else {
+          applyFoamBounce(oCol.obstacle);
+        }
+      }
+
+      if (state.roundTime >= player.safeUntil){
+        if (selfCollidesAt(player.pos)){
+          endRound("Spur");
+          return;
+        }
+      }
+
+      const inGap = state.roundTime < player.gapUntil;
+      const drawingAllowed = !inGap && state.roundTime >= player.noDrawUntil;
+
+      if (drawingAllowed){
+        const last = player.lastSegPoint;
+        const dist = last.distanceTo(player.pos);
+        if (dist >= CONFIG.SEGMENT_LEN_TARGET){
+          addTubeSegment(last.clone(), player.pos.clone(), tubeRadius(), state.roundTime);
+          player.lastSegPoint.copy(player.pos);
+        }
+      } else {
+        player.lastSegPoint.copy(player.pos);
+      }
+
+      updateCameraFirstPerson();
+    }
+
+    /* =========================
+       Loop
+    ========================= */
+    function animate(){
+      const nowMs = performance.now();
+
+      if (state.phase === "running"){
+        const dtReal = Math.min(0.05, (nowMs - state.lastReal) / 1000);
+        state.lastReal = nowMs;
+        state.acc += dtReal;
+
+        while (state.acc >= CONFIG.FIXED_STEP){
+          state.roundTime += CONFIG.FIXED_STEP;
+          step(CONFIG.FIXED_STEP);
+          state.acc -= CONFIG.FIXED_STEP;
+          if (state.phase !== "running") break;
+        }
+        updateTimerUI();
+      }
+
+      if (state.phase === "inspect"){
+        orbit.update();
+      }
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    /* =========================
+       Boot + Resize
+    ========================= */
+    function boot(){
+      setPhase("idle");
+      state.roundTime = 0;
+      updateTimerUI();
+      resetPlayer();
+
+      showOverlay(
+        "Update",
+        `✅ Tunnel-Ausgänge sind jetzt offen.<br>
+         ✅ Schachbrett für Arena & Tunnel.<br>
+         ✅ Blöcke sind aktiv.`,
+        "start"
+      );
+
+      animate();
+    }
+
+    function onResize(){
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener("resize", onResize);
+    onResize();
+
+    boot();
+
+  })();
+  </script>
+</body>
+</html>

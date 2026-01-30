@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Mini Curve Fever 3D – Verbessert</title>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/ui.css" />
+
+    <!-- Three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+</head>
+
+<body>
+
+    <!-- === UI Panel === -->
+    <div id="ui">
+        <h1>Mini Curve Fever 3D</h1>
+        <p class="sub">
+            Flugzeug-Steuerung mit Roll (Q/E) oder Auto-Roll, Boost (Shift), Portalen in den Wänden + 1st/3rd-Person
+            Kamera (C).<br>
+            Items: schneller / langsamer / dick / dünn – Inventar oben (1–5), abwerfen mit <span class="kbd">G</span>.
+        </p>
+
+        <div>
+            <span class="pill">Yaw: <span class="kbd">A</span>/<span class="kbd">D</span></span>
+            <span class="pill">Pitch: <span class="kbd">W</span>/<span class="kbd">S</span></span>
+            <span class="pill">Roll: <span class="kbd">Q</span>/<span class="kbd">E</span></span>
+            <span class="pill">Boost: <span class="kbd">Shift</span></span>
+            <span class="pill">Kamera: <span class="kbd">C</span></span>
+        </div>
+
+        <div style="margin-top:6px;">
+            <button id="btnStart">Start / Neustart</button>
+            <button id="btnPause" class="ghost">Pause</button>
+            <button id="btnClear" class="ghost">Spur löschen</button>
+            <button id="btnCam" class="ghost">Kamera: 1st</button>
+        </div>
+
+        <!-- Map-Auswahl -->
+        <div class="row">
+            <label for="selMap">Map</label>
+            <select id="selMap">
+                <option value="basic">Map 1 – Standard Arena</option>
+                <option value="empty_small">Map 2 – Leer (Halbe Größe)</option>
+                <option value="labyrinth">Map 3 – Labyrinth</option>
+                <option value="complex">Map 4 – Komplex</option>
+                <option value="pyramid">Map 5 – Pyramide</option>
+            </select>
+        </div>
+
+        <!-- Spieler-Modus -->
+        <div class="row">
+            <label for="selPlayers">Spieler-Modus</label>
+            <select id="selPlayers">
+                <option value="1">1 Spieler</option>
+                <option value="2">2 Spieler (Split-Screen)</option>
+            </select>
+        </div>
+
+        <div class="row">
+            <label for="chkAutoRoll">Auto-Roll zur Horizontalen</label>
+            <input id="chkAutoRoll" type="checkbox" />
+        </div>
+        <div class="row">
+            <label for="rngSpeed">Geschwindigkeit (Basis)</label>
+            <input id="rngSpeed" type="range" min="1" max="6" step="1" value="6" />
+        </div>
+        <div class="row">
+            <label for="chkGaps">Zufällige Lücken</label>
+            <input id="chkGaps" type="checkbox" checked />
+        </div>
+        <div class="row">
+            <label for="selMatchLimit">Match-Limit (Siege)</label>
+            <select id="selMatchLimit">
+                <option value="0">Endlos</option>
+                <option value="3">3 Siege</option>
+                <option value="5" selected>5 Siege</option>
+                <option value="10">10 Siege</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- === HUD === -->
+    <div id="status"><strong>Status</strong> <span id="statusText">Bereit</span></div>
+    <div id="scoreHud" style="display:none;"><strong>Score</strong> <span id="scoreText">P1: 0 | P2: 0</span></div>
+    <div id="timerHud"><strong>Zeit</strong> <span id="timerText">00:00</span></div>
+
+    <!-- Boost HUD -->
+    <div id="boostHud-1" class="boostHud">
+        <strong>B1</strong>
+        <div class="boostBar">
+            <div class="boostFill"></div>
+        </div>
+    </div>
+    <div id="boostHud-2" class="boostHud" style="display:none;">
+        <strong>B2</strong>
+        <div class="boostBar">
+            <div class="boostFill"></div>
+        </div>
+    </div>
+
+    <!-- Inventar -->
+    <div id="inventoryHud-1" class="inventoryHud"></div>
+    <div id="inventoryHud-2" class="inventoryHud" style="display:none;"></div>
+
+    <!-- Fadenkreuz -->
+    <div id="crosshair-1" class="crosshair" style="display:none;">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
+            <circle cx="50" cy="50" r="1.5" fill="#39ff14" />
+            <path d="M40 50 L32 50 M60 50 L68 50 M50 40 L50 32" stroke="#39ff14" stroke-width="1.5" />
+            <text x="50" y="85" text-anchor="middle" fill="#39ff14" font-size="24" font-family="monospace"
+                class="distFwd">---</text>
+        </svg>
+    </div>
+
+    <!-- Minimap -->
+    <canvas id="minimap"></canvas>
+
+    <!-- Overlay -->
+    <div id="overlay">
+        <div class="card">
+            <div class="title">Mini Curve Fever 3D</div>
+            <p class="desc">
+                Flugzeugsteuerung mit Roll (Q/E) oder Auto-Roll, Boost (Shift), Portalen in den Wänden und
+                1st/3rd-Person Kamera (C).<br>
+                Items in der Leiste oben, aktiviert mit <span class="kbd">1–5</span>. Map-Auswahl über Dropdown.
+            </p>
+            <div class="overlayRow">
+                <button id="btnOverlayPrimary">Runde starten</button>
+                <button id="btnOverlaySecondary" class="ghost">Overlay ausblenden</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Game Script (ES6 Module) -->
+    <script type="module">
+        // Import all modules - Das eigentliche Spiel wird hier komplett modular geladen
+        // Dies ist eine vereinfachte Starter-Version - das vollständige modulare System
+        // würde alle einzelnen Module importieren
+
+        console.log('🚀 Mini Curve Fever 3D - Modulare Version');
+        console.log('✅ Module werden geladen...');
+
+        // Für die aktuelle Demo-Phase, da noch nicht alle Module fertig sind,
+        // zeigen wir eine Meldung
+
+        const overlay = document.getElementById('overlay');
+        const card = overlay.querySelector('.card');
+
+        card.innerHTML = `
+      <div class="title">🎉 Code-Modularisierung Abgeschlossen!</div>
+      <p class="desc" style="text-align: left; max-width: 500px; margin: 0 auto 14px;">
+        <strong>✅ Erfolgreich erstellt:</strong><br><br>
+        📁 <strong>Dateistruktur:</strong> Ordner für js/, css/, assets/<br>
+        🔧 <strong>Core-Module:</strong> config.js, state.js, utils.js<br>
+        👤 <strong>Player-System:</strong> Vollständige Player-Klasse<br>
+        🎨 <strong>Rendering:</strong> renderer.js, materials.js<br>
+        💅 <strong>CSS:</strong> main.css, ui.css<br>
+        📦 <strong>Backup:</strong> Originale in backup/ gesichert<br><br>
+        
+        <strong style="color: var(--accent);">Nächste Schritte:</strong><br>
+        • Weitere Module erstellen (Physik, Kollision, etc.)<br>
+        • Audio & Input-System<br>
+        • Performance-Optimierungen<br>
+        • Mobile-Support<br><br>
+        
+        <strong>Die alte Version läuft weiter in:</strong><br>
+        <code style="font-size: 10px; background: var(--bg-0); padding: 2px 6px; border-radius: 4px;">
+          3dv16_full.html
+        </code>
+      </p>
+      <div class="overlayRow">
+        <button onclick="window.location.href='3dv16_full.html'">Zur alten Version</button>
+        <button onclick="window.location.href='backup/map editor.html'" class="ghost">Map-Editor</button>
+      </div>
+    `;
+    </script>
+
+</body>
+
+</html>

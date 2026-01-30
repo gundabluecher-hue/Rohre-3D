@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Mini Curve Fever 3D – Map Loader</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --panel:#0b1324cc;
+      --border:#1f2937;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --accent:#60a5fa;
+      --danger:#f97373;
+    }
+    html,body{height:100%;margin:0;overflow:hidden;}
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: radial-gradient(1200px 800px at 10% 10%, #111827 0%, #020617 60%, #020617 100%);
+      color:var(--text);
+    }
+    #ui{
+      position:fixed;left:12px;top:12px;
+      width:290px;z-index:10;
+      background:linear-gradient(180deg,var(--panel),#020617f0);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:10px 12px;
+      box-shadow:0 10px 30px rgba(0,0,0,.5);
+      backdrop-filter:blur(10px);
+      font-size:11px;
+    }
+    #ui h1{
+      margin:0 0 4px 0;font-size:15px;
+    }
+    #ui .sub{
+      margin:0 0 8px 0;font-size:11px;color:var(--muted);line-height:1.4;
+    }
+    button{
+      appearance:none;border:1px solid #25324a;
+      background:linear-gradient(180deg,#0f1b2f,#020617);
+      color:var(--text);
+      padding:6px 8px;border-radius:9px;
+      font-size:11px;font-weight:600;
+      cursor:pointer;margin-right:4px;margin-bottom:4px;
+    }
+    button:disabled{opacity:.5;cursor:default;}
+    .row{margin-top:4px;}
+    .label{color:var(--muted);}
+    #statusBox{
+      margin-top:4px;
+      padding:4px 6px;
+      border-radius:8px;
+      background:#020617;
+      border:1px solid #1f2937;
+      font-size:11px;
+    }
+    #statusBox strong{color:var(--text);}
+    #timer{float:right;color:var(--muted);}
+    .kbd{
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      font-size:10px;padding:0 4px;border-radius:4px;border:1px solid #1f2937;background:#020617;color:#cbd5e1;
+    }
+
+    #overlay{
+      position:fixed;inset:0;
+      display:flex;align-items:center;justify-content:center;
+      padding:24px;z-index:20;
+      background:rgba(0,0,0,.35);
+    }
+    #overlayCard{
+      width:min(90%,480px);
+      background:linear-gradient(180deg,#0b1324ee,#020617f0);
+      border-radius:16px;
+      border:1px solid #1f2937;
+      padding:16px 18px 12px;
+      box-shadow:0 20px 60px rgba(0,0,0,.6);
+      text-align:center;
+      backdrop-filter:blur(10px);
+    }
+    #overlayCard h2{margin:0 0 6px 0;font-size:18px;}
+    #overlayCard p{margin:0 0 10px 0;font-size:12px;color:var(--muted);line-height:1.5;}
+    #overlayButtons{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
+
+    canvas{display:block;}
+
+    input[type="file"]{
+      font-size:10px;
+      max-width:100%;
+      color:var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <h1>Curve 3D – Map</h1>
+    <p class="sub">
+      Lädt eine <strong>map.json</strong>.<br>
+      Steuerung: <span class="kbd">W/S</span> Pitch · <span class="kbd">A/D</span> Yaw · <span class="kbd">Q/E</span> Roll.
+    </p>
+    <div class="row">
+      <button id="btnStart" disabled>Runde starten</button>
+      <button id="btnPause" disabled>Pausieren</button>
+      <button id="btnReset" disabled>Neu</button>
+    </div>
+
+    <div class="row">
+      <div class="label" style="margin-bottom:2px;">Map-Datei laden:</div>
+      <input type="file" id="mapFile" accept=".json,application/json" />
+    </div>
+
+    <div id="statusBox">
+      <div><strong>Status:</strong> <span id="statusText">Lade map.json (falls möglich) …</span></div>
+      <div><span class="label">Zeit:</span> <span id="timer">00:00</span></div>
+      <div class="row"><span class="label">Map:</span> <span id="mapName">–</span></div>
+    </div>
+  </div>
+
+  <div id="overlay" style="display:none;">
+    <div id="overlayCard">
+      <h2 id="overlayTitle">Curve 3D – Map geladen</h2>
+      <p id="overlayText">
+        Eine Map wurde geladen.<br>
+        Drücke <span class="kbd">Enter</span> oder klicke auf <strong>Runde starten</strong>.
+      </p>
+      <div id="overlayButtons">
+        <button id="btnOverlayStart">Runde starten</button>
+        <button id="btnOverlayClose">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- THREE.js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script>
+  (() => {
+    "use strict";
+
+    // UI-Referenzen
+    const statusText   = document.getElementById("statusText");
+    const timerEl      = document.getElementById("timer");
+    const mapNameEl    = document.getElementById("mapName");
+    const overlay      = document.getElementById("overlay");
+    const overlayTitle = document.getElementById("overlayTitle");
+    const overlayText  = document.getElementById("overlayText");
+
+    const btnStart         = document.getElementById("btnStart");
+    const btnPause         = document.getElementById("btnPause");
+    const btnReset         = document.getElementById("btnReset");
+    const btnOverlayStart  = document.getElementById("btnOverlayStart");
+    const btnOverlayClose  = document.getElementById("btnOverlayClose");
+    const mapFileInput     = document.getElementById("mapFile");
+
+    const state = {
+      phase: "loading",      // loading | idle | running | paused | over
+      roundTime: 0,
+      lastTime: performance.now(),
+      arena: { w:2800, h:950, d:2400 },
+      mapData: null
+    };
+
+    function setPhase(p){
+      state.phase = p;
+      statusText.textContent =
+        p === "loading" ? "Lade map.json (falls möglich) …" :
+        p === "idle"    ? "Bereit" :
+        p === "running" ? "Läuft" :
+        p === "paused"  ? "Pausiert" :
+        "Runde vorbei";
+    }
+
+    function formatTime(sec){
+      const s = Math.max(0, Math.floor(sec));
+      const m = Math.floor(s/60);
+      const r = s % 60;
+      return String(m).padStart(2,"0") + ":" + String(r).padStart(2,"0");
+    }
+
+    function updateTimer(){
+      timerEl.textContent = formatTime(state.roundTime);
+    }
+
+    // ======================
+    // THREE Grundsetup
+    // ======================
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x020617, 800, 6000);
+
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 10000);
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x020617, 1);
+    document.body.appendChild(renderer.domElement);
+
+    const amb = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(amb);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(800, 1600, 600);
+    scene.add(dir);
+
+    const arenaGroup  = new THREE.Group();
+    const tunnelGroup = new THREE.Group();
+    const blockGroup  = new THREE.Group();
+    scene.add(arenaGroup);
+    scene.add(tunnelGroup);
+    scene.add(blockGroup);
+
+    const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+
+    function createCheckerTexture(c1, c2, size=512, cells=12){
+      const cvs = document.createElement("canvas");
+      cvs.width = cvs.height = size;
+      const g = cvs.getContext("2d");
+      const cell = size/cells;
+      for(let y=0;y<cells;y++){
+        for(let x=0;x<cells;x++){
+          g.fillStyle = ((x+y)%2===0) ? c1 : c2;
+          g.fillRect(x*cell,y*cell,cell,cell);
+        }
+      }
+      g.strokeStyle = "#111827";
+      g.globalAlpha = 0.4;
+      for(let i=0;i<=cells;i++){
+        const p=i*cell;
+        g.beginPath();g.moveTo(p,0);g.lineTo(p,size);g.stroke();
+        g.beginPath();g.moveTo(0,p);g.lineTo(size,p);g.stroke();
+      }
+      g.globalAlpha=1;
+      const tex = new THREE.CanvasTexture(cvs);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return tex;
+    }
+
+    // ======================
+    // Arena
+    // ======================
+    function buildArenaFromMap(){
+      while(arenaGroup.children.length){
+        const m = arenaGroup.children.pop();
+        m.geometry?.dispose?.();
+        if (m.material){
+          const mats = Array.isArray(m.material) ? m.material : [m.material];
+          for(const mm of mats){ mm.map?.dispose?.(); }
+        }
+      }
+
+      const { w, h, d } = state.arena;
+      const halfW = w/2;
+      const halfD = d/2;
+
+      const wallTex = createCheckerTexture("#020617","#020c1f",512,14);
+      wallTex.repeat.set(6, 3);
+      const matWall = new THREE.MeshStandardMaterial({
+        color:0xffffff,map:wallTex,roughness:0.95,metalness:0,
+        side:THREE.DoubleSide
+      });
+
+      const geoLR = new THREE.PlaneGeometry(d, h);
+      const geoFB = new THREE.PlaneGeometry(w, h);
+      const geoFL = new THREE.PlaneGeometry(w, d);
+
+      const left = new THREE.Mesh(geoLR, matWall);
+      left.position.set(-halfW, h/2, 0);
+      left.rotation.y = Math.PI/2;
+      arenaGroup.add(left);
+
+      const right = new THREE.Mesh(geoLR, matWall);
+      right.position.set(halfW, h/2, 0);
+      right.rotation.y = -Math.PI/2;
+      arenaGroup.add(right);
+
+      const front = new THREE.Mesh(geoFB, matWall);
+      front.position.set(0, h/2, -halfD);
+      arenaGroup.add(front);
+
+      const back = new THREE.Mesh(geoFB, matWall);
+      back.position.set(0, h/2, halfD);
+      back.rotation.y = Math.PI;
+      arenaGroup.add(back);
+
+      const floorTex = createCheckerTexture("#030712","#020617",512,16);
+      floorTex.repeat.set(8,8);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color:0xffffff,map:floorTex,roughness:0.98,metalness:0,side:THREE.DoubleSide
+      });
+
+      const floor = new THREE.Mesh(geoFL, floorMat);
+      floor.rotation.x = -Math.PI/2;
+      floor.position.y = 0;
+      arenaGroup.add(floor);
+
+      const ceilTex = createCheckerTexture("#050815","#040313",512,14);
+      ceilTex.repeat.set(7,7);
+      const ceilMat = new THREE.MeshStandardMaterial({
+        color:0xffffff,map:ceilTex,roughness:0.98,metalness:0,side:THREE.DoubleSide
+      });
+
+      const ceil = new THREE.Mesh(geoFL, ceilMat);
+      ceil.rotation.x = Math.PI/2;
+      ceil.position.y = h;
+      arenaGroup.add(ceil);
+    }
+
+    // ======================
+    // Tunnel + Blöcke
+    // ======================
+    const tunnels = [];
+    const blocks  = [];
+
+    function clearTunnels(){
+      while(tunnelGroup.children.length){
+        const m = tunnelGroup.children.pop();
+        m.geometry?.dispose?.();
+        const mats = Array.isArray(m.material)?m.material:[m.material];
+        for(const mm of mats){ mm.map?.dispose?.(); }
+      }
+      tunnels.length = 0;
+    }
+
+    function clearBlocks(){
+      while(blockGroup.children.length){
+        const m = blockGroup.children.pop();
+        m.geometry?.dispose?.();
+      }
+      blocks.length = 0;
+    }
+
+    function addTunnelFromMap(t){
+      const A = new THREE.Vector3(t.ax, t.ay, t.az);
+      const B = new THREE.Vector3(t.bx, t.by, t.bz);
+      const radius = t.radius || 160;
+      const dir = new THREE.Vector3().subVectors(B,A);
+      const len = dir.length();
+      if (len < 1e-3) return;
+      const dirN = dir.clone().normalize();
+      const mid = new THREE.Vector3().addVectors(A,B).multiplyScalar(0.5);
+
+      const segs = 24;
+      const geo = new THREE.CylinderGeometry(radius, radius, len, segs, 1, true);
+      const tex = createCheckerTexture("#0b1636","#183e7a",512,10);
+      tex.repeat.set(len/200, 2);
+      const mat = new THREE.MeshStandardMaterial({
+        color:0xffffff,map:tex,roughness:0.3,metalness:0.2,
+        emissive:new THREE.Color(0x1d4ed8),emissiveIntensity:0.8,
+        transparent:true,opacity:0.6,side:THREE.DoubleSide
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(mid);
+
+      const up = new THREE.Vector3(0,1,0);
+      const quat = new THREE.Quaternion().setFromUnitVectors(up, dirN);
+      mesh.quaternion.copy(quat);
+
+      tunnelGroup.add(mesh);
+      tunnels.push({A,B,radius,dirN,len});
+    }
+
+    function buildTunnelsFromMap(){
+      clearTunnels();
+      const arr = state.mapData?.tunnels || [];
+      for(const t of arr){
+        addTunnelFromMap(t);
+      }
+    }
+
+    function buildBlocksFromMap(){
+      clearBlocks();
+      const hardArr = state.mapData?.hardBlocks || [];
+      const foamArr = state.mapData?.foamBlocks || [];
+
+      const hardMat = new THREE.MeshStandardMaterial({
+        color:0xf87171,roughness:0.4,metalness:0.25,
+        emissive:new THREE.Color(0x7a1010),emissiveIntensity:0.65
+      });
+      const foamMat = new THREE.MeshStandardMaterial({
+        color:0x34d399,roughness:0.85,metalness:0,
+        emissive:new THREE.Color(0x0b6b4f),emissiveIntensity:0.25,
+        transparent:true,opacity:0.8
+      });
+
+      for(const b of hardArr){
+        const size = b.size || 80;
+        const geo = new THREE.BoxGeometry(size,size,size);
+        const mesh = new THREE.Mesh(geo, hardMat);
+        mesh.position.set(b.x||0,b.y||100,b.z||0);
+        mesh.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+        blockGroup.add(mesh);
+        blocks.push({type:"hard", mesh, radius:size*0.6});
+      }
+      for(const b of foamArr){
+        const size = b.size || 80;
+        const geo = new THREE.BoxGeometry(size,size,size);
+        const mesh = new THREE.Mesh(geo, foamMat);
+        mesh.position.set(b.x||0,b.y||120,b.z||0);
+        mesh.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+        blockGroup.add(mesh);
+        blocks.push({type:"foam", mesh, radius:size*0.6});
+      }
+    }
+
+    // ======================
+    // Spieler
+    // ======================
+    const playerRadius = 12;
+    const playerGeo = new THREE.SphereGeometry(playerRadius, 20, 20);
+    const playerMat = new THREE.MeshStandardMaterial({
+      color:0x60a5fa,
+      emissive:new THREE.Color(0x1d4ed8),
+      emissiveIntensity:0.8,
+      roughness:0.2,
+      metalness:0.3
+    });
+    const playerMesh = new THREE.Mesh(playerGeo, playerMat);
+    scene.add(playerMesh);
+
+    const player = {
+      pos: new THREE.Vector3(0,100,0),
+      quat: new THREE.Quaternion(),
+      yawInput:0,
+      pitchInput:0,
+      rollInput:0,
+      alive:true
+    };
+
+    const BASE_FORWARD = new THREE.Vector3(1,0,0);
+    const BASE_UP      = new THREE.Vector3(0,1,0);
+    const BASE_RIGHT   = new THREE.Vector3(0,0,1);
+
+    const tmpUp = new THREE.Vector3();
+    const tmpRight = new THREE.Vector3();
+    const tmpForward = new THREE.Vector3();
+    const qYaw = new THREE.Quaternion();
+    const qPitch = new THREE.Quaternion();
+    const qRoll = new THREE.Quaternion();
+
+    function getForward(){
+      return tmpForward.copy(BASE_FORWARD).applyQuaternion(player.quat).normalize();
+    }
+
+    function resetPlayer(){
+      const spawn = state.mapData?.playerSpawn;
+      if (spawn){
+        player.pos.set(spawn.x||0, spawn.y||150, spawn.z||0);
+      } else {
+        player.pos.set(-state.arena.w*0.3, state.arena.h*0.5, 0);
+      }
+      player.quat.identity();
+      playerMesh.position.copy(player.pos);
+      playerMesh.quaternion.copy(player.quat);
+      player.alive = true;
+      state.roundTime = 0;
+      updateTimer();
+    }
+
+    // Steuerung
+    const held = new Set();
+    window.addEventListener("keydown",(e)=>{
+      if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) e.preventDefault();
+      held.add(e.code);
+
+      if(e.code === "Enter"){
+        if(state.phase === "idle" || state.phase === "over") startRound();
+      }
+      if(e.code === "Space"){
+        if(state.phase === "running") pauseRound();
+        else if(state.phase === "paused") resumeRound();
+      }
+    });
+    window.addEventListener("keyup",(e)=>held.delete(e.code));
+
+    function updateInput(){
+      const yaw  = (held.has("KeyA") ? 1 : 0) + (held.has("KeyD") ? -1 : 0);
+      const pitch= (held.has("KeyW") ? 1 : 0) + (held.has("KeyS") ? -1 : 0);
+      const roll = (held.has("KeyQ") ? -1 : 0) + (held.has("KeyE") ? 1 : 0);
+
+      const smooth = 0.5;
+      player.yawInput   += (yaw   - player.yawInput)   * smooth;
+      player.pitchInput += (pitch - player.pitchInput) * smooth;
+      player.rollInput  += (roll  - player.rollInput)  * smooth;
+    }
+
+    // Kollisionen
+    function insideArena(){
+      const {w,h,d} = state.arena;
+      const x = player.pos.x;
+      const y = player.pos.y;
+      const z = player.pos.z;
+      if (x < -w/2 + playerRadius || x > w/2 - playerRadius) return false;
+      if (z < -d/2 + playerRadius || z > d/2 - playerRadius) return false;
+      if (y < playerRadius || y > h - playerRadius) return false;
+      return true;
+    }
+
+    function checkBlockCollision(){
+      for(const b of blocks){
+        const c = b.mesh.position;
+        const dx = player.pos.x - c.x;
+        const dy = player.pos.y - c.y;
+        const dz = player.pos.z - c.z;
+        const rr = (b.radius + playerRadius) ** 2;
+        if (dx*dx + dy*dy + dz*dz <= rr){
+          if (b.type === "hard"){
+            return { hit:true, type:"hard", block:b };
+          } else {
+            return { hit:true, type:"foam", block:b };
+          }
+        }
+      }
+      return { hit:false };
+    }
+
+    function applyFoamBounce(block){
+      const c = block.mesh.position;
+      const normal = new THREE.Vector3().subVectors(player.pos, c);
+      const len = normal.length() || 1;
+      normal.multiplyScalar(1/len);
+
+      const pushDist = block.radius + playerRadius + 4;
+      player.pos.copy(c).addScaledVector(normal, pushDist);
+
+      const fwd = getForward();
+      const dot = fwd.dot(normal);
+      const refl = fwd.clone().addScaledVector(normal, -2*dot).normalize();
+
+      const base = BASE_FORWARD;
+      const dotBF = clamp(base.dot(refl), -1, 1);
+      let quat;
+      if (dotBF > 0.999999){
+        quat = new THREE.Quaternion();
+      } else if (dotBF < -0.999999){
+        quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI);
+      } else {
+        const axis = new THREE.Vector3().crossVectors(base, refl).normalize();
+        const angle = Math.acos(dotBF);
+        quat = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+      }
+      player.quat.copy(quat);
+    }
+
+    function endRound(reason){
+      setPhase("over");
+      player.alive = false;
+      overlayTitle.textContent = "Runde vorbei";
+      overlayText.innerHTML = `<strong>Grund:</strong> ${reason}<br>Drücke <span class="kbd">Enter</span> oder klicke Runde starten.`;
+      overlay.style.display = "flex";
+      btnStart.disabled = false;
+      btnPause.disabled = true;
+      btnReset.disabled = false;
+    }
+
+    // Rundensteuerung
+    function startRound(){
+      if(!state.mapData) return;
+      overlay.style.display = "none";
+      resetPlayer();
+      setPhase("running");
+      btnStart.disabled = true;
+      btnPause.disabled = false;
+      btnReset.disabled = false;
+    }
+    function pauseRound(){
+      if(state.phase !== "running") return;
+      setPhase("paused");
+    }
+    function resumeRound(){
+      if(state.phase !== "paused") return;
+      setPhase("running");
+      state.lastTime = performance.now();
+    }
+    function resetRound(){
+      resetPlayer();
+      setPhase("idle");
+      overlayTitle.textContent = "Bereit";
+      overlayText.innerHTML = `Runde kann gestartet werden.<br>Drücke <span class="kbd">Enter</span> oder klicke Runde starten.`;
+      overlay.style.display = "flex";
+      btnStart.disabled = false;
+      btnPause.disabled = true;
+      btnReset.disabled = false;
+    }
+
+    btnStart.addEventListener("click", startRound);
+    btnPause.addEventListener("click", ()=> {
+      if(state.phase==="running") pauseRound();
+      else if(state.phase==="paused") resumeRound();
+    });
+    btnReset.addEventListener("click", resetRound);
+    btnOverlayStart.addEventListener("click", startRound);
+    btnOverlayClose.addEventListener("click", ()=> overlay.style.display="none");
+
+    // Bewegung + Loop
+    const YAW_SPEED   = 2.4;
+    const PITCH_SPEED = 2.0;
+    const ROLL_SPEED  = 2.5;
+    const MOVE_SPEED  = 700;
+
+    function update(dt){
+      if(state.phase !== "running" || !player.alive) return;
+
+      state.roundTime += dt;
+      updateTimer();
+
+      updateInput();
+
+      tmpUp.copy(BASE_UP).applyQuaternion(player.quat).normalize();
+      tmpRight.copy(BASE_RIGHT).applyQuaternion(player.quat).normalize();
+      const fwdForRoll = getForward().clone();
+
+      const yawDelta   = player.yawInput   * YAW_SPEED   * dt;
+      const pitchDelta = player.pitchInput * PITCH_SPEED * dt;
+      const rollDelta  = player.rollInput  * ROLL_SPEED  * dt;
+
+      qYaw.setFromAxisAngle(tmpUp, yawDelta);
+      qPitch.setFromAxisAngle(tmpRight, pitchDelta);
+      qRoll.setFromAxisAngle(fwdForRoll, rollDelta);
+
+      player.quat.premultiply(qYaw);
+      player.quat.premultiply(qPitch);
+      player.quat.premultiply(qRoll);
+      player.quat.normalize();
+
+      const fwd = getForward();
+      player.pos.addScaledVector(fwd, MOVE_SPEED * dt);
+
+      if (!insideArena()){
+        endRound("Arena-Wand");
+        return;
+      }
+
+      const bCol = checkBlockCollision();
+      if (bCol.hit){
+        if (bCol.type === "hard"){
+          endRound("Harter Block");
+          return;
+        } else {
+          applyFoamBounce(bCol.block);
+        }
+      }
+
+      playerMesh.position.copy(player.pos);
+      playerMesh.quaternion.copy(player.quat);
+
+      const up = BASE_UP.clone().applyQuaternion(player.quat).normalize();
+      const camBack = player.pos.clone()
+        .addScaledVector(fwd, -160)
+        .addScaledVector(up, 60);
+      camera.position.copy(camBack);
+      const look = player.pos.clone().addScaledVector(fwd, 40);
+      camera.up.copy(up);
+      camera.lookAt(look);
+    }
+
+    function animate(){
+      requestAnimationFrame(animate);
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - state.lastTime)/1000);
+      state.lastTime = now;
+      if(state.phase === "running") update(dt);
+      renderer.render(scene, camera);
+    }
+
+    // ======================
+    // Map-Daten anwenden (für fetch UND Datei-Upload)
+    // ======================
+    function applyMapData(data, sourceLabel){
+      state.mapData = data || {};
+      if(data.arenaSize){
+        state.arena.w = data.arenaSize.width  || state.arena.w;
+        state.arena.h = data.arenaSize.height || state.arena.h;
+        state.arena.d = data.arenaSize.depth  || state.arena.d;
+      }
+
+      buildArenaFromMap();
+      buildTunnelsFromMap();
+      buildBlocksFromMap();
+      resetPlayer();
+      setPhase("idle");
+
+      statusText.textContent = "Bereit (Map geladen)";
+      btnStart.disabled = false;
+      btnReset.disabled = false;
+
+      mapNameEl.textContent = sourceLabel || "Unbenannt";
+
+      overlayTitle.textContent = "Map geladen";
+      overlayText.innerHTML = `Die Map <strong>${sourceLabel || "Unbenannt"}</strong> wurde erfolgreich geladen.<br>Drücke <span class="kbd">Enter</span> oder klicke Runde starten.`;
+      overlay.style.display = "flex";
+    }
+
+    // ======================
+    // Map per fetch laden (optional)
+    // ======================
+    async function loadMapViaFetch(){
+      try{
+        const res = await fetch("./map.json");
+        if(!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        applyMapData(data, "map.json (fetch)");
+      }catch(err){
+        console.warn("map.json per fetch konnte nicht geladen werden (normal bei file://):", err);
+        statusText.textContent = "Keine Map per fetch – bitte Datei auswählen.";
+        mapNameEl.textContent = "–";
+        setPhase("idle");
+        // Overlay kurz erklären
+        overlayTitle.textContent = "Hinweis";
+        overlayText.innerHTML = `Die Datei <strong>map.json</strong> konnte nicht automatisch geladen werden.<br>
+          Das ist bei <span class="kbd">file://</span> normal.<br><br>
+          Bitte nutze links im Panel die Option <strong>„Map-Datei laden“</strong> und wähle deine <strong>map.json</strong>.`;
+        overlay.style.display = "flex";
+      }
+    }
+
+    // ======================
+    // Map aus Datei-Upload laden
+    // ======================
+    function loadMapFromFile(file){
+      const reader = new FileReader();
+      reader.onload = (ev)=>{
+        try{
+          const txt = ev.target.result;
+          const data = JSON.parse(txt);
+          applyMapData(data, file.name);
+        }catch(err){
+          alert("Fehler beim Lesen der Map-Datei: " + err.message);
+        }
+      };
+      reader.readAsText(file, "utf-8");
+    }
+
+    mapFileInput.addEventListener("change", (e)=>{
+      const file = e.target.files && e.target.files[0];
+      if(!file) return;
+      loadMapFromFile(file);
+    });
+
+    // Resize
+    function onResize(){
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    window.addEventListener("resize", onResize);
+
+    // Start
+    setPhase("loading");
+    // fetch ist optional – wenn's nicht geht, wird nur ein Hinweis gezeigt
+    loadMapViaFetch();
+    animate();
+
+  })();
+  </script>
+</body>
+</html>

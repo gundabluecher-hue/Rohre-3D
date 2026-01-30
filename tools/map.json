@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Mini Curve Fever – Map Editor</title>
+  <style>
+    :root{
+      --bg-0:#020617;
+      --bg-1:#030712;
+      --panel:#0b1324cc;
+      --border:#1f2937;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --accent:#60a5fa;
+      --danger:#f97373;
+      --safe:#34d399;
+    }
+    *{box-sizing:border-box;}
+    html,body{height:100%;}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color:var(--text);
+      background: radial-gradient(1100px 800px at 10% 10%, #111827 0%, #020617 60%, #020617 100%);
+      overflow:hidden;
+    }
+    .wrap{
+      display:grid;
+      grid-template-columns: 320px 1fr;
+      gap:12px;
+      padding:10px;
+      height:100%;
+    }
+    .panel{
+      background: linear-gradient(180deg, var(--panel), #020617ee);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:10px 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.45);
+      backdrop-filter: blur(10px);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      min-height:0;
+    }
+    h1{font-size:16px;margin:0 0 4px 0;}
+    .sub{font-size:11px;color:var(--muted);line-height:1.35;margin:0 0 6px 0;}
+    .toolRow{
+      display:flex;flex-wrap:wrap;gap:6px;
+      margin-bottom:4px;
+    }
+    button{
+      appearance:none;border:1px solid #25324a;
+      background: linear-gradient(180deg, #0f1b2f 0%, #020617 100%);
+      color:var(--text);padding:6px 8px;border-radius:10px;
+      font-weight:600;font-size:11px;cursor:pointer;
+      transition: transform .08s ease, border-color .15s ease, background .15s ease;
+    }
+    button:hover{transform:translateY(-1px); border-color:#324563;}
+    button:active{transform:translateY(0px) scale(.99);}
+    button.tool.active{border-color:var(--accent); background:#0b1730;}
+    button.small{font-size:10px;padding:4px 6px;}
+    .row{
+      display:grid;grid-template-columns: 1fr auto;
+      gap:6px;align-items:center;
+      padding:4px 0;border-top:1px dashed #1f2937;
+    }
+    .row:first-of-type{border-top:none;}
+    label{font-size:11px;color:var(--muted);}
+    input[type="range"]{width:150px;}
+    .pill{
+      display:inline-flex;align-items:center;gap:6px;
+      border-radius:999px;border:1px solid #233047;
+      background:#020617;
+      padding:3px 7px;
+      font-size:10px;color:var(--muted);
+      margin-right:4px;margin-bottom:4px;
+    }
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      font-size:10px;padding:1px 4px;border-radius:5px;
+      background:#020617;border:1px solid #223047;color:#cbd5e1;
+    }
+    textarea{
+      width:100%;min-height:120px;resize:vertical;
+      background:#020617;border-radius:10px;
+      border:1px solid #1f2937;
+      color:var(--text);font-size:11px;
+      padding:6px 8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+    }
+    .canvasShell{
+      position:relative;
+      border-radius:16px;
+      border:1px solid #111827;
+      overflow:hidden;
+      background:#020617;
+      box-shadow:0 18px 40px rgba(0,0,0,.6);
+    }
+    #mapCanvas{
+      width:100%;height:100%;display:block;
+      cursor:crosshair;
+    }
+    .hud{
+      position:absolute;left:10px;bottom:10px;
+      background:#020617dd;border-radius:10px;
+      border:1px solid #1f2937;
+      padding:4px 7px;
+      font-size:11px;color:var(--muted);
+    }
+    .badge{
+      display:inline-flex;align-items:center;gap:5px;
+      padding:2px 6px;border-radius:999px;
+      border:1px solid #1f2937;background:#020617;
+      font-size:10px;margin-right:4px;
+    }
+    @media(max-width:980px){
+      .wrap{grid-template-columns: 1fr;}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <div>
+      <h1>Mini Curve Fever – Map Editor</h1>
+      <p class="sub">
+        Top-Down Editor für Tunnel, Blöcke & Spawn. Klicke auf die Karte, um Objekte zu platzieren.
+        Exportiere die Map als JSON und nutze sie in deinem 3D-Spiel.
+      </p>
+      <div>
+        <span class="pill"><span class="kbd">Linksklick</span> platzieren</span>
+        <span class="pill"><span class="kbd">Tunnel</span> 2× klicken (Start & Ende)</span>
+      </div>
+    </div>
+
+    <div>
+      <strong style="font-size:12px;">Werkzeuge</strong>
+      <div class="toolRow">
+        <button class="tool" data-tool="tunnel">Tunnel</button>
+        <button class="tool" data-tool="hard">Block hart</button>
+        <button class="tool" data-tool="foam">Block Schaum</button>
+        <button class="tool" data-tool="spawn">Spawn</button>
+        <button class="tool" data-tool="erase">Radieren</button>
+      </div>
+    </div>
+
+    <div>
+      <strong style="font-size:12px;">Parameter</strong>
+      <div class="row">
+        <label for="rngTunnelHeight">Tunnel-Höhe (% Arena-Höhe)</label>
+        <input id="rngTunnelHeight" type="range" min="0" max="100" step="1" value="55" />
+      </div>
+      <div class="row">
+        <label for="rngBlockHeight">Block-Höhe (% Arena-Höhe)</label>
+        <input id="rngBlockHeight" type="range" min="0" max="100" step="1" value="35" />
+      </div>
+      <div class="row">
+        <label for="rngTunnelRadius">Tunnel-Radius</label>
+        <input id="rngTunnelRadius" type="range" min="80" max="260" step="10" value="160" />
+      </div>
+      <div class="row">
+        <label for="rngBlockSize">Block-Größe</label>
+        <input id="rngBlockSize" type="range" min="30" max="120" step="5" value="70" />
+      </div>
+    </div>
+
+    <div>
+      <strong style="font-size:12px;">JSON Export / Import</strong>
+      <div style="margin:4px 0 4px 0;font-size:11px;color:var(--muted);">
+        <span class="pill">Export: <span class="kbd">Export</span> → JSON kopieren</span>
+        <span class="pill">Import: JSON einfügen → <span class="kbd">Import</span></span>
+      </div>
+      <textarea id="jsonOutput" spellcheck="false"></textarea>
+      <div style="display:flex;gap:6px;margin-top:4px;">
+        <button id="btnExport" class="small">Export</button>
+        <button id="btnImport" class="small">Import</button>
+        <button id="btnNew" class="small">Neu</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvasShell">
+    <canvas id="mapCanvas"></canvas>
+    <div class="hud" id="hud">
+      <div style="margin-bottom:2px;">
+        <span class="badge">Arena: 2800 × 2400 (x/z)</span>
+        <span class="badge">Höhe: 950</span>
+      </div>
+      <div style="font-size:10px;">
+        Tool: <span id="hudTool">Tunnel</span> ·
+        Maus: <span id="hudPos">x=0, z=0</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ==========================
+  // Welt-Konstanten (wie im 3D-Spiel)
+  // ==========================
+  const ARENA_W = 2800; // X
+  const ARENA_D = 2400; // Z
+  const ARENA_H = 950;  // Y
+
+  // Slider-Elemente
+  const rngTunnelHeight = document.getElementById("rngTunnelHeight");
+  const rngBlockHeight  = document.getElementById("rngBlockHeight");
+  const rngTunnelRadius = document.getElementById("rngTunnelRadius");
+  const rngBlockSize    = document.getElementById("rngBlockSize");
+
+  // JSON IO
+  const jsonOutput = document.getElementById("jsonOutput");
+  const btnExport  = document.getElementById("btnExport");
+  const btnImport  = document.getElementById("btnImport");
+  const btnNew     = document.getElementById("btnNew");
+
+  // HUD
+  const hudToolEl = document.getElementById("hudTool");
+  const hudPosEl  = document.getElementById("hudPos");
+
+  // Canvas
+  const canvas = document.getElementById("mapCanvas");
+  const ctx = canvas.getContext("2d");
+
+  // Tools
+  const toolButtons = Array.from(document.querySelectorAll("button.tool"));
+
+  const state = {
+    currentTool:"tunnel",
+    tunnels:[],
+    hardBlocks:[],
+    foamBlocks:[],
+    playerSpawn:{ x:-800, y:ARENA_H*0.55, z:0 },
+    tempTunnelStart:null,
+    mouseX:0,
+    mouseZ:0
+  };
+
+  function setTool(tool){
+    state.currentTool = tool;
+    toolButtons.forEach(b => {
+      b.classList.toggle("active", b.dataset.tool === tool);
+    });
+    hudToolEl.textContent =
+      tool === "tunnel" ? "Tunnel" :
+      tool === "hard"   ? "Block hart" :
+      tool === "foam"   ? "Block Schaum" :
+      tool === "spawn"  ? "Spawn" :
+      "Radieren";
+  }
+
+  toolButtons.forEach(btn => {
+    btn.addEventListener("click", () => setTool(btn.dataset.tool));
+  });
+  setTool("tunnel");
+
+  // ==========================
+  // Koordinaten-Umrechnung
+  // ==========================
+  function worldToScreen(x,z){
+    const w = canvas.width;
+    const h = canvas.height;
+    const sx = (x / ARENA_W + 0.5) * w;
+    const sz = (z / ARENA_D + 0.5) * h;
+    return { x:sx, y:sz };
+  }
+  function screenToWorld(sx,sy){
+    const w = canvas.width;
+    const h = canvas.height;
+    const x = (sx / w - 0.5) * ARENA_W;
+    const z = (sy / h - 0.5) * ARENA_D;
+    return { x, z };
+  }
+
+  // ==========================
+  // Höhe / Parameter aus Slidern
+  // ==========================
+  function tunnelHeightY(){
+    const p = Number(rngTunnelHeight.value) / 100;
+    return ARENA_H * p;
+  }
+  function blockHeightY(){
+    const p = Number(rngBlockHeight.value) / 100;
+    return ARENA_H * p;
+  }
+  function tunnelRadius(){
+    return Number(rngTunnelRadius.value);
+  }
+  function blockSize(){
+    return Number(rngBlockSize.value);
+  }
+
+  // ==========================
+  // Zeichnen
+  // ==========================
+  function drawGrid(){
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.fillStyle = "#020617";
+    ctx.fillRect(0,0,w,h);
+
+    ctx.save();
+    ctx.strokeStyle = "#0f172a";
+    ctx.lineWidth = 1;
+    const step = 40;
+    for(let x=0;x<=w;x+=step){
+      ctx.beginPath();
+      ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+    }
+    for(let y=0;y<=h;y+=step){
+      ctx.beginPath();
+      ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+    }
+    ctx.restore();
+
+    // Achsen-Marker (0/0)
+    const c = worldToScreen(0,0);
+    ctx.save();
+    ctx.strokeStyle = "#1d4ed8";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(c.x-10,c.y);ctx.lineTo(c.x+10,c.y);ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(c.x,c.y-10);ctx.lineTo(c.x,c.y+10);ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = "#64748b";
+    ctx.font = "10px system-ui";
+    ctx.fillText("x+", worldToScreen(ARENA_W/2-50,0).x, c.y-8);
+    ctx.fillText("z+", c.x+4, worldToScreen(0,ARENA_D/2-40).y);
+    ctx.restore();
+  }
+
+  function drawTunnels(){
+    ctx.save();
+    for(const t of state.tunnels){
+      const a = worldToScreen(t.ax, t.az);
+      const b = worldToScreen(t.bx, t.bz);
+      ctx.lineCap = "round";
+
+      // dünne "Radius"-Andeutung
+      ctx.strokeStyle = "rgba(56,189,248,0.12)";
+      ctx.lineWidth = Math.max(1, (t.radius/160)*6);
+      ctx.beginPath();
+      ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+
+      // Kern
+      ctx.strokeStyle = "#60a5fa";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+    }
+    ctx.restore();
+
+    // Tunnel-Vorschau während 2. Klick
+    if (state.currentTool === "tunnel" && state.tempTunnelStart){
+      const s = worldToScreen(state.tempTunnelStart.x, state.tempTunnelStart.z);
+      const e = worldToScreen(state.mouseX, state.mouseZ);
+      ctx.save();
+      ctx.setLineDash([6,4]);
+      ctx.strokeStyle = "#a855f7";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(s.x,s.y);ctx.lineTo(e.x,e.y);ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawBlocks(){
+    ctx.save();
+    for(const b of state.hardBlocks){
+      const p = worldToScreen(b.x, b.z);
+      const size = 10 + (b.size/120)*18;
+      ctx.fillStyle = "rgba(248,113,113,0.14)";
+      ctx.fillRect(p.x-size, p.y-size, size*2, size*2);
+      ctx.strokeStyle = "#f97373";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(p.x-size, p.y-size, size*2, size*2);
+    }
+    for(const b of state.foamBlocks){
+      const p = worldToScreen(b.x, b.z);
+      const size = 10 + (b.size/120)*18;
+      ctx.fillStyle = "rgba(34,197,94,0.14)";
+      ctx.fillRect(p.x-size, p.y-size, size*2, size*2);
+      ctx.strokeStyle = "#34d399";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(p.x-size, p.y-size, size*2, size*2);
+    }
+    ctx.restore();
+  }
+
+  function drawSpawn(){
+    const s = state.playerSpawn;
+    const p = worldToScreen(s.x, s.z);
+    ctx.save();
+    ctx.translate(p.x,p.y);
+    ctx.fillStyle = "#eab308";
+    ctx.strokeStyle = "#facc15";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(0,-10);
+    ctx.lineTo(8,10);
+    ctx.lineTo(-8,10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawMouse(){
+    const p = worldToScreen(state.mouseX, state.mouseZ);
+    ctx.save();
+    ctx.strokeStyle = "rgba(148,163,184,0.7)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(p.x-6,p.y);ctx.lineTo(p.x+6,p.y);ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p.x,p.y-6);ctx.lineTo(p.x,p.y+6);ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw(){
+    drawGrid();
+    drawTunnels();
+    drawBlocks();
+    drawSpawn();
+    drawMouse();
+  }
+
+  // ==========================
+  // Objekte hinzufügen
+  // ==========================
+  function addTunnel(startX,startZ,endX,endZ){
+    const y = tunnelHeightY();
+    const radius = tunnelRadius();
+    state.tunnels.push({
+      ax:startX, ay:y, az:startZ,
+      bx:endX,   by:y, bz:endZ,
+      radius
+    });
+  }
+
+  function addBlock(type,x,z){
+    const y = blockHeightY();
+    const size = blockSize();
+    const block = { x, y, z, size };
+    if (type === "hard") state.hardBlocks.push(block);
+    else state.foamBlocks.push(block);
+  }
+
+  function setSpawn(x,z){
+    state.playerSpawn.x = x;
+    state.playerSpawn.z = z;
+    state.playerSpawn.y = tunnelHeightY(); // Spawn in etwa auf Tunnel-Höhe
+  }
+
+  // ==========================
+  // Löschen (Radier-Funktion)
+  // ==========================
+  function distToSegmentSq(px,py, ax,ay, bx,by){
+    const abx = bx-ax, aby = by-ay;
+    const apx = px-ax, apy = py-ay;
+    const abLenSq = abx*abx+aby*aby || 1e-9;
+    let t = (apx*abx + apy*aby)/abLenSq;
+    t = Math.max(0, Math.min(1,t));
+    const cx = ax + abx*t;
+    const cy = ay + aby*t;
+    const dx = px-cx, dy = py-cy;
+    return dx*dx + dy*dy;
+  }
+
+  function eraseAt(x,z){
+    let best = { type:null, index:-1, dist:Infinity };
+
+    // Tunnel prüfen (Distanz Segment -> Punkt in x/z-Ebene)
+    for(let i=0;i<state.tunnels.length;i++){
+      const t = state.tunnels[i];
+      const a = { x:t.ax, z:t.az };
+      const b = { x:t.bx, z:t.bz };
+      const d2 = distToSegmentSq(x,z, a.x,a.z, b.x,b.z);
+      if (d2 < best.dist){
+        best = { type:"tunnel", index:i, dist:d2 };
+      }
+    }
+
+    // Blöcke
+    for(let i=0;i<state.hardBlocks.length;i++){
+      const b = state.hardBlocks[i];
+      const dx = x-b.x, dz = z-b.z;
+      const d2 = dx*dx+dz*dz;
+      if (d2 < best.dist){
+        best = { type:"hard", index:i, dist:d2 };
+      }
+    }
+    for(let i=0;i<state.foamBlocks.length;i++){
+      const b = state.foamBlocks[i];
+      const dx = x-b.x, dz = z-b.z;
+      const d2 = dx*dx+dz*dz;
+      if (d2 < best.dist){
+        best = { type:"foam", index:i, dist:d2 };
+      }
+    }
+
+    // Spawn
+    {
+      const s = state.playerSpawn;
+      const dx = x-s.x, dz = z-s.z;
+      const d2 = dx*dx+dz*dz;
+      if (d2 < best.dist){
+        best = { type:"spawn", index:0, dist:d2 };
+      }
+    }
+
+    const THRESHOLD = (ARENA_W/40)**2; // grobe Nähe
+
+    if (best.type && best.dist < THRESHOLD){
+      if (best.type === "tunnel") state.tunnels.splice(best.index,1);
+      else if (best.type === "hard") state.hardBlocks.splice(best.index,1);
+      else if (best.type === "foam") state.foamBlocks.splice(best.index,1);
+      else if (best.type === "spawn") {
+        // Spawn zurück auf Default
+        state.playerSpawn.x = -800;
+        state.playerSpawn.z = 0;
+      }
+    }
+  }
+
+  // ==========================
+  // Canvas Interaktion
+  // ==========================
+  function updateMouseFromEvent(e){
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const w = screenToWorld(sx,sy);
+    state.mouseX = w.x;
+    state.mouseZ = w.z;
+    hudPosEl.textContent = `x=${w.x.toFixed(0)}, z=${w.z.toFixed(0)}`;
+  }
+
+  canvas.addEventListener("mousemove", (e)=>{
+    updateMouseFromEvent(e);
+    draw();
+  });
+
+  canvas.addEventListener("mousedown", (e)=>{
+    updateMouseFromEvent(e);
+    const x = state.mouseX;
+    const z = state.mouseZ;
+
+    if (state.currentTool === "tunnel"){
+      if (!state.tempTunnelStart){
+        state.tempTunnelStart = { x, z };
+      } else {
+        addTunnel(state.tempTunnelStart.x, state.tempTunnelStart.z, x, z);
+        state.tempTunnelStart = null;
+      }
+    } else if (state.currentTool === "hard"){
+      addBlock("hard", x, z);
+    } else if (state.currentTool === "foam"){
+      addBlock("foam", x, z);
+    } else if (state.currentTool === "spawn"){
+      setSpawn(x,z);
+    } else if (state.currentTool === "erase"){
+      eraseAt(x,z);
+    }
+    draw();
+  });
+
+  // ==========================
+  // Export / Import
+  // ==========================
+  function exportJSON(){
+    const payload = {
+      arenaSize:{ width:ARENA_W, height:ARENA_H, depth:ARENA_D },
+      tunnels:state.tunnels,
+      hardBlocks:state.hardBlocks,
+      foamBlocks:state.foamBlocks,
+      playerSpawn:state.playerSpawn
+    };
+    jsonOutput.value = JSON.stringify(payload, null, 2);
+  }
+
+  function importJSON(){
+    try{
+      const txt = jsonOutput.value.trim();
+      if (!txt) return;
+      const obj = JSON.parse(txt);
+      state.tunnels    = Array.isArray(obj.tunnels) ? obj.tunnels : [];
+      state.hardBlocks = Array.isArray(obj.hardBlocks) ? obj.hardBlocks : [];
+      state.foamBlocks = Array.isArray(obj.foamBlocks) ? obj.foamBlocks : [];
+      if (obj.playerSpawn){
+        state.playerSpawn = {
+          x: obj.playerSpawn.x || 0,
+          y: obj.playerSpawn.y || ARENA_H*0.55,
+          z: obj.playerSpawn.z || 0
+        };
+      }
+      draw();
+    }catch(err){
+      alert("Fehler beim Import: " + err.message);
+    }
+  }
+
+  function newMap(){
+    state.tunnels.length = 0;
+    state.hardBlocks.length = 0;
+    state.foamBlocks.length = 0;
+    state.playerSpawn = { x:-800, y:ARENA_H*0.55, z:0 };
+    state.tempTunnelStart = null;
+    jsonOutput.value = "";
+    draw();
+  }
+
+  btnExport.addEventListener("click", exportJSON);
+  btnImport.addEventListener("click", importJSON);
+  btnNew.addEventListener("click", newMap);
+
+  // ==========================
+  // Resize
+  // ==========================
+  function resize(){
+    const shell = canvas.parentElement;
+    const rect = shell.getBoundingClientRect();
+    const w = Math.max(400, rect.width);
+    const h = Math.max(300, rect.height);
+    canvas.width = w * window.devicePixelRatio;
+    canvas.height = h * window.devicePixelRatio;
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    ctx.setTransform(window.devicePixelRatio,0,0,window.devicePixelRatio,0,0);
+    draw();
+  }
+  window.addEventListener("resize", resize);
+
+  // ==========================
+  // Start
+  // ==========================
+  function init(){
+    resize();
+    draw();
+  }
+  init();
+
+})();
+</script>
+</body>
+</html>

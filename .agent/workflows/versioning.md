@@ -18,8 +18,13 @@ Dieser Workflow erstellt versionierte Backups bei Änderungen an wichtigen Datei
 Das Script:
 - Erkennt die aktuelle Versionsnummer aus `version.json`
 - Erstellt einen neuen Versions-Ordner in `archive/`
-- Kopiert die aktuelle `3dv17.html`
+- Kopiert die aktuell benötigten Dateien (HTML/CSS/JS)
 - Aktualisiert die Versionsnummer
+
+Optional (wenn gewünscht):
+```powershell
+.\scripts\create-version.ps1 -Message "…" -GitBackup
+```
 
 ### Schritt 2: Änderungen vornehmen
 

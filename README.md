@@ -16,7 +16,7 @@ Ein 3D-Flugspiel im Stil von "Curve Fever" mit modernster Web-Technologie.
 
 ## Schnellstart 🚀
 
-1. Öffne `index.html` (neue modulare Version) ODER `3dv16_full.html` (vollständige Original-Version)
+1. Öffne `index.html` (aktuelle Spiel-Version) ODER `archive/v11-v16/3dv16_full.html` (vollständige Original-Version)
 2. Drücke **Start** oder **Enter**
 3. Fliege mit **W/A/S/D**, rolle mit **Q/E**, booste mit **Shift**
 
@@ -148,7 +148,7 @@ Entwickelt als persönliches Projekt.
 Bei Problemen oder Fragen:
 - Prüfe die Browser-Konsole (F12)
 - Stelle sicher, dass WebGL aktiviert ist
-- Teste die Original-Version (`3dv16_full.html`)
+- Teste die Original-Version (`archive/v11-v16/3dv16_full.html`)
 
 ---
 

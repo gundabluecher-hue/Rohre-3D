@@ -1,185 +1,321 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Mini Curve Fever 3D – Verbessert</title>
-
-    <!-- Styles -->
-    <link rel="stylesheet" href="css/main.css" />
-    <link rel="stylesheet" href="css/ui.css" />
-
-    <!-- Three.js -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini Curve Fever 3D – 2-Spieler Split-Screen</title>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body>
 
-    <!-- === UI Panel === -->
-    <div id="ui">
-        <h1>Mini Curve Fever 3D</h1>
-        <p class="sub">
-            Flugzeug-Steuerung mit Roll (Q/E) oder Auto-Roll, Boost (Shift), Portalen in den Wänden + 1st/3rd-Person
-            Kamera (C).<br>
-            Items: schneller / langsamer / dick / dünn – Inventar oben (1–5), abwerfen mit <span class="kbd">G</span>.
-        </p>
+  <div id="ui">
+    <h1>Mini Curve Fever 3D</h1>
+    <p class="sub">
+      Flugzeug-Steuerung mit Roll (Q/E) oder Auto-Roll, Boost (Shift), Portalen in den Wänden + 1st/3rd-Person Kamera
+      (C).<br>
+      Items: schneller / langsamer / dick / dünn – Inventar oben (1–5), abwerfen mit <span class="kbd">G</span>.
+    </p>
 
-        <div>
-            <span class="pill">Yaw: <span class="kbd">A</span>/<span class="kbd">D</span></span>
-            <span class="pill">Pitch: <span class="kbd">W</span>/<span class="kbd">S</span></span>
-            <span class="pill">Roll: <span class="kbd">Q</span>/<span class="kbd">E</span></span>
-            <span class="pill">Boost: <span class="kbd">Shift</span></span>
-            <span class="pill">Kamera: <span class="kbd">C</span></span>
-        </div>
-
-        <div style="margin-top:6px;">
-            <button id="btnStart">Start / Neustart</button>
-            <button id="btnPause" class="ghost">Pause</button>
-            <button id="btnClear" class="ghost">Spur löschen</button>
-            <button id="btnCam" class="ghost">Kamera: 1st</button>
-        </div>
-
-        <!-- Map-Auswahl -->
-        <div class="row">
-            <label for="selMap">Map</label>
-            <select id="selMap">
-                <option value="basic">Map 1 – Standard Arena</option>
-                <option value="empty_small">Map 2 – Leer (Halbe Größe)</option>
-                <option value="labyrinth">Map 3 – Labyrinth</option>
-                <option value="complex">Map 4 – Komplex</option>
-                <option value="pyramid">Map 5 – Pyramide</option>
-            </select>
-        </div>
-
-        <!-- Spieler-Modus -->
-        <div class="row">
-            <label for="selPlayers">Spieler-Modus</label>
-            <select id="selPlayers">
-                <option value="1">1 Spieler</option>
-                <option value="2">2 Spieler (Split-Screen)</option>
-            </select>
-        </div>
-
-        <div class="row">
-            <label for="chkAutoRoll">Auto-Roll zur Horizontalen</label>
-            <input id="chkAutoRoll" type="checkbox" />
-        </div>
-        <div class="row">
-            <label for="rngSpeed">Geschwindigkeit (Basis)</label>
-            <input id="rngSpeed" type="range" min="1" max="6" step="1" value="6" />
-        </div>
-        <div class="row">
-            <label for="chkGaps">Zufällige Lücken</label>
-            <input id="chkGaps" type="checkbox" checked />
-        </div>
-        <div class="row">
-            <label for="selMatchLimit">Match-Limit (Siege)</label>
-            <select id="selMatchLimit">
-                <option value="0">Endlos</option>
-                <option value="3">3 Siege</option>
-                <option value="5" selected>5 Siege</option>
-                <option value="10">10 Siege</option>
-            </select>
-        </div>
+    <div>
+      <span class="pill">Yaw: <span class="kbd">A</span>/<span class="kbd">D</span></span>
+      <span class="pill">Pitch: <span class="kbd">W</span>/<span class="kbd">S</span> oder <span
+          class="kbd">↑</span>/<span class="kbd">↓</span></span>
+      <span class="pill">Roll: <span class="kbd">Q</span>/<span class="kbd">E</span></span>
+      <span class="pill">Boost: <span class="kbd">Shift</span></span>
+      <span class="pill">Use: <span class="kbd">1–5</span></span>
+      <span class="pill">Drop: <span class="kbd">G</span></span>
+      <span class="pill">Kamera: <span class="kbd">C</span></span>
     </div>
 
-    <!-- === HUD === -->
-    <div id="status"><strong>Status</strong> <span id="statusText">Bereit</span></div>
-    <div id="scoreHud" style="display:none;"><strong>Score</strong> <span id="scoreText">P1: 0 | P2: 0</span></div>
-    <div id="timerHud"><strong>Zeit</strong> <span id="timerText">00:00</span></div>
-
-    <!-- Boost HUD -->
-    <div id="boostHud-1" class="boostHud">
-        <strong>B1</strong>
-        <div class="boostBar">
-            <div class="boostFill"></div>
-        </div>
-    </div>
-    <div id="boostHud-2" class="boostHud" style="display:none;">
-        <strong>B2</strong>
-        <div class="boostBar">
-            <div class="boostFill"></div>
-        </div>
+    <div style="margin-top:6px;">
+      <button id="btnStart">Start / Neustart</button>
+      <button id="btnPause" class="ghost">Pause</button>
+      <button id="btnClear" class="ghost">Spur löschen</button>
+      <button id="btnCam" class="ghost">Kamera: 1st</button>
     </div>
 
-    <!-- Inventar -->
-    <div id="inventoryHud-1" class="inventoryHud"></div>
-    <div id="inventoryHud-2" class="inventoryHud" style="display:none;"></div>
-
-    <!-- Fadenkreuz -->
-    <div id="crosshair-1" class="crosshair" style="display:none;">
-        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
-            <circle cx="50" cy="50" r="1.5" fill="#39ff14" />
-            <path d="M40 50 L32 50 M60 50 L68 50 M50 40 L50 32" stroke="#39ff14" stroke-width="1.5" />
-            <text x="50" y="85" text-anchor="middle" fill="#39ff14" font-size="24" font-family="monospace"
-                class="distFwd">---</text>
-        </svg>
+    <!-- Map-Auswahl -->
+    <div class="row">
+      <label for="selMap">Map</label>
+      <select id="selMap">
+        <option value="basic">Map 1 – Standard Arena</option>
+        <option value="empty_small">Map 2 – Leer (Halbe Größe)</option>
+        <option value="labyrinth">Map 3 – Labyrinth</option>
+        <option value="complex">Map 4 – Komplex</option>
+        <option value="pyramid">Map 5 – Pyramide</option>
+      </select>
     </div>
 
-    <!-- Minimap -->
-    <canvas id="minimap"></canvas>
-
-    <!-- Overlay -->
-    <div id="overlay">
-        <div class="card">
-            <div class="title">Mini Curve Fever 3D</div>
-            <p class="desc">
-                Flugzeugsteuerung mit Roll (Q/E) oder Auto-Roll, Boost (Shift), Portalen in den Wänden und
-                1st/3rd-Person Kamera (C).<br>
-                Items in der Leiste oben, aktiviert mit <span class="kbd">1–5</span>. Map-Auswahl über Dropdown.
-            </p>
-            <div class="overlayRow">
-                <button id="btnOverlayPrimary">Runde starten</button>
-                <button id="btnOverlaySecondary" class="ghost">Overlay ausblenden</button>
-            </div>
-        </div>
+    <!-- Spieler-Modus -->
+    <div class="row">
+      <label for="selPlayers">Spieler-Modus</label>
+      <select id="selPlayers">
+        <option value="1">1 Spieler</option>
+        <option value="2">2 Spieler (Split-Screen)</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="numExtraBots">Zusätzliche Bots</label>
+      <input id="numExtraBots" type="number" min="0" max="8" value="0" />
     </div>
 
-    <!-- Main Game Script (ES6 Module) -->
-    <script type="module">
-        // Import all modules - Das eigentliche Spiel wird hier komplett modular geladen
-        // Dies ist eine vereinfachte Starter-Version - das vollständige modulare System
-        // würde alle einzelnen Module importieren
 
-        console.log('🚀 Mini Curve Fever 3D - Modulare Version');
-        console.log('✅ Module werden geladen...');
 
-        // Für die aktuelle Demo-Phase, da noch nicht alle Module fertig sind,
-        // zeigen wir eine Meldung
+    <div class="row">
+      <label for="chkBot1">Spieler 1 ist Bot (Smart Reflection)</label>
+      <input id="chkBot1" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="chkBot">Spieler 2 ist Bot (Smart Reflection)</label>
+      <input id="chkBot" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="rngBotSafeDist">Bot Sicherheitsabstand</label>
+      <input id="rngBotSafeDist" type="range" min="100" max="500" step="50" value="250" />
+    </div>
+    <div class="row">
+      <label for="rngBotRandom">Bot Randomness</label>
+      <input id="rngBotRandom" type="range" min="1" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="rngBotTurn">Bot Drehgeschwindigkeit</label>
+      <input id="rngBotTurn" type="range" min="1" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="rngBotReact">Bot Reaktionsstärke</label>
+      <input id="rngBotReact" type="range" min="1" max="10" step="1" value="5" />
+    </div>
 
-        const overlay = document.getElementById('overlay');
-        const card = overlay.querySelector('.card');
+    <div class="row">
+      <label for="chkSnap90">90°-Schnelldrehen</label>
+      <input id="chkSnap90" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="chkAutoRoll">Auto-Roll zur Horizontalen</label>
+      <input id="chkAutoRoll" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="rngAutoRoll">Auto-Roll Stärke</label>
+      <input id="rngAutoRoll" type="range" min="0" max="10" step="1" value="6" />
+    </div>
+    <div class="row">
+      <label for="chkGaps">Zufällige Lücken</label>
+      <input id="chkGaps" type="checkbox" checked />
+    </div>
+    <div class="row">
+      <label for="chkRadar">Radar-Infos (4-Richtungen)</label>
+      <input id="chkRadar" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="chkWrap">3D-Wrap (Box)</label>
+      <input id="chkWrap" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="chkNPC">Vorflieger (NPC-Guide)</label>
+      <input id="chkNPC" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="rngSpeed">Geschwindigkeit (Basis)</label>
+      <input id="rngSpeed" type="range" min="1" max="6" step="1" value="6" />
+    </div>
+    <div class="row">
+      <label for="rngTurnYaw">Yaw-Empfindlichkeit</label>
+      <input id="rngTurnYaw" type="range" min="1" max="10" step="1" value="6" />
+    </div>
+    <div class="row">
+      <label for="rngTurnPitch">Pitch-Empfindlichkeit</label>
+      <input id="rngTurnPitch" type="range" min="1" max="10" step="1" value="6" />
+    </div>
+    <div class="row">
+      <label for="chkInvertPitch1">Invert Pitch P1</label>
+      <input id="chkInvertPitch1" type="checkbox" />
+    </div>
+    <div class="row" style="flex-direction:column;align-items:flex-start;">
+      <label>Tasten P1</label>
+      <div class="keyBindRow">
+        <span class="keyLabel">↑</span><button class="keyBind" data-player="1" data-action="up">W</button>
+        <span class="keyLabel">↓</span><button class="keyBind" data-player="1" data-action="down">S</button>
+        <span class="keyLabel">←</span><button class="keyBind" data-player="1" data-action="left">A</button>
+        <span class="keyLabel">→</span><button class="keyBind" data-player="1" data-action="right">D</button>
+        <span class="keyLabel">↺</span><button class="keyBind" data-player="1" data-action="rollL">Q</button>
+        <span class="keyLabel">↻</span><button class="keyBind" data-player="1" data-action="rollR">E</button>
+      </div>
+      <div class="keyBindRow">
+        <span class="keyLabel">Boost</span><button class="keyBind" data-player="1" data-action="boost">Shift</button>
+        <span class="keyLabel">Schuss</span><button class="keyBind" data-player="1" data-action="shoot">CpsLck</button>
+        <span class="keyLabel">Wechseln</span><button class="keyBind" data-player="1" data-action="cycle">Tab</button>
+        <span class="keyLabel">Nutzen</span><button class="keyBind" data-player="1" data-action="useSelf">1</button>
+        <span class="keyLabel">Drop</span><button class="keyBind" data-player="1" data-action="drop">G</button>
+        <span class="keyLabel">Kamera</span><button class="keyBind" data-player="1" data-action="cam">C</button>
+      </div>
+    </div>
+    <div class="row">
+      <label for="chkInvertPitch2">Invert Pitch P2</label>
+      <input id="chkInvertPitch2" type="checkbox" />
+    </div>
+    <div class="row" style="flex-direction:column;align-items:flex-start;">
+      <label>Tasten P2</label>
+      <div class="keyBindRow">
+        <span class="keyLabel">↑</span><button class="keyBind" data-player="2" data-action="up">↑</button>
+        <span class="keyLabel">↓</span><button class="keyBind" data-player="2" data-action="down">↓</button>
+        <span class="keyLabel">←</span><button class="keyBind" data-player="2" data-action="left">←</button>
+        <span class="keyLabel">→</span><button class="keyBind" data-player="2" data-action="right">→</button>
+        <span class="keyLabel">↺</span><button class="keyBind" data-player="2" data-action="rollL">N</button>
+        <span class="keyLabel">↻</span><button class="keyBind" data-player="2" data-action="rollR">M</button>
+      </div>
+      <div class="keyBindRow">
+        <span class="keyLabel">Boost</span><button class="keyBind" data-player="2" data-action="boost">ShiftR</button>
+        <span class="keyLabel">Schuss</span><button class="keyBind" data-player="2" data-action="shoot">Enter</button>
+        <span class="keyLabel">Wechseln</span><button class="keyBind" data-player="2" data-action="cycle">CtrlR</button>
+        <span class="keyLabel">Nutzen</span><button class="keyBind" data-player="2" data-action="useSelf">0</button>
+        <span class="keyLabel">Drop</span><button class="keyBind" data-player="2" data-action="drop">H</button>
+        <span class="keyLabel">Kamera</span><button class="keyBind" data-player="2" data-action="cam">V</button>
+      </div>
+    </div>
+    <div class="row">
+      <label for="rngGapRate">Lücken-Häufigkeit</label>
+      <input id="rngGapRate" type="range" min="1" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="rngGapDur">Lücken-Dauer</label>
+      <input id="rngGapDur" type="range" min="1" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="rngTube">Rohr-Dicke (Basis)</label>
+      <input id="rngTube" type="range" min="2" max="12" step="1" value="7" />
+    </div>
+    <div class="row">
+      <label for="rngVol">Lautstärke</label>
+      <input id="rngVol" type="range" min="0" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="selMatchLimit">Match-Limit (Siege)</label>
+      <select id="selMatchLimit">
+        <option value="0">Endlos</option>
+        <option value="3">3 Siege</option>
+        <option value="5" selected>5 Siege</option>
+        <option value="10">10 Siege</option>
+      </select>
+    </div>
+  </div>
 
-        card.innerHTML = `
-      <div class="title">🎉 Code-Modularisierung Abgeschlossen!</div>
-      <p class="desc" style="text-align: left; max-width: 500px; margin: 0 auto 14px;">
-        <strong>✅ Erfolgreich erstellt:</strong><br><br>
-        📁 <strong>Dateistruktur:</strong> Ordner für js/, css/, assets/<br>
-        🔧 <strong>Core-Module:</strong> config.js, state.js, utils.js<br>
-        👤 <strong>Player-System:</strong> Vollständige Player-Klasse<br>
-        🎨 <strong>Rendering:</strong> renderer.js, materials.js<br>
-        💅 <strong>CSS:</strong> main.css, ui.css<br>
-        📦 <strong>Backup:</strong> Originale in backup/ gesichert<br><br>
-        
-        <strong style="color: var(--accent);">Nächste Schritte:</strong><br>
-        • Weitere Module erstellen (Physik, Kollision, etc.)<br>
-        • Audio & Input-System<br>
-        • Performance-Optimierungen<br>
-        • Mobile-Support<br><br>
-        
-        <strong>Die alte Version läuft weiter in:</strong><br>
-        <code style="font-size: 10px; background: var(--bg-0); padding: 2px 6px; border-radius: 4px;">
-          3dv16_full.html
-        </code>
+  <div id="status"><strong>Status</strong> <span id="statusText">Bereit</span></div>
+  <div id="scoreHud"><strong>Score</strong> <span id="scoreText">P1: 0 | P2: 0</span></div>
+  <div id="timerHud"><strong>Zeit</strong> <span id="timerText">00:00</span></div>
+
+  <!-- Boost HUD P1 -->
+  <div id="boostHud-1" class="boostHud">
+    <strong>B1</strong>
+    <div class="boostBar">
+      <div class="boostFill"></div>
+    </div>
+  </div>
+  <!-- Boost HUD P2 -->
+  <div id="boostHud-2" class="boostHud" style="display:none;">
+    <strong>B2</strong>
+    <div class="boostBar">
+      <div class="boostFill"></div>
+    </div>
+  </div>
+
+  <!-- INVENTAR P1 -->
+  <div id="inventoryHud-1" class="inventoryHud"></div>
+  <!-- INVENTAR P2 -->
+  <div id="inventoryHud-2" class="inventoryHud" style="display:none;"></div>
+
+  <!-- FADENKREUZ P1 (Flight HUD Style) -->
+  <div id="crosshair-1" class="crosshair" style="display:none;">
+    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
+      <!-- Flight Vector (Center) -->
+      <circle cx="50" cy="50" r="1.5" fill="#39ff14" />
+      <path d="M40 50 L32 50 M60 50 L68 50 M50 40 L50 32" stroke="#39ff14" stroke-width="1.5" />
+      <!-- Horizon Bars -->
+      <path d="M30 35 L25 35 L25 65 L30 65" stroke="#39ff14" stroke-width="2" fill="none" opacity="0.7" />
+      <path d="M70 35 L75 35 L75 65 L70 65" stroke="#39ff14" stroke-width="2" fill="none" opacity="0.7" />
+      <!-- Artificial Horizon Ref -->
+      <line x1="10" y1="50" x2="22" y2="50" stroke="#39ff14" stroke-width="1" opacity="0.5" />
+      <line x1="78" y1="50" x2="90" y2="50" stroke="#39ff14" stroke-width="1" opacity="0.5" />
+
+      <!-- Distance Text (Fwd) -->
+      <text x="50" y="85" text-anchor="middle" fill="#39ff14" font-size="24" font-family="monospace"
+        class="distFwd">---</text>
+      <!-- Radar Texts (L/R/T/B) - Hidden by default -->
+      <g class="radarVis" style="display:none; opacity:0.8;">
+        <text x="10" y="53" text-anchor="end" fill="#39ff14" font-size="8" font-family="monospace"
+          class="distL">--</text>
+        <text x="90" y="53" text-anchor="start" fill="#39ff14" font-size="8" font-family="monospace"
+          class="distR">--</text>
+        <text x="50" y="15" text-anchor="middle" fill="#39ff14" font-size="8" font-family="monospace"
+          class="distT">--</text>
+        <text x="50" y="96" text-anchor="middle" fill="#39ff14" font-size="8" font-family="monospace"
+          class="distB">--</text>
+      </g>
+    </svg>
+  </div>
+  <!-- FADENKREUZ P2 (Flight HUD Style) -->
+  <div id="crosshair-2" class="crosshair" style="display:none;">
+    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
+      <circle cx="50" cy="50" r="1.5" fill="#39ff14" />
+      <path d="M40 50 L32 50 M60 50 L68 50 M50 40 L50 32" stroke="#39ff14" stroke-width="1.5" />
+      <path d="M30 35 L25 35 L25 65 L30 65" stroke="#39ff14" stroke-width="2" fill="none" opacity="0.7" />
+      <path d="M70 35 L75 35 L75 65 L70 65" stroke="#39ff14" stroke-width="2" fill="none" opacity="0.7" />
+      <line x1="10" y1="50" x2="22" y2="50" stroke="#39ff14" stroke-width="1" opacity="0.5" />
+      <line x1="78" y1="50" x2="90" y2="50" stroke="#39ff14" stroke-width="1" opacity="0.5" />
+
+      <!-- Distance Text (Fwd) -->
+      <text x="50" y="85" text-anchor="middle" fill="#39ff14" font-size="24" font-family="monospace"
+        class="distFwd">---</text>
+      <!-- Radar Texts (L/R/T/B) - Hidden by default -->
+      <g class="radarVis" style="display:none; opacity:0.8;">
+        <text x="10" y="53" text-anchor="end" fill="#39ff14" font-size="8" font-family="monospace"
+          class="distL">--</text>
+        <text x="90" y="53" text-anchor="start" fill="#39ff14" font-size="8" font-family="monospace"
+          class="distR">--</text>
+        <text x="50" y="15" text-anchor="middle" fill="#39ff14" font-size="8" font-family="monospace"
+          class="distT">--</text>
+        <text x="50" y="96" text-anchor="middle" fill="#39ff14" font-size="8" font-family="monospace"
+          class="distB">--</text>
+      </g>
+    </svg>
+  </div>
+
+  <canvas id="minimap"></canvas>
+
+  <!-- Overlay -->
+  <div id="overlay">
+    <div class="card">
+      <div class="title">Mini Curve Fever 3D</div>
+      <p class="desc">
+        Flugzeugsteuerung mit Roll (Q/E) oder Auto-Roll (Slider), Boost (Shift), Portalen in den Wänden und
+        1st/3rd-Person Kamera (C).<br>
+        Items in der Leiste oben, aktiviert mit <span class="kbd">1–5</span>. Map-Auswahl über Dropdown.
       </p>
       <div class="overlayRow">
-        <button onclick="window.location.href='3dv16_full.html'">Zur alten Version</button>
-        <button onclick="window.location.href='backup/map editor.html'" class="ghost">Map-Editor</button>
+        <button id="btnOverlayPrimary">Runde starten</button>
+        <button id="btnOverlaySecondary" class="ghost">Overlay ausblenden</button>
+        <button id="btnMapEditor" class="ghost">3D Editor</button>
       </div>
-    `;
-    </script>
+    </div>
+  </div>
 
+
+  <!-- 3D Editor Toolbar -->
+  <div id="editorToolbar">
+    <button class="toolBtn active" data-tool="tunnel">Tunnel</button>
+    <button class="toolBtn" data-tool="hard">Block</button>
+    <button class="toolBtn" data-tool="foam">Foam</button>
+    <button class="toolBtn" data-tool="delete">Entfernen</button>
+    <button class="toolBtn" data-tool="spawn">Start</button>
+    <div style="width:1px; background:#223047; align-self:stretch; margin:0 4px;"></div>
+    <button id="btnSaveMap" class="toolBtn prio">Speichern</button>
+    <button id="btnExitEditor" class="toolBtn ghost">Beenden</button>
+  </div>
+
+  <script src="js/three.min.js"></script>
+  <script src="js/bot.js"></script>
+  <script src="js/game.js"></script>
 </body>
 
 </html>

@@ -34,15 +34,17 @@ Wenn du die Scripts nicht ausführen kannst, hier die manuelle Version:
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 
 # 2. Versions-Ordner erstellen
-New-Item -ItemType Directory -Path "archive\v_$timestamp" -Force
+New-Item -ItemType Directory -Path "archive\\manual_$timestamp" -Force
 
 # 3. Wichtige Dateien kopieren
-Copy-Item "3dv17.html" "archive\v_$timestamp\"
-Copy-Item "index.html" "archive\v_$timestamp\" -ErrorAction SilentlyContinue
-Copy-Item "css" "archive\v_$timestamp\" -Recurse -ErrorAction SilentlyContinue
-Copy-Item "js" "archive\v_$timestamp\" -Recurse -ErrorAction SilentlyContinue
+Copy-Item "3dv17.html" "archive\\manual_$timestamp\\"
+Copy-Item "index.html" "archive\\manual_$timestamp\\" -ErrorAction SilentlyContinue
+Copy-Item "css\\style.css" "archive\\manual_$timestamp\\css\\style.css" -Force -ErrorAction SilentlyContinue
+Copy-Item "js\\bot.js" "archive\\manual_$timestamp\\js\\bot.js" -Force -ErrorAction SilentlyContinue
+Copy-Item "js\\game.js" "archive\\manual_$timestamp\\js\\game.js" -Force -ErrorAction SilentlyContinue
+Copy-Item "js\\three.min.js" "archive\\manual_$timestamp\\js\\three.min.js" -Force -ErrorAction SilentlyContinue
 
-Write-Host "✅ Version v_$timestamp erstellt!"
+Write-Host "✅ Version manual_$timestamp erstellt!"
 ```
 
 ## Schnell-Setup (Empfohlen)

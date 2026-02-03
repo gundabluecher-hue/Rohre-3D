@@ -1,34 +1,48 @@
 # list-versions.ps1
-# Zeigt alle erstellten Versionen an
+# Lists created versions in archive/
 
 $versionsDir = "archive"
 
 if (-not (Test-Path $versionsDir)) {
-    Write-Host "❌ Keine Versionen gefunden" -ForegroundColor Red
-    exit
+    Write-Host "No versions found (archive/ missing)." -ForegroundColor Red
+    exit 1
 }
 
-Write-Host "`n📦 Alle Versionen:" -ForegroundColor Cyan
+Write-Host "`nAll versions:" -ForegroundColor Cyan
 Write-Host ("=" * 80) -ForegroundColor Gray
 
-$versions = Get-ChildItem $versionsDir -Directory | Sort-Object Name -Descending
+$folders = Get-ChildItem -Path $versionsDir -Directory | Sort-Object Name -Descending
 
-foreach ($versionFolder in $versions) {
-    $versionInfoFile = Join-Path $versionFolder.FullName "version-info.json"
-    
-    if (Test-Path $versionInfoFile) {
-        $info = Get-Content $versionInfoFile | ConvertFrom-Json
-        
-        Write-Host "`n📌 $($versionFolder.Name)" -ForegroundColor Green
-        Write-Host "   Datum: $($info.timestamp)" -ForegroundColor Gray
-        Write-Host "   Beschreibung: $($info.message)" -ForegroundColor White
-        Write-Host "   Dateien: $($info.files)" -ForegroundColor Gray
+foreach ($folder in $folders) {
+    $versionInfoFile = Join-Path $folder.FullName "version-info.json"
+
+    if (-not (Test-Path $versionInfoFile)) {
+        Write-Host "`n$($folder.Name)" -ForegroundColor Yellow
+        Write-Host "   (no version-info.json)" -ForegroundColor Gray
+        continue
     }
-    else {
-        Write-Host "`n📌 $($versionFolder.Name)" -ForegroundColor Yellow
-        Write-Host "   (Keine Version-Info vorhanden)" -ForegroundColor Gray
+
+    try {
+        $info = Get-Content -Path $versionInfoFile -Raw | ConvertFrom-Json
+    }
+    catch {
+        Write-Host "`n$($folder.Name)" -ForegroundColor Yellow
+        Write-Host "   (invalid version-info.json: $($_.Exception.Message))" -ForegroundColor Gray
+        continue
+    }
+
+    $msg = $info.message
+    if (-not $msg) { $msg = $info.msg }
+
+    Write-Host "`n$($folder.Name)" -ForegroundColor Green
+    if ($info.timestamp) { Write-Host "   Date: $($info.timestamp)" -ForegroundColor Gray }
+    if ($msg) { Write-Host "   Message: $msg" -ForegroundColor White }
+
+    if ($info.files) {
+        $fileList = @($info.files) -join ", "
+        Write-Host "   Files: $fileList" -ForegroundColor Gray
     }
 }
 
 Write-Host "`n" ("=" * 80) -ForegroundColor Gray
-Write-Host "Gesamt: $($versions.Count) Versionen`n" -ForegroundColor Cyan
+Write-Host "Total: $($folders.Count) folders`n" -ForegroundColor Cyan

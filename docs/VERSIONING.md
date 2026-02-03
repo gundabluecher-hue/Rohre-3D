@@ -22,10 +22,16 @@ Oder mit Beschreibung:
 
 **Das passiert:**
 - ✅ Erstellt Ordner `archive/vX.X.X`
-- ✅ Kopiert alle wichtigen Dateien (HTML, JS, CSS)
+- ✅ Kopiert die aktuell benötigten Laufzeit-Dateien (HTML, JS, CSS)
 - ✅ Aktualisiert `version.json`
-- ✅ Fügt Eintrag in `CHANGELOG.md` hinzu
 - ✅ Versionsnummer wird automatisch erhöht
+- ✅ Schreibt Metadaten nach `archive/vX.X.X/version-info.json`
+
+Optional (wenn gewünscht):
+```powershell
+.\scripts\create-version.ps1 -Message "…" -GitBackup
+```
+Das führt zusätzlich `git add -A`, `git commit` und `git push` aus.
 
 ### Alle Versionen anzeigen
 
@@ -34,19 +40,14 @@ Oder mit Beschreibung:
 ```
 
 Zeigt:
-```
-📦 Alle Versionen:
+```text
+All versions:
 ================================================================================
 
-📌 v2.0.3
-   Datum: 2026-01-29 20:15:00
-   Beschreibung: Bug fixes
-   Dateien: 7
-
-📌 v2.0.2
-   Datum: 2026-01-29 19:30:00
-   Beschreibung: Touch-Steuerung verbessert
-   Dateien: 7
+v2.0.3
+   Date: 2026-01-29 20:15:00
+   Message: Bug fixes
+   Files: 3dv17.html, index.html, css/style.css, js/bot.js, js/game.js, js/three.min.js
 ...
 ```
 
@@ -85,14 +86,14 @@ Zeigt:
 ### Bei Problemen
 
 - **Fehler gemacht?** → `.\scripts\restore-version.ps1 -Version "X.X.X"`
-- **Alte Version ansehen?** → Öffne `archive/vX.X.X/3dv16_full.html`
+- **Alte Version ansehen?** → Öffne `archive/v11-v16/3dv16_full.html`
 
 ## 🎨 Features
 
 ✅ **Automatische Versionsnummern** (Major.Minor.Patch)  
 ✅ **Timestamps** für jede Version  
 ✅ **Beschreibungen** pro Version  
-✅ **Changelog** wird automatisch geführt  
+✅ **Changelog** kann manuell gepflegt werden  
 ✅ **Restore-Funktion** mit Sicherheits-Backup  
 ✅ **Übersichtliche Auflistung** aller Versionen  
 
@@ -101,11 +102,10 @@ Zeigt:
 Bei jedem Backup:
 - `3dv17.html`
 - `index.html`
-- `map-editor.html`
-- `README.md`
-- `DEVELOPER.md`
-- Komplette `css/` Ordner
-- Komplette `js/` Ordner
+- `css/style.css`
+- `js/bot.js`
+- `js/game.js`
+- `js/three.min.js`
 
 ## 💡 Tipps
 

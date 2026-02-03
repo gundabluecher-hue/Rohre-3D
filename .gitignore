@@ -1,0 +1,5 @@
+# Local/adhoc backups and experiments (keep in working tree, but don't commit)
+archive/backup_*/
+3dv17_backup_*.html
+3dv17_refactored.html
+js/bot_fixed.js

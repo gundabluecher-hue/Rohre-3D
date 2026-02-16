@@ -1,4 +1,4 @@
-﻿// ============================================
+// ============================================
 // Arena.js - Map-Generierung
 // ============================================
 
@@ -156,7 +156,7 @@ export class Arena {
         const torusMat = new THREE.MeshStandardMaterial({
             color: color,
             emissive: color,
-            emissiveIntensity: 0.8,
+            emissiveIntensity: 1.2,
             roughness: 0.2,
             metalness: 0.8,
         });
@@ -186,9 +186,7 @@ export class Arena {
         const innerTorus = new THREE.Mesh(innerTorusGeo, innerTorusMat);
         group.add(innerTorus);
 
-        // PointLight für Glow-Effekt
-        const light = new THREE.PointLight(color, 1.5, 20);
-        group.add(light);
+        // PointLight entfernt fuer Performance – Glow durch emissive Materials
 
         group.position.copy(position);
         this.renderer.addToScene(group);
@@ -275,8 +273,8 @@ export class Arena {
 
         const mesh = new THREE.Mesh(geo, material.clone());
         mesh.position.set(x, y, z);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
         mesh.matrixAutoUpdate = false; // Optimierung
         mesh.updateMatrix();
         this.renderer.addToScene(mesh);
@@ -376,14 +374,18 @@ export class Arena {
                 portal.meshB.rotation.y -= dt * rotSpeed * 0.3;
             }
 
-            // Cooldowns runterzählen
+            // Cooldowns runterzählen (sichere Iteration)
+            const toDelete = [];
             for (const [id, time] of portal.cooldowns) {
                 const remaining = time - dt;
                 if (remaining <= 0) {
-                    portal.cooldowns.delete(id);
+                    toDelete.push(id);
                 } else {
                     portal.cooldowns.set(id, remaining);
                 }
+            }
+            for (let k = 0; k < toDelete.length; k++) {
+                portal.cooldowns.delete(toDelete[k]);
             }
         }
     }

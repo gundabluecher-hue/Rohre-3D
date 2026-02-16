@@ -99,6 +99,7 @@ export class EntityManager {
     }
 
     spawnAll() {
+        this._roundEnded = false;
         for (const player of this.players) {
             const pos = this._findSpawnPosition(12, 12);
             const dir = this._findSafeSpawnDirection(pos);
@@ -257,13 +258,27 @@ export class EntityManager {
         for (const p of this.players) {
             if (p.alive) { aliveCount++; lastAlive = p; }
         }
-        if (aliveCount <= 1 && this.players.length > 1) {
+
+        // Guard: nur einmal pro Runde onRoundEnd aufrufen
+        if (this._roundEnded) return;
+
+        // Prüfen ob alle menschlichen Spieler tot sind
+        let humansAlive = 0;
+        for (const h of this.humanPlayers) {
+            if (h.alive) humansAlive++;
+        }
+
+        // Runde beenden wenn:
+        // 1) Nur noch maximal 1 Spieler lebt (Multi-or-Bot-Endkampf)
+        // 2) Alle menschlichen Spieler tot (Singleplayer: Bots kämpfen nicht weiter)
+        const shouldEnd = (aliveCount <= 1 && this.players.length > 1)
+            || (aliveCount === 0 && this.players.length === 1)
+            || (humansAlive === 0 && this.humanPlayers.length > 0);
+
+        if (shouldEnd) {
+            this._roundEnded = true;
             if (this.onRoundEnd) {
                 this.onRoundEnd(lastAlive);
-            }
-        } else if (aliveCount === 0 && this.players.length === 1) {
-            if (this.onRoundEnd) {
-                this.onRoundEnd(null);
             }
         }
     }

@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { CONFIG } from './Config.js';
 
-const UNIT_CYLINDER_GEOMETRY = new THREE.CylinderGeometry(1, 1, 1, 6);
+const UNIT_CYLINDER_GEOMETRY = new THREE.CylinderGeometry(1, 1, 1, 4);
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 const DUMMY = new THREE.Object3D();
 
@@ -21,6 +21,7 @@ export class Trail {
         this.maxSegments = CONFIG.TRAIL.MAX_SEGMENTS || 1400;
         this.writeIndex = 0;
         this.segmentCount = 0;
+        this._dirty = false;
 
         // State
         this.timeSinceUpdate = 0;
@@ -49,10 +50,11 @@ export class Trail {
         this.mesh.receiveShadow = false;
         this.mesh.frustumCulled = false;
 
-        // Initial invisible matrices
-        const zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+        // Initial invisible matrices – DUMMY wiederverwenden statt neue Matrix4
+        DUMMY.scale.set(0, 0, 0);
+        DUMMY.updateMatrix();
         for (let i = 0; i < this.maxSegments; i++) {
-            this.mesh.setMatrixAt(i, zeroMatrix);
+            this.mesh.setMatrixAt(i, DUMMY.matrix);
         }
 
         this.renderer.addToScene(this.mesh);
@@ -103,6 +105,13 @@ export class Trail {
                 this._addSegment(this.lastX, this.lastY, this.lastZ, position.x, position.y, position.z);
             }
             this._setLastPosition(position);
+        }
+
+        // needsUpdate nur einmal pro Frame
+        if (this._dirty) {
+            this.mesh.count = Math.min(this.segmentCount, this.maxSegments);
+            this.mesh.instanceMatrix.needsUpdate = true;
+            this._dirty = false;
         }
     }
 
@@ -157,7 +166,7 @@ export class Trail {
         DUMMY.updateMatrix();
 
         this.mesh.setMatrixAt(this.writeIndex, DUMMY.matrix);
-        this.mesh.instanceMatrix.needsUpdate = true;
+        this._dirty = true;
 
         // Data Storage
         const offset = this.writeIndex * 7;
@@ -267,11 +276,13 @@ export class Trail {
     }
 
     clear() {
-        const zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+        DUMMY.scale.set(0, 0, 0);
+        DUMMY.updateMatrix();
         for (let i = 0; i < this.maxSegments; i++) {
-            this.mesh.setMatrixAt(i, zeroMatrix);
+            this.mesh.setMatrixAt(i, DUMMY.matrix);
         }
         this.mesh.instanceMatrix.needsUpdate = true;
+        this.mesh.count = 0;
 
         this.writeIndex = 0;
         this.segmentCount = 0;

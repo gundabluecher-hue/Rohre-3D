@@ -14,6 +14,11 @@ export class PowerupManager {
         this.typeKeys = Object.keys(CONFIG.POWERUP.TYPES);
         this._pickupBoxSize = new THREE.Vector3();
         this._pickupSphere = new THREE.Sphere();
+
+        // Shared Geometries (einmal erstellen, wiederverwenden)
+        const size = CONFIG.POWERUP.SIZE;
+        this._sharedGeo = new THREE.BoxGeometry(size, size, size);
+        this._sharedWireGeo = new THREE.BoxGeometry(size * 1.15, size * 1.15, size * 1.15);
     }
 
     update(dt) {
@@ -47,8 +52,7 @@ export class PowerupManager {
         const pos = this.arena.getRandomPosition(8);
 
         // Würfel-Mesh
-        const size = CONFIG.POWERUP.SIZE;
-        const geo = new THREE.BoxGeometry(size, size, size);
+        const geo = this._sharedGeo;
         const mat = new THREE.MeshStandardMaterial({
             color: config.color,
             emissive: config.color,
@@ -61,10 +65,10 @@ export class PowerupManager {
 
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.copy(pos);
-        mesh.castShadow = true;
+        mesh.castShadow = false;
 
         // Wireframe-Overlay
-        const wireGeo = new THREE.BoxGeometry(size * 1.15, size * 1.15, size * 1.15);
+        const wireGeo = this._sharedWireGeo;
         const wireMat = new THREE.MeshBasicMaterial({
             color: config.color,
             wireframe: true,
@@ -99,7 +103,7 @@ export class PowerupManager {
             if (this.items[i].box.intersectsSphere(this._pickupSphere)) {
                 const item = this.items.splice(i, 1)[0];
                 this.renderer.removeFromScene(item.mesh);
-                item.mesh.geometry.dispose();
+                // Nur Material disposen, Geometry ist shared
                 item.mesh.material.dispose();
                 return item.type;
             }
@@ -110,7 +114,7 @@ export class PowerupManager {
     clear() {
         for (const item of this.items) {
             this.renderer.removeFromScene(item.mesh);
-            item.mesh.geometry.dispose();
+            // Material disposen (Geometry ist shared)
             item.mesh.material.dispose();
         }
         this.items = [];

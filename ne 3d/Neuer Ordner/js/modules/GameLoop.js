@@ -1,5 +1,5 @@
 // ============================================
-// GameLoop.js - Fixed Timestep Game Loop
+// GameLoop.js - Smooth Variable Timestep Game Loop
 // ============================================
 
 import { CONFIG } from './Config.js';
@@ -9,17 +9,19 @@ export class GameLoop {
         this.updateFn = updateFn;
         this.renderFn = renderFn;
         this.running = false;
-        this.accumulator = 0;
         this.lastTime = 0;
         this.timeScale = 1.0; // Für Zeitlupe-Powerup
         this._boundLoop = this._loop.bind(this);
         this.frameId = null;
+        this._errorShown = false;
+        this.accumulator = 0;
+        this.fixedStep = 1 / 60; // Fester Physik-Schritt (1x pro Frame bei 60 FPS)
     }
 
     start() {
         this.running = true;
         this.lastTime = performance.now();
-        this.accumulator = 0;
+        this._errorShown = false;
         this.frameId = requestAnimationFrame(this._boundLoop);
     }
 
@@ -41,28 +43,37 @@ export class GameLoop {
         const rawDt = (now - this.lastTime) / 1000;
         this.lastTime = now;
 
-        // Begrenze dt um Spiral-of-Death zu vermeiden
-        const dt = Math.min(rawDt, 0.1) * this.timeScale;
-        this.accumulator += dt;
+        // Begrenze dt um Spiral-of-Death und Tab-Switch-Sprünge zu vermeiden
+        const dt = Math.min(rawDt, 0.05);
+        this.accumulator += dt * this.timeScale;
 
-        const step = CONFIG.TIME_STEP;
-        const maxUpdates = CONFIG.MAX_UPDATES_PER_FRAME || 5;
-        let updates = 0;
+        // Maximal 3 Schritte pro Frame (Spiral-of-Death-Schutz)
+        const maxAccum = this.fixedStep * 3;
+        if (this.accumulator > maxAccum) this.accumulator = maxAccum;
 
-        // Fixed timestep updates
-        while (this.accumulator >= step && updates < maxUpdates) {
-            this.updateFn(step);
-            this.accumulator -= step;
-            updates++;
+        try {
+            let stepped = false;
+            while (this.accumulator >= this.fixedStep) {
+                this.updateFn(this.fixedStep);
+                this.accumulator -= this.fixedStep;
+                stepped = true;
+            }
+            // Fallback: mindestens ein Update pro Frame wenn dt > 0
+            if (!stepped && dt > 0) {
+                this.updateFn(dt * this.timeScale);
+            }
+            this.renderFn();
+        } catch (err) {
+            // Fehler sichtbar machen per Overlay
+            if (!this._errorShown) {
+                this._errorShown = true;
+                console.error('GameLoop error:', err);
+                const overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;padding:20px;background:#c00;color:#fff;font:16px monospace;z-index:99999;white-space:pre-wrap;';
+                overlay.textContent = 'FEHLER: ' + err.message + '\n\n' + err.stack;
+                document.body.appendChild(overlay);
+            }
         }
-
-        // Wenn wir zu weit hinterher sind, alte Restzeit verwerfen statt endlos nachzuberechnen.
-        if (updates >= maxUpdates && this.accumulator > step) {
-            this.accumulator = 0;
-        }
-
-        // Render
-        this.renderFn();
 
         this.frameId = requestAnimationFrame(this._boundLoop);
     }

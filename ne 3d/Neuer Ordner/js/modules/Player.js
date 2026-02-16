@@ -6,6 +6,34 @@ import * as THREE from 'three';
 import { CONFIG } from './Config.js';
 import { Trail } from './Trail.js';
 
+// Shared Geometries (einmalig erstellt, von allen Spielern geteilt)
+const SHARED_GEO = {};
+function _ensureSharedGeo() {
+    if (SHARED_GEO.body) return;
+    SHARED_GEO.body = new THREE.ConeGeometry(0.35, 3.2, 8);
+    SHARED_GEO.body.rotateX(Math.PI / 2);
+    SHARED_GEO.cockpit = new THREE.SphereGeometry(0.28, 10, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+    SHARED_GEO.nozzle = new THREE.CylinderGeometry(0.2, 0.25, 0.4, 8);
+    SHARED_GEO.nozzle.rotateX(Math.PI / 2);
+    SHARED_GEO.flameInner = new THREE.ConeGeometry(0.15, 1.0, 8);
+    SHARED_GEO.flameInner.rotateX(-Math.PI / 2);
+    SHARED_GEO.flameMid = new THREE.ConeGeometry(0.22, 1.4, 8);
+    SHARED_GEO.flameMid.rotateX(-Math.PI / 2);
+    SHARED_GEO.flameOuter = new THREE.ConeGeometry(0.28, 1.8, 8);
+    SHARED_GEO.flameOuter.rotateX(-Math.PI / 2);
+    SHARED_GEO.shield = new THREE.SphereGeometry(1.5, 8, 8);
+    // Flügel-Geometrien
+    const wingShape = new THREE.Shape();
+    wingShape.moveTo(0, 0); wingShape.lineTo(-1.8, 0.6); wingShape.lineTo(-0.3, 0.8); wingShape.lineTo(0, 0);
+    SHARED_GEO.wingL = new THREE.ExtrudeGeometry(wingShape, { depth: 0.06, bevelEnabled: false });
+    const wingShapeR = new THREE.Shape();
+    wingShapeR.moveTo(0, 0); wingShapeR.lineTo(1.8, 0.6); wingShapeR.lineTo(0.3, 0.8); wingShapeR.lineTo(0, 0);
+    SHARED_GEO.wingR = new THREE.ExtrudeGeometry(wingShapeR, { depth: 0.06, bevelEnabled: false });
+    const finShape = new THREE.Shape();
+    finShape.moveTo(0, 0); finShape.lineTo(0, 0.8); finShape.lineTo(0.4, 0.1); finShape.lineTo(0, 0);
+    SHARED_GEO.fin = new THREE.ExtrudeGeometry(finShape, { depth: 0.04, bevelEnabled: false });
+}
+
 export class Player {
     constructor(renderer, index, color, isBot = false) {
         this.renderer = renderer;
@@ -27,6 +55,7 @@ export class Player {
         this._tmpEuler2 = new THREE.Euler(0, 0, 0, 'YXZ');
         this._tmpQuat = new THREE.Quaternion();
         this._tmpVec = new THREE.Vector3();
+        this._tmpDir = new THREE.Vector3();
 
         // Boost
         this.boostTimer = 0;
@@ -56,6 +85,7 @@ export class Player {
     }
 
     _createModel() {
+        _ensureSharedGeo();
         this.group = new THREE.Group();
 
         const jetMat = new THREE.MeshStandardMaterial({
@@ -73,15 +103,12 @@ export class Player {
             metalness: 0.8,
         });
 
-        // --- Rumpf (schlanker, langer Cone) ---
-        const bodyGeo = new THREE.ConeGeometry(0.35, 3.2, 8);
-        bodyGeo.rotateX(Math.PI / 2);
-        const body = new THREE.Mesh(bodyGeo, jetMat);
-        body.castShadow = true;
+        // --- Rumpf (shared Geometry) ---
+        const body = new THREE.Mesh(SHARED_GEO.body, jetMat);
+        body.castShadow = false;
         this.group.add(body);
 
-        // --- Cockpit (halbe Kuppel vorne) ---
-        const cockpitGeo = new THREE.SphereGeometry(0.28, 10, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+        // --- Cockpit (shared Geometry) ---
         const cockpitMat = new THREE.MeshStandardMaterial({
             color: 0x88ccff,
             emissive: 0x2266aa,
@@ -91,119 +118,82 @@ export class Player {
             roughness: 0.1,
             metalness: 0.9,
         });
-        const cockpit = new THREE.Mesh(cockpitGeo, cockpitMat);
+        const cockpit = new THREE.Mesh(SHARED_GEO.cockpit, cockpitMat);
         cockpit.rotation.x = -Math.PI / 2;
         cockpit.position.set(0, 0.2, -0.7);
         this.group.add(cockpit);
 
-        // --- Delta-Flügel (links + rechts, dreieckig per Shape) ---
-        const wingShape = new THREE.Shape();
-        wingShape.moveTo(0, 0);
-        wingShape.lineTo(-1.8, 0.6);
-        wingShape.lineTo(-0.3, 0.8);
-        wingShape.lineTo(0, 0);
-        const wingExtrudeSettings = { depth: 0.06, bevelEnabled: false };
-        const wingGeo = new THREE.ExtrudeGeometry(wingShape, wingExtrudeSettings);
-
-        // Linker Flügel
-        const wingL = new THREE.Mesh(wingGeo, jetMatDark);
+        // --- Delta-Flügel (shared Geometries) ---
+        const wingL = new THREE.Mesh(SHARED_GEO.wingL, jetMatDark);
         wingL.position.set(0, -0.02, 0.1);
-        wingL.castShadow = true;
+        wingL.castShadow = false;
         this.group.add(wingL);
 
-        // Rechter Flügel (gespiegelt)
-        const wingShapeR = new THREE.Shape();
-        wingShapeR.moveTo(0, 0);
-        wingShapeR.lineTo(1.8, 0.6);
-        wingShapeR.lineTo(0.3, 0.8);
-        wingShapeR.lineTo(0, 0);
-        const wingGeoR = new THREE.ExtrudeGeometry(wingShapeR, wingExtrudeSettings);
-        const wingR = new THREE.Mesh(wingGeoR, jetMatDark);
+        const wingR = new THREE.Mesh(SHARED_GEO.wingR, jetMatDark);
         wingR.position.set(0, -0.02, 0.1);
-        wingR.castShadow = true;
+        wingR.castShadow = false;
         this.group.add(wingR);
 
-        // --- Heckleitwerk (vertikale Finne) ---
-        const finShape = new THREE.Shape();
-        finShape.moveTo(0, 0);
-        finShape.lineTo(0, 0.8);
-        finShape.lineTo(0.4, 0.1);
-        finShape.lineTo(0, 0);
-        const finGeo = new THREE.ExtrudeGeometry(finShape, { depth: 0.04, bevelEnabled: false });
-        const fin = new THREE.Mesh(finGeo, jetMat);
+        // --- Heckleitwerk (shared Geometry) ---
+        const fin = new THREE.Mesh(SHARED_GEO.fin, jetMat);
         fin.position.set(-0.02, 0.15, 1.0);
-        fin.castShadow = true;
+        fin.castShadow = false;
         this.group.add(fin);
 
-        // --- Düse (Zylinder hinten) ---
-        const nozzleGeo = new THREE.CylinderGeometry(0.2, 0.25, 0.4, 8);
-        nozzleGeo.rotateX(Math.PI / 2);
+        // --- Düse (shared Geometry) ---
         const nozzleMat = new THREE.MeshStandardMaterial({
             color: 0x333333,
             roughness: 0.6,
             metalness: 0.9,
         });
-        const nozzle = new THREE.Mesh(nozzleGeo, nozzleMat);
+        const nozzle = new THREE.Mesh(SHARED_GEO.nozzle, nozzleMat);
         nozzle.position.z = 1.5;
         this.group.add(nozzle);
 
-        // --- Flammen-Triebwerkseffekt ---
+        // --- Flammen-Triebwerkseffekt (shared Geometries) ---
         this.flameGroup = new THREE.Group();
         this.flameGroup.position.z = 1.9;
         this.flames = [];
 
-        // Innere Flamme (hell, weiß-gelb)
-        const flameInnerGeo = new THREE.ConeGeometry(0.15, 1.0, 8);
-        flameInnerGeo.rotateX(-Math.PI / 2);
         const flameInnerMat = new THREE.MeshBasicMaterial({
             color: 0xffffaa,
             transparent: true,
             opacity: 0.9,
         });
-        const flameInner = new THREE.Mesh(flameInnerGeo, flameInnerMat);
+        const flameInner = new THREE.Mesh(SHARED_GEO.flameInner, flameInnerMat);
         this.flameGroup.add(flameInner);
         this.flames.push(flameInner);
 
-        // Mittlere Flamme (orange)
-        const flameMidGeo = new THREE.ConeGeometry(0.22, 1.4, 8);
-        flameMidGeo.rotateX(-Math.PI / 2);
         const flameMidMat = new THREE.MeshBasicMaterial({
             color: 0xff8800,
             transparent: true,
             opacity: 0.6,
         });
-        const flameMid = new THREE.Mesh(flameMidGeo, flameMidMat);
+        const flameMid = new THREE.Mesh(SHARED_GEO.flameMid, flameMidMat);
         this.flameGroup.add(flameMid);
         this.flames.push(flameMid);
 
-        // Äußere Flamme (rot, groß)
-        const flameOuterGeo = new THREE.ConeGeometry(0.28, 1.8, 8);
-        flameOuterGeo.rotateX(-Math.PI / 2);
         const flameOuterMat = new THREE.MeshBasicMaterial({
             color: 0xff3300,
             transparent: true,
             opacity: 0.35,
         });
-        const flameOuter = new THREE.Mesh(flameOuterGeo, flameOuterMat);
+        const flameOuter = new THREE.Mesh(SHARED_GEO.flameOuter, flameOuterMat);
         this.flameGroup.add(flameOuter);
         this.flames.push(flameOuter);
 
-        // Boost-PointLight (nur bei Boost aktiv)
-        this.boostLight = new THREE.PointLight(0xff6600, 0, 8);
-        this.boostLight.position.z = 0.5;
-        this.flameGroup.add(this.boostLight);
+        // BoostLight entfernt fuer Performance
 
         this.group.add(this.flameGroup);
 
-        // --- Schild-Kugel (unsichtbar bis aktiv) ---
-        const shieldGeo = new THREE.SphereGeometry(1.5, 16, 16);
+        // --- Schild-Kugel (shared Geometry, 8 Segmente) ---
         const shieldMat = new THREE.MeshBasicMaterial({
             color: 0x4488ff,
             transparent: true,
             opacity: 0,
             wireframe: true,
         });
-        this.shieldMesh = new THREE.Mesh(shieldGeo, shieldMat);
+        this.shieldMesh = new THREE.Mesh(SHARED_GEO.shield, shieldMat);
         this.group.add(this.shieldMesh);
 
         this.renderer.addToScene(this.group);
@@ -228,11 +218,11 @@ export class Player {
 
         // Zufällige Startrichtung
         if (startDirection && startDirection.lengthSq() > 0.0001) {
-            const dir = startDirection.clone().normalize();
-            this.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
+            this._tmpVec.copy(startDirection).normalize();
+            this.quaternion.setFromUnitVectors(this._tmpDir.set(0, 0, -1), this._tmpVec);
         } else {
             const angle = Math.random() * Math.PI * 2;
-            this.quaternion.setFromEuler(new THREE.Euler(0, angle, 0));
+            this._tmpEuler.set(0, angle, 0, 'YXZ'); this.quaternion.setFromEuler(this._tmpEuler);
         }
 
         this._updateModel();
@@ -359,10 +349,7 @@ export class Player {
             }
         }
 
-        // Boost-PointLight
-        if (this.boostLight) {
-            this.boostLight.intensity = this.isBoosting ? 2.5 + Math.sin(time * 20) * 0.5 : 0;
-        }
+        // BoostLight entfernt
 
         // Schild-Visualisierung
         if (this.shieldMesh) {

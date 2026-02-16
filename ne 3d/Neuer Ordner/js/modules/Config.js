@@ -1,4 +1,4 @@
-﻿// ============================================
+// ============================================
 // Config.js - Zentrale Spielkonfiguration
 // ============================================
 
@@ -41,16 +41,16 @@ export const CONFIG = {
     // ---- Trail (Schweifspur) ----
     TRAIL: {
         WIDTH: 0.6,
-        UPDATE_INTERVAL: 0.05,
+        UPDATE_INTERVAL: 0.07,
         GAP_CHANCE: 0.02,
         GAP_DURATION: 0.3,
-        MAX_SEGMENTS: 1400,
+        MAX_SEGMENTS: 5000,
     },
 
     // ---- Rendering ----
     RENDER: {
         MAX_PIXEL_RATIO: 1.35,
-        SHADOW_MAP_SIZE: 1024,
+        SHADOW_MAP_SIZE: 512,
     },
 
     // ---- Powerups ----
@@ -122,7 +122,7 @@ export const CONFIG = {
     CAMERA: {
         FOV: 75,
         NEAR: 0.1,
-        FAR: 500,
+        FAR: 200,
         FOLLOW_DISTANCE: 12,
         FOLLOW_HEIGHT: 6,
         LOOK_AHEAD: 5,

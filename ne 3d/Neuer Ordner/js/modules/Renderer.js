@@ -1,4 +1,4 @@
-﻿// ============================================
+// ============================================
 // Renderer.js - Three.js Rendering & Kameras
 // ============================================
 
@@ -12,7 +12,7 @@ export class Renderer {
         // WebGL Renderer
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
-            antialias: true,
+            antialias: window.devicePixelRatio <= 1,
             alpha: false,
         });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.RENDER.MAX_PIXEL_RATIO));
@@ -20,14 +20,14 @@ export class Renderer {
         this._width = window.innerWidth;
         this._height = window.innerHeight;
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.type = THREE.BasicShadowMap;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.2;
         this.renderer.setClearColor(CONFIG.COLORS.BACKGROUND);
 
         // Szene
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(CONFIG.COLORS.BACKGROUND, 0.008);
+        this.scene.fog = new THREE.Fog(CONFIG.COLORS.BACKGROUND, 50, 200);
 
         // Beleuchtung
         this._setupLights();
@@ -49,7 +49,7 @@ export class Renderer {
 
     _setupLights() {
         // Ambient
-        const ambient = new THREE.AmbientLight(CONFIG.COLORS.AMBIENT_LIGHT, 0.6);
+        const ambient = new THREE.AmbientLight(CONFIG.COLORS.AMBIENT_LIGHT, 0.8);
         this.scene.add(ambient);
 
         // Hauptlicht
@@ -70,10 +70,7 @@ export class Renderer {
         fillLight.position.set(-20, 30, -10);
         this.scene.add(fillLight);
 
-        // Punktlicht oben (dramatischer Effekt)
-        const pointLight = new THREE.PointLight(0x0066ff, 0.5, 120);
-        pointLight.position.set(0, 40, 0);
-        this.scene.add(pointLight);
+        // PointLight entfernt fuer Performance
     }
 
     createCamera(index) {
@@ -132,11 +129,12 @@ export class Renderer {
                 target.position.copy(playerPosition).add(this._tmpVec);
             }
 
-            // Smooth Position
-            cam.position.lerp(target.position, smooth);
+            // Smooth Position (dt-basierte Dämpfung)
+            const smoothFactor = 1 - Math.pow(1 - smooth, dt * 60);
+            cam.position.lerp(target.position, smoothFactor);
 
             // Kamera-Rotation = Spieler-Rotation (Horizont kippt mit)
-            cam.quaternion.slerp(playerQuaternion, smooth);
+            cam.quaternion.slerp(playerQuaternion, smoothFactor);
         } else {
             // --- Standard-Modus: Horizont bleibt waagerecht ---
             if (mode === 'THIRD_PERSON') {
@@ -158,12 +156,13 @@ export class Renderer {
                 target.lookAt.copy(playerPosition);
             }
 
-            // Smooth interpolation
-            cam.position.lerp(target.position, smooth);
+            // Smooth interpolation (dt-basierte Dämpfung)
+            const smoothFactor = 1 - Math.pow(1 - smooth, dt * 60);
+            cam.position.lerp(target.position, smoothFactor);
 
             cam.getWorldDirection(this._tmpLookAt);
             this._tmpLookAt.multiplyScalar(10).add(cam.position);
-            this._tmpLookAt.lerp(target.lookAt, smooth);
+            this._tmpLookAt.lerp(target.lookAt, smoothFactor);
             cam.lookAt(this._tmpLookAt);
         }
     }
@@ -254,12 +253,12 @@ export class Renderer {
             this.renderer.shadowMap.enabled = false;
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 0.8)); // Reduzierte Auflösung
             this.renderer.toneMapping = THREE.NoToneMapping;
-            this.scene.fog.density = 0.005; // Weniger Nebel
+            this.scene.fog.near = 30; this.scene.fog.far = 120; // Weniger Nebel
         } else {
             this.renderer.shadowMap.enabled = true;
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.RENDER.MAX_PIXEL_RATIO));
             this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            this.scene.fog.density = 0.008;
+            this.scene.fog.near = 50; this.scene.fog.far = 200;
         }
         // Material neu kompilieren erzwingen (nötig für Schatten-Änderung)
         this.scene.traverse((child) => {

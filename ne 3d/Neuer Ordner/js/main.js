@@ -43,6 +43,7 @@ class Game {
         this.roundPause = 0;
         this.keyCapture = null;
         this.toastTimeout = null;
+        this._hudTimer = 0;
 
         this.settings = this._loadSettings();
 
@@ -125,7 +126,16 @@ class Game {
 
         window.addEventListener('keydown', (e) => this._handleKeyCapture(e), true);
 
-        // Performance Toggle (P)
+        // Performance Analyse-Overlay (F) + Quality Toggle (P)
+        this._fpsTracker = {
+            samples: [], avg: 60, update(dt) {
+                if (dt > 0) this.samples.push(1 / dt);
+                if (this.samples.length > 60) this.samples.shift();
+                this.avg = this.samples.length > 0
+                    ? this.samples.reduce((a, b) => a + b, 0) / this.samples.length : 60;
+            }
+        };
+
         window.addEventListener('keydown', (e) => {
             if (e.code === 'KeyP' && !this.keyCapture) {
                 this.isLowQuality = !this.isLowQuality;
@@ -133,21 +143,13 @@ class Game {
                 this.renderer.setQuality(quality);
                 this._showStatusToast(`Grafik: ${quality === 'LOW' ? 'Niedrig (Schnell)' : 'Hoch (Schön)'}`);
             }
-            // FPS Toggle (F)
+            // Performance Analyse-Overlay (F)
             if (e.code === 'KeyF' && !this.keyCapture) {
                 if (!this.stats) {
                     this.stats = document.createElement('div');
-                    this.stats.style.position = 'absolute';
-                    this.stats.style.top = '10px';
-                    this.stats.style.left = '10px';
-                    this.stats.style.color = '#00ff00';
-                    this.stats.style.fontFamily = 'monospace';
-                    this.stats.style.fontSize = '14px';
-                    this.stats.style.zIndex = '1000';
-                    this.stats.style.pointerEvents = 'none';
+                    this.stats.style.cssText = 'position:fixed;top:10px;left:10px;color:#0f0;font:13px/1.5 monospace;z-index:1000;pointer-events:none;background:rgba(0,0,0,0.6);padding:8px 12px;border-radius:6px;min-width:200px;white-space:pre-wrap;';
                     document.body.appendChild(this.stats);
-                    this.lastFpsTime = performance.now();
-                    this.frameCount = 0;
+                    this._statsTimer = 0;
                 } else {
                     this.stats.remove();
                     this.stats = null;
@@ -156,17 +158,7 @@ class Game {
         });
     }
 
-    update(dt) {
-        if (this.stats) {
-            this.frameCount++;
-            const now = performance.now();
-            if (now - this.lastFpsTime >= 1000) {
-                this.stats.innerText = `FPS: ${this.frameCount}`;
-                this.frameCount = 0;
-                this.lastFpsTime = now;
-            }
-        }
-    }
+    // update() ist weiter unten definiert (einzelne Methode für alles)
 
     _createDefaultSettings() {
         return {
@@ -666,20 +658,6 @@ class Game {
         if (this.powerupManager) {
             this.powerupManager.clear();
         }
-        this.renderer.clearScene();
-        this.arena = new Arena(this.renderer);
-        this.arena.portalsEnabled = this.settings.portalsEnabled;
-        this.arena.build(this.mapKey);
-
-        this.renderer.setSplitScreen(this.numHumans === 2);
-        this._syncP2HudVisibility();
-
-        if (this.entityManager) {
-            this.entityManager.clear();
-        }
-        if (this.powerupManager) {
-            this.powerupManager.clear();
-        }
         this.particles.clear();
         this.renderer.clearScene();
         this.arena = new Arena(this.renderer);
@@ -844,6 +822,44 @@ class Game {
     }
 
     update(dt) {
+        // FPS-Tracker (immer aktiv, kein Performance-Overhead)
+        this._fpsTracker.update(dt);
+
+        // Performance Analyse-Overlay aktualisieren (alle 250ms)
+        if (this.stats) {
+            this._statsTimer = (this._statsTimer || 0) + dt;
+            if (this._statsTimer >= 0.25) {
+                this._statsTimer = 0;
+                const info = this.renderer.renderer.info;
+                const fps = Math.round(this._fpsTracker.avg);
+                const draws = info.render.calls || 0;
+                const tris = info.render.triangles || 0;
+                const geos = info.memory.geometries || 0;
+                const texs = info.memory.textures || 0;
+                const players = this.entityManager ? this.entityManager.players.filter(p => p.alive).length : 0;
+                const quality = this.isLowQuality ? 'LOW' : 'HIGH';
+                this.stats.innerHTML =
+                    `<b style="color:${fps < 30 ? '#f44' : fps < 50 ? '#fa0' : '#0f0'}">FPS: ${fps}</b>\n` +
+                    `Draw Calls: ${draws}\n` +
+                    `Dreiecke: ${(tris / 1000).toFixed(1)}k\n` +
+                    `Geometrien: ${geos}\n` +
+                    `Texturen: ${texs}\n` +
+                    `Spieler: ${players}\n` +
+                    `Qualität: ${quality}`;
+            }
+        }
+
+        // Adaptive Qualität: Auto-Switch auf LOW bei < 30 FPS
+        this._adaptiveTimer = (this._adaptiveTimer || 0) + dt;
+        if (this._adaptiveTimer >= 3.0) {
+            this._adaptiveTimer = 0;
+            if (this._fpsTracker.avg < 30 && !this.isLowQuality && this.state === 'PLAYING') {
+                this.isLowQuality = true;
+                this.renderer.setQuality('LOW');
+                this._showStatusToast('⚡ Grafik automatisch reduziert');
+            }
+        }
+
         if (this.state === 'PLAYING') {
             if (this.input.wasPressed('Escape')) {
                 this._returnToMenu();
@@ -855,7 +871,13 @@ class Game {
             this.particles.update(dt);
             this.arena.update(dt);
             this.entityManager.updateCameras(dt);
-            this._updateHUD();
+
+            // HUD nur alle ~200ms aktualisieren (reicht für UI)
+            this._hudTimer += dt;
+            if (this._hudTimer >= 0.2) {
+                this._hudTimer = 0;
+                this._updateHUD();
+            }
 
             // Fadenkreuz Lock-On Farbe updaten (P1)
             if (this.ui.crosshairP1) {

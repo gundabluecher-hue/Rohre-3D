@@ -128,34 +128,137 @@ export class Arena {
 
     _buildPortals(map, scale) {
         this.portals = [];
-        if (!this.portalsEnabled || !Array.isArray(map.portals)) return;
+        if (!this.portalsEnabled) return;
 
-        for (const def of map.portals) {
-            const posA = new THREE.Vector3(def.a[0] * scale, def.a[1] * scale, def.a[2] * scale);
-            const posB = new THREE.Vector3(def.b[0] * scale, def.b[1] * scale, def.b[2] * scale);
-            const color = def.color || 0x00ffcc;
+        // Dynamic Portals override map portals if count > 0
+        const dynamicCount = CONFIG.GAMEPLAY.PORTAL_COUNT || 0;
 
-            const meshA = this._createPortalMesh(posA, color);
-            const meshB = this._createPortalMesh(posB, color);
-
-            this.portals.push({
-                posA, posB,
-                meshA, meshB,
-                color,
-                cooldowns: new Map(),
-            });
+        if (dynamicCount > 0) {
+            this._generateDynamicPortals(dynamicCount, scale);
+        } else if (Array.isArray(map.portals)) {
+            // Standard Map Portals
+            for (const def of map.portals) {
+                this._createPortalFromDef(def, scale);
+            }
         }
     }
 
-    _createPortalMesh(position, color) {
+    _createPortalFromDef(def, scale) {
+        const posA = new THREE.Vector3(def.a[0] * scale, def.a[1] * scale, def.a[2] * scale);
+        const posB = new THREE.Vector3(def.b[0] * scale, def.b[1] * scale, def.b[2] * scale);
+        const color = def.color || 0x00ffcc;
+        this._addPortalInstance(posA, posB, color);
+    }
+
+    _addPortalInstance(posA, posB, color) {
+        const meshA = this._createPortalMesh(posA, color);
+        const meshB = this._createPortalMesh(posB, color);
+
+        this.portals.push({
+            posA, posB,
+            meshA, meshB,
+            color,
+            cooldowns: new Map(),
+        });
+    }
+
+    _generateDynamicPortals(count, scale) {
+        const isPlanar = CONFIG.GAMEPLAY.PLANAR_MODE;
+        const colors = [0x00ffcc, 0xff00cc, 0xffff00, 0x00ccff];
+
+        for (let i = 0; i < count; i++) {
+            const color = colors[i % colors.length];
+
+            if (isPlanar) {
+                this._generatePlanarPortal(scale, color);
+            } else {
+                this._generateRandomPortal(scale, color);
+            }
+        }
+    }
+
+    _generatePlanarPortal(scale, color) {
+        // Planar Mode: Portals connect predefined vertical tiers (levels)
+        // Levels: 10 (Low), 32 (Mid-Low), 54 (Mid-High), 76 (High)
+        // Arena Height is approx 90
+        const levels = [
+            10,
+            32,
+            54,
+            76
+        ];
+
+        // Randomly pick two DISTINCT levels
+        const levelIndexA = Math.floor(Math.random() * levels.length);
+        let levelIndexB = Math.floor(Math.random() * levels.length);
+        while (levelIndexB === levelIndexA) {
+            levelIndexB = Math.floor(Math.random() * levels.length);
+        }
+
+        const yA = levels[levelIndexA];
+        const yB = levels[levelIndexB];
+
+        const margin = 8 * scale;
+        const b = this.bounds;
+
+        // Random X/Z position within safe bounds
+        // Option 1: Portals are floating in space
+        // Option 2: Portals are on walls
+
+        // Let's make them floating "Elevators" at random positions in the arena
+        // to encourage flying around.
+        const x = b.minX + margin + Math.random() * (b.maxX - b.minX - 2 * margin);
+        const z = b.minZ + margin + Math.random() * (b.maxZ - b.minZ - 2 * margin);
+
+        // Both portals at same X/Z, just different Height
+        const posA = new THREE.Vector3(x, yA, z);
+        const posB = new THREE.Vector3(x, yB, z);
+
+        // Determine Direction
+        const dirA = yB > yA ? 'UP' : 'DOWN';
+        const dirB = yA > yB ? 'UP' : 'DOWN';
+
+        this._addPortalInstance(posA, posB, color, dirA, dirB);
+
+        // Create Connection Beam
+        if (CONFIG.GAMEPLAY.PORTAL_BEAMS) {
+            this._createPortalBeam(posA, posB, color);
+        }
+    }
+
+    _generateRandomPortal(scale, color) {
+        const posA = this.getRandomPosition();
+        const posB = this.getRandomPosition();
+        this._addPortalInstance(posA, posB, color, 'NEUTRAL', 'NEUTRAL');
+    }
+
+    _addPortalInstance(posA, posB, color, dirA = 'NEUTRAL', dirB = 'NEUTRAL') {
+        const meshA = this._createPortalMesh(posA, color, dirA);
+        const meshB = this._createPortalMesh(posB, color, dirB);
+
+        this.portals.push({
+            posA, posB,
+            meshA, meshB,
+            color,
+            cooldowns: new Map(),
+        });
+    }
+
+    _createPortalMesh(position, color, direction = 'NEUTRAL') {
         const group = new THREE.Group();
         const ringSize = CONFIG.PORTAL.RING_SIZE;
+
+        // Override color based on direction if specified
+        // Green for UP, Red for DOWN, specified color for NEUTRAL
+        let displayColor = color;
+        if (direction === 'UP') displayColor = 0x00ff00;
+        if (direction === 'DOWN') displayColor = 0xff0000;
 
         // Äußerer Ring (Torus)
         const torusGeo = new THREE.TorusGeometry(ringSize, 0.3, 16, 32);
         const torusMat = new THREE.MeshStandardMaterial({
-            color: color,
-            emissive: color,
+            color: displayColor,
+            emissive: displayColor,
             emissiveIntensity: 1.2,
             roughness: 0.2,
             metalness: 0.8,
@@ -166,7 +269,7 @@ export class Arena {
         // Innerer Glow (halbtransparente Scheibe)
         const discGeo = new THREE.CircleGeometry(ringSize * 0.85, 32);
         const discMat = new THREE.MeshBasicMaterial({
-            color: color,
+            color: displayColor,
             transparent: true,
             opacity: 0.15,
             side: THREE.DoubleSide,
@@ -178,7 +281,7 @@ export class Arena {
         const innerTorusGeo = new THREE.TorusGeometry(ringSize * 0.6, 0.15, 12, 24);
         const innerTorusMat = new THREE.MeshStandardMaterial({
             color: 0xffffff,
-            emissive: color,
+            emissive: displayColor,
             emissiveIntensity: 0.5,
             transparent: true,
             opacity: 0.6,
@@ -186,12 +289,67 @@ export class Arena {
         const innerTorus = new THREE.Mesh(innerTorusGeo, innerTorusMat);
         group.add(innerTorus);
 
-        // PointLight entfernt fuer Performance – Glow durch emissive Materials
+        // DIRECTION ARROW
+        if (direction !== 'NEUTRAL') {
+            const arrowGeo = new THREE.ConeGeometry(0.8, 2.5, 8);
+            const arrowMat = new THREE.MeshBasicMaterial({
+                color: displayColor,
+                transparent: true,
+                opacity: 0.8,
+            });
+            const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+
+            // Default Cone points UP (Y+)
+            if (direction === 'UP') {
+                // Point Up
+                arrow.position.y = 0;
+            } else if (direction === 'DOWN') {
+                // Point Down
+                arrow.rotation.x = Math.PI;
+                arrow.position.y = 0;
+            }
+
+            group.add(arrow);
+
+            // Animation helper
+            group.userData.arrow = arrow;
+            group.userData.direction = direction;
+        }
 
         group.position.copy(position);
         this.renderer.addToScene(group);
 
         return group;
+    }
+
+    _createPortalBeam(posA, posB, color) {
+        // Vertical beam between two points
+        const height = Math.abs(posA.y - posB.y);
+        const midY = (posA.y + posB.y) / 2;
+
+        const geo = new THREE.CylinderGeometry(0.2, 0.2, height, 8, 1, true);
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0x44aaff,
+            opacity: 0.15,
+            transparent: true,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+
+        const beam = new THREE.Mesh(geo, mat);
+        beam.position.set(posA.x, midY, posA.z);
+        this.renderer.addToScene(beam);
+
+        if (!this.beams) this.beams = [];
+        this.beams.push(beam);
+    }
+
+    toggleBeams(visible) {
+        if (!this.beams) return;
+        for (const beam of this.beams) {
+            beam.visible = visible;
+        }
     }
 
     /** Prüft ob eine Position ein Portal berührt, gibt Zielposition zurück oder null */

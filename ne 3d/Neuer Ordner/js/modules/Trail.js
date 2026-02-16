@@ -234,15 +234,43 @@ export class Trail {
                     const maxZ = (z1 > z2 ? z1 : z2) + segRadius;
                     if (position.z < minZ || position.z > maxZ) continue;
 
-                    // Precise Cylinder/Line Distance Check
-                    const distSq = this._distanceSqPointToSegment(
-                        position.x, position.y, position.z,
-                        this.segmentsData[offset], this.segmentsData[offset + 1], this.segmentsData[offset + 2],
-                        this.segmentsData[offset + 3], this.segmentsData[offset + 4], this.segmentsData[offset + 5]
-                    );
+                    // Inline calculation to get 't' for normal
+                    const fromX = this.segmentsData[offset];
+                    const fromY = this.segmentsData[offset + 1];
+                    const fromZ = this.segmentsData[offset + 2];
+                    const toX = this.segmentsData[offset + 3];
+                    const toY = this.segmentsData[offset + 4];
+                    const toZ = this.segmentsData[offset + 5];
+
+                    const vx = toX - fromX;
+                    const vy = toY - fromY;
+                    const vz = toZ - fromZ;
+                    const wx = position.x - fromX;
+                    const wy = position.y - fromY;
+                    const wz = position.z - fromZ;
+
+                    const lenSq = vx * vx + vy * vy + vz * vz;
+                    let t = 0;
+                    if (lenSq > 0.000001) {
+                        t = (wx * vx + wy * vy + wz * vz) / lenSq;
+                        if (t < 0) t = 0;
+                        else if (t > 1) t = 1;
+                    }
+
+                    const cx = fromX + t * vx;
+                    const cy = fromY + t * vy;
+                    const cz = fromZ + t * vz;
+
+                    const dx = position.x - cx;
+                    const dy = position.y - cy;
+                    const dz = position.z - cz;
+                    const distSq = dx * dx + dy * dy + dz * dz;
 
                     if (distSq <= totalRadius * totalRadius) {
-                        return true;
+                        // Avoid zero length normal
+                        const len = Math.sqrt(distSq) || 0.001;
+                        const normal = new THREE.Vector3(dx / len, dy / len, dz / len);
+                        return { hit: true, normal };
                     }
                 }
             }

@@ -212,6 +212,8 @@ export class Player {
         this.isGhost = false;
         this.invertControls = false;
         this.spawnProtectionTimer = CONFIG.PLAYER.SPAWN_PROTECTION || 0;
+        // Planar Mode State
+        this.currentPlanarY = CONFIG.PLAYER.START_Y || 5;
         this.trail.clear();
         this.trail.resetWidth();
         this.group.visible = true;
@@ -259,6 +261,11 @@ export class Player {
                 yawInput *= -1;
             }
 
+            // Planar Mode: Ignore pitch input
+            if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+                pitchInput = 0;
+            }
+
             // Boost
             if (input.boost && this.boostCooldown <= 0 && !this.isBoosting) {
                 this.isBoosting = true;
@@ -280,6 +287,16 @@ export class Player {
         if (CONFIG.PLAYER.AUTO_ROLL && rollInput === 0) {
             this._tmpEuler2.setFromQuaternion(this.quaternion, 'YXZ');
             this._tmpEuler2.z *= (1 - CONFIG.PLAYER.AUTO_ROLL_SPEED * dt);
+
+            if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+                this._tmpEuler2.x = 0; // Strict pitch lock 
+            }
+
+            this.quaternion.setFromEuler(this._tmpEuler2);
+        } else if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+            // Strict pitch lock even if rolling
+            this._tmpEuler2.setFromQuaternion(this.quaternion, 'YXZ');
+            this._tmpEuler2.x = 0;
             this.quaternion.setFromEuler(this._tmpEuler2);
         }
 
@@ -300,8 +317,17 @@ export class Player {
         // Vorwärtsbewegung (ohne clone)
         this._tmpVec.set(0, 0, -1).applyQuaternion(this.quaternion);
         this.velocity.copy(this._tmpVec).multiplyScalar(this.speed);
+
+        if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+            this.velocity.y = 0;
+            // Use currentPlanarY instead of static constant
+            this.position.y = this.currentPlanarY;
+        }
+
         this.position.x += this.velocity.x * dt;
-        this.position.y += this.velocity.y * dt;
+        if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+            this.position.y += this.velocity.y * dt;
+        }
         this.position.z += this.velocity.z * dt;
 
         // Trail aktualisieren

@@ -122,7 +122,10 @@ export class Renderer {
                 this._tmpVec.applyQuaternion(playerQuaternion);
                 target.position.copy(playerPosition).add(this._tmpVec);
             } else if (mode === 'FIRST_PERSON') {
-                target.position.copy(playerPosition);
+                // Kamera vor dem Flugzeug platzieren
+                this._tmpVec.set(0, 0, -CONFIG.CAMERA.FIRST_PERSON_OFFSET);
+                this._tmpVec.applyQuaternion(playerQuaternion);
+                target.position.copy(playerPosition).add(this._tmpVec);
             } else if (mode === 'TOP_DOWN') {
                 this._tmpVec.set(0, 40, 5);
                 this._tmpVec.applyQuaternion(playerQuaternion);
@@ -148,7 +151,10 @@ export class Renderer {
                 this._tmpVec2.copy(playerDirection).multiplyScalar(CONFIG.CAMERA.LOOK_AHEAD);
                 target.lookAt.copy(playerPosition).add(this._tmpVec2);
             } else if (mode === 'FIRST_PERSON') {
-                target.position.copy(playerPosition);
+                // Kamera vor dem Flugzeug (in Blickrichtung)
+                this._tmpVec.copy(playerDirection).multiplyScalar(CONFIG.CAMERA.FIRST_PERSON_OFFSET);
+                target.position.copy(playerPosition).add(this._tmpVec);
+
                 this._tmpVec2.copy(playerDirection).multiplyScalar(20);
                 target.lookAt.copy(playerPosition).add(this._tmpVec2);
             } else if (mode === 'TOP_DOWN') {

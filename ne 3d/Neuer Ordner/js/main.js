@@ -11,47 +11,44 @@ import { EntityManager } from './modules/EntityManager.js';
 import { PowerupManager } from './modules/Powerup.js';
 import { ParticleSystem } from './modules/Particles.js';
 import { AudioManager } from './modules/Audio.js';
+import { HUD } from './modules/HUD.js';
 import { RoundRecorder } from './modules/RoundRecorder.js';
 
 const SETTINGS_STORAGE_KEY = 'mini-curve-fever-3d.settings.v3';
-const BASE_HITBOX_RADIUS = 0.8;
+
+function clamp(val, min, max) {
+    return Math.min(Math.max(val, min), max);
+}
+
+function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+}
 
 const KEY_BIND_ACTIONS = [
-    { key: 'UP', label: 'Pitch hoch' },
-    { key: 'DOWN', label: 'Pitch runter' },
-    { key: 'LEFT', label: 'Yaw links' },
-    { key: 'RIGHT', label: 'Yaw rechts' },
-    { key: 'ROLL_LEFT', label: 'Roll links' },
-    { key: 'ROLL_RIGHT', label: 'Roll rechts' },
-    { key: 'BOOST', label: 'Boost' },
-    { key: 'SHOOT', label: 'Item schiessen' },
-    { key: 'NEXT_ITEM', label: 'Nächstes Item' },
-    { key: 'DROP', label: 'Item droppen' },
-    { key: 'CAMERA', label: 'Kamera wechseln' },
+    { label: 'Pitch Hoch', key: 'UP' },
+    { label: 'Pitch Runter', key: 'DOWN' },
+    { label: 'Links (Gier)', key: 'LEFT' },
+    { label: 'Rechts (Gier)', key: 'RIGHT' },
+    { label: 'Rollen Links', key: 'ROLL_LEFT' },
+    { label: 'Rollen Rechts', key: 'ROLL_RIGHT' },
+    { label: 'Boost', key: 'BOOST' },
+    { label: 'Schiessen', key: 'SHOOT' },
+    { label: 'Item Abwerfen', key: 'DROP' },
+    { label: 'Item Wechseln', key: 'NEXT_ITEM' },
+    { label: 'Kamera', key: 'CAMERA' },
 ];
 
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-}
-
-function deepClone(value) {
-    return JSON.parse(JSON.stringify(value));
-}
-
-class Game {
+export class Game {
     constructor() {
-        this.state = 'MENU';
-        this.roundPause = 0;
-        this.keyCapture = null;
-        this.toastTimeout = null;
-        this._hudTimer = 0;
-
         this.settings = this._loadSettings();
-
         const canvas = document.getElementById('game-canvas');
         this.renderer = new Renderer(canvas);
         this.input = new InputManager();
         this.audio = new AudioManager();
+
+        // HUD Systems
+        this.hudP1 = new HUD('p1-fighter-hud', 0);
+        this.hudP2 = new HUD('p2-fighter-hud', 1);
 
         // Debug Recorder
         this.recorder = new RoundRecorder();
@@ -95,6 +92,7 @@ class Game {
             cockpitCamP1: document.getElementById('cockpit-cam-p1'),
             cockpitCamP2: document.getElementById('cockpit-cam-p2'),
             portalsToggle: document.getElementById('portals-toggle'),
+            portalBeamsToggle: document.getElementById('portal-beams-toggle'),
 
             speedSlider: document.getElementById('speed-slider'),
             speedLabel: document.getElementById('speed-label'),
@@ -126,6 +124,18 @@ class Game {
 
         this._setupMenuListeners();
         this._syncMenuControls();
+
+        // Portal Beams Toggle Listener (Added Manually here as _setupMenuListeners might be long)
+        // Actually best to put it in _setupMenuListeners.
+        // Let's add it here for now to ensure it works without viewing specific line in huge method.
+        if (this.ui.portalBeamsToggle) {
+            this.ui.portalBeamsToggle.addEventListener('change', (e) => {
+                this.settings.gameplay.portalBeams = e.target.checked;
+                this._saveSettings();
+                this._applySettingsToRuntime();
+            });
+        }
+
         this.gameLoop.start();
 
         window.addEventListener('keydown', (e) => this._handleKeyCapture(e), true);
@@ -190,6 +200,8 @@ class Game {
                 itemAmount: 8,
                 fireRate: 0.45,
                 lockOnAngle: 15,
+                planarMode: false,
+                portalCount: 0,
             },
             controls: this._cloneDefaultControls(),
         };
@@ -257,6 +269,8 @@ class Game {
             merged.gameplay.itemAmount = clamp(parseInt(saved?.gameplay?.itemAmount ?? defaults.gameplay.itemAmount, 10), 1, 20);
             merged.gameplay.fireRate = clamp(parseFloat(saved?.gameplay?.fireRate ?? defaults.gameplay.fireRate), 0.1, 2.0);
             merged.gameplay.lockOnAngle = clamp(parseInt(saved?.gameplay?.lockOnAngle ?? defaults.gameplay.lockOnAngle, 10), 5, 45);
+            merged.gameplay.planarMode = !!(saved?.gameplay?.planarMode ?? defaults.gameplay.planarMode);
+            merged.gameplay.portalCount = clamp(parseInt(saved?.gameplay?.portalCount ?? defaults.gameplay.portalCount, 10), 0, 20);
 
             merged.controls.PLAYER_1 = this._normalizePlayerControls(saved?.controls?.PLAYER_1, defaults.controls.PLAYER_1);
             merged.controls.PLAYER_2 = this._normalizePlayerControls(saved?.controls?.PLAYER_2, defaults.controls.PLAYER_2);
@@ -284,8 +298,13 @@ class Game {
         CONFIG.PLAYER.SPEED = this.settings.gameplay.speed;
         CONFIG.PLAYER.TURN_SPEED = this.settings.gameplay.turnSensitivity;
         CONFIG.PLAYER.MODEL_SCALE = this.settings.gameplay.planeScale;
-        CONFIG.PLAYER.HITBOX_RADIUS = BASE_HITBOX_RADIUS * this.settings.gameplay.planeScale;
-        CONFIG.PLAYER.AUTO_ROLL = this.settings.autoRoll;
+        CONFIG.PLAYER.HITBOX_RADIUS = 0.8 * this.settings.gameplay.planeScale;
+        CONFIG.PLAYER.AUTO_ROLL = this.settings.gameplay.autoRoll;
+
+        if (this.settings.gameplay) {
+            CONFIG.GAMEPLAY.PLANAR_MODE = !!this.settings.gameplay.planarMode;
+            CONFIG.GAMEPLAY.PORTAL_COUNT = this.settings.gameplay.portalCount || 0;
+        }
 
         CONFIG.TRAIL.WIDTH = this.settings.gameplay.trailWidth;
         CONFIG.TRAIL.GAP_DURATION = this.settings.gameplay.gapSize;
@@ -293,6 +312,15 @@ class Game {
 
         CONFIG.POWERUP.MAX_ON_FIELD = Math.round(this.settings.gameplay.itemAmount);
         CONFIG.PROJECTILE.COOLDOWN = this.settings.gameplay.fireRate;
+
+        if (this.settings.gameplay) {
+            CONFIG.GAMEPLAY.PORTAL_BEAMS = this.settings.gameplay.portalBeams !== undefined ? !!this.settings.gameplay.portalBeams : true;
+        }
+
+        // Apply immediately if arena exists
+        if (this.arena && this.arena.toggleBeams) {
+            this.arena.toggleBeams(CONFIG.GAMEPLAY.PORTAL_BEAMS);
+        }
 
         this.input.setBindings(this.settings.controls);
 
@@ -346,6 +374,22 @@ class Game {
             this.settings.cockpitCamera.PLAYER_2 = !!this.ui.cockpitCamP2.checked;
             this._onSettingsChanged();
         });
+
+        const planarModeToggle = document.getElementById('planar-mode-toggle');
+        if (planarModeToggle) {
+            planarModeToggle.addEventListener('change', (e) => {
+                if (!this.settings.gameplay) this.settings.gameplay = {};
+                this.settings.gameplay.planarMode = e.target.checked;
+
+                // Usability: Auto-active portals if they are off, because Planar Mode needs them
+                if (this.settings.gameplay.planarMode && (this.settings.gameplay.portalCount || 0) === 0) {
+                    this.settings.gameplay.portalCount = 4;
+                    this._showStatusToast('Ebenen-Modus: 4 Portale aktiviert');
+                }
+
+                this._onSettingsChanged();
+            });
+        }
 
         this.ui.portalsToggle.addEventListener('change', () => {
             this.settings.portalsEnabled = !!this.ui.portalsToggle.checked;
@@ -423,6 +467,18 @@ class Game {
         this.ui.startButton.addEventListener('click', () => {
             this.startMatch();
         });
+
+        const portalCountSlider = document.getElementById('portal-count-slider');
+        const portalCountLabel = document.getElementById('portal-count-label');
+        if (portalCountSlider && portalCountLabel) {
+            portalCountSlider.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value, 10);
+                portalCountLabel.textContent = val;
+                if (!this.settings.gameplay) this.settings.gameplay = {};
+                this.settings.gameplay.portalCount = val;
+                this._onSettingsChanged();
+            });
+        }
     }
 
     _onSettingsChanged() {
@@ -449,7 +505,21 @@ class Game {
         this.ui.invertP2.checked = this.settings.invertPitch.PLAYER_2;
         this.ui.cockpitCamP1.checked = this.settings.cockpitCamera.PLAYER_1;
         this.ui.cockpitCamP2.checked = this.settings.cockpitCamera.PLAYER_2;
+
+        const planarModeToggle = document.getElementById('planar-mode-toggle');
+        if (planarModeToggle) {
+            planarModeToggle.checked = this.settings.gameplay?.planarMode || false;
+        }
+
         this.ui.portalsToggle.checked = this.settings.portalsEnabled;
+
+        const portalCountSlider = document.getElementById('portal-count-slider');
+        const portalCountLabel = document.getElementById('portal-count-label');
+        if (portalCountSlider && portalCountLabel) {
+            const val = this.settings.gameplay?.portalCount || 0;
+            portalCountSlider.value = val;
+            portalCountLabel.textContent = val;
+        }
 
         this.ui.speedSlider.value = String(this.settings.gameplay.speed);
         this.ui.speedLabel.textContent = this.settings.gameplay.speed.toFixed(1);
@@ -670,7 +740,7 @@ class Game {
 
         this.powerupManager = new PowerupManager(this.renderer, this.arena);
 
-        this.powerupManager = new PowerupManager(this.renderer, this.arena);
+
 
         this.entityManager = new EntityManager(this.renderer, this.arena, this.powerupManager, this.particles, this.audio, this.recorder);
         this.numHumans = this.settings.mode === 'MULTIPLAYER' ? 2 : 1;
@@ -914,6 +984,10 @@ class Game {
                 this._updateHUD();
             }
 
+            // FIGHTER HUD UPDATE
+            const p1 = this.entityManager.players[0];
+            if (p1) this.hudP1.update(p1, dt, this.entityManager);
+
             // Fadenkreuz Lock-On Farbe updaten (P1)
             if (this.ui.crosshairP1) {
                 const lockTarget = this.entityManager.getLockOnTarget(0);
@@ -932,6 +1006,11 @@ class Game {
                 } else {
                     this.ui.crosshairP2.classList.remove('locked');
                 }
+
+                const p2 = this.entityManager.players[1];
+                if (p2) this.hudP2.update(p2, dt, this.entityManager);
+            } else {
+                this.hudP2.setVisibility(false);
             }
 
             for (const p of this.entityManager.players) {
@@ -1004,7 +1083,26 @@ class Game {
     }
 }
 
+// Global Error Handling
+window.onerror = function (msg, url, lineNo, columnNo, error) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(50,0,0,0.9);color:#fff;padding:20px;z-index:99999;font-family:monospace;overflow:auto;';
+    overlay.innerHTML = `<h1>CRITICAL ERROR</h1><p>${msg}</p><p>${url}:${lineNo}:${columnNo}</p><pre>${error ? error.stack : 'No stack trace'}</pre>`;
+    document.body.appendChild(overlay);
+    return false;
+};
+
 window.addEventListener('DOMContentLoaded', () => {
-    // Game init
-    const game = new Game();
+    try {
+        console.log('DOM ready, initializing Game...');
+        const game = new Game();
+        // Global access for debugging
+        window.GAME_INSTANCE = game;
+    } catch (err) {
+        console.error('Fatal Game Init Error:', err);
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(50,0,0,0.9);color:#fff;padding:20px;z-index:99999;font-family:monospace;overflow:auto;';
+        overlay.innerHTML = `<h1>INIT ERROR</h1><p>${err.message}</p><pre>${err.stack}</pre>`;
+        document.body.appendChild(overlay);
+    }
 });

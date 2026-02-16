@@ -229,13 +229,23 @@ export class EntityManager {
                 for (const other of this.players) {
                     if (!other.alive) continue;
                     const skipRecent = other === player ? 15 : 0;
-                    if (other.trail.checkCollision(player.position, CONFIG.PLAYER.HITBOX_RADIUS, skipRecent)) {
+                    // Check logic was moved into if(bot) block for separation, but human check needs it too?
+                    // Wait, checkCollision returns object now. The original code:
+                    // if (other.trail.checkCollision(...))
+                    // needs update for humans too if checkCollision return changed from bool to object
+
+                    const collision = other.trail.checkCollision(player.position, CONFIG.PLAYER.HITBOX_RADIUS, skipRecent);
+
+                    if (collision && collision.hit) {
                         if (player.hasShield) {
                             player.hasShield = false;
                         } else if (player.isBot) {
                             // Bot: unsterblich – von Trail abprallen
-                            this._bounceBot(player);
-                            break;
+                            // Use the collision result we already have
+                            if (collision && collision.hit) {
+                                this._bounceBot(player, collision.normal);
+                                break;
+                            }
                         } else {
                             if (this.audio) this.audio.play('HIT');
                             if (this.particles) this.particles.spawnHit(player.position, player.color);
@@ -252,6 +262,12 @@ export class EntityManager {
             const portalResult = this.arena.checkPortal(player.position, CONFIG.PLAYER.HITBOX_RADIUS, player.index);
             if (portalResult) {
                 player.position.copy(portalResult.target);
+
+                // Update Planar Level if in Planar Mode
+                if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+                    player.currentPlanarY = portalResult.target.y;
+                }
+
                 player.trail.forceGap(0.5);
             }
 
@@ -621,38 +637,54 @@ export class EntityManager {
     }
 
     /** Bot prallt von Wand/Trail ab: Richtung reflektieren + zurückstoßen */
-    _bounceBot(player) {
+    _bounceBot(player, normalOverride = null) {
         // Aktuelle Flugrichtung ermitteln
         player.getDirection(this._tmpDir);
 
-        // Nächste Wand bestimmen
-        const b = this.arena.bounds;
         const pos = player.position;
+        const b = this.arena.bounds;
 
-        // Distanzen zu den 6 Wänden berechnen
-        const dLeft = pos.x - b.minX;
-        const dRight = b.maxX - pos.x;
-        const dDown = pos.y - b.minY;
-        const dUp = b.maxY - pos.y;
-        const dFront = pos.z - b.minZ;
-        const dBack = b.maxZ - pos.z;
+        let normal = this._tmpVec2;
 
-        // Nächste Wand finden → Normale in _tmpVec2
-        let minDist = dLeft;
-        this._tmpVec2.set(1, 0, 0);
+        if (normalOverride) {
+            normal.copy(normalOverride);
+        } else {
+            // Nächste Wand bestimmen
+            // Distanzen zu den 6 Wänden berechnen
 
-        if (dRight < minDist) { minDist = dRight; this._tmpVec2.set(-1, 0, 0); }
-        if (dDown < minDist) { minDist = dDown; this._tmpVec2.set(0, 1, 0); }
-        if (dUp < minDist) { minDist = dUp; this._tmpVec2.set(0, -1, 0); }
-        if (dFront < minDist) { minDist = dFront; this._tmpVec2.set(0, 0, 1); }
-        if (dBack < minDist) { minDist = dBack; this._tmpVec2.set(0, 0, -1); }
+            // Distanzen zu den 6 Wänden berechnen
+            const dLeft = pos.x - b.minX;
+            const dRight = b.maxX - pos.x;
+            const dDown = pos.y - b.minY;
+            const dUp = b.maxY - pos.y;
+            const dFront = pos.z - b.minZ;
+            const dBack = b.maxZ - pos.z;
+
+            // Nächste Wand finden → Normale in _tmpVec2
+            let minDist = dLeft;
+            this._tmpVec2.set(1, 0, 0);
+
+            if (dRight < minDist) { minDist = dRight; this._tmpVec2.set(-1, 0, 0); }
+            if (dDown < minDist) { minDist = dDown; this._tmpVec2.set(0, 1, 0); }
+            if (dUp < minDist) { minDist = dUp; this._tmpVec2.set(0, -1, 0); }
+            if (dFront < minDist) { minDist = dFront; this._tmpVec2.set(0, 0, 1); }
+            if (dBack < minDist) { minDist = dBack; this._tmpVec2.set(0, 0, -1); }
+
+            normal = this._tmpVec2;
+        } // End else (no normalOverride)
 
         // Richtung reflektieren: r = d - 2(d·n)n (ohne Mutation der Normalen)
-        const dot = this._tmpDir.dot(this._tmpVec2);
+        const dot = this._tmpDir.dot(normal);
         // _tmpDir = _tmpDir - 2*dot*normal
-        this._tmpDir.x -= 2 * dot * this._tmpVec2.x;
-        this._tmpDir.y -= 2 * dot * this._tmpVec2.y;
-        this._tmpDir.z -= 2 * dot * this._tmpVec2.z;
+        this._tmpDir.x -= 2 * dot * normal.x;
+        this._tmpDir.y -= 2 * dot * normal.y;
+        this._tmpDir.z -= 2 * dot * normal.z;
+        this._tmpDir.normalize();
+
+        // Add randomness to bounce to prevent loops
+        this._tmpDir.x += (Math.random() - 0.5) * 0.5;
+        this._tmpDir.y += (Math.random() - 0.5) * 0.5;
+        this._tmpDir.z += (Math.random() - 0.5) * 0.5;
         this._tmpDir.normalize();
 
         // Neue Richtung auf den Quaternion anwenden

@@ -33,9 +33,16 @@ export const CONFIG = {
         SPAWN_PROTECTION: 1.0,
         HITBOX_RADIUS: 0.8,
         MODEL_SCALE: 1.0,
-        START_Y: 5,
+        START_Y: 10,
         AUTO_ROLL: true,
         AUTO_ROLL_SPEED: 1.5,
+    },
+
+    // ---- Gameplay Options ----
+    GAMEPLAY: {
+        PLANAR_MODE: false,
+        PORTAL_COUNT: 0,
+        PORTAL_BEAMS: true,
     },
 
     // ---- Trail (Schweifspur) ----
@@ -128,6 +135,7 @@ export const CONFIG = {
         LOOK_AHEAD: 5,
         SMOOTHING: 0.08,
         MODES: ['THIRD_PERSON', 'FIRST_PERSON', 'TOP_DOWN'],
+        FIRST_PERSON_OFFSET: 4.0, // Kamera vor dem Flugzeug
     },
 
     // ---- Maps ----

@@ -2,12 +2,16 @@
 
 Alle wichtigen Änderungen am Projekt werden hier dokumentiert.
 
+## [2.2.4] - 2026-02-03
+### Geändert
+- **UI konsolidiert**: `3dv17.html` und `index.html` sind wieder inhaltlich synchron.
+- **Versioning**: `create-version.ps1` archiviert jetzt komplette `css/`, `js/` und optionale `assets/`.
+- **Dokumentation**: README präzisiert den Einstieg und die aktive CSS-Datei.
+- **Aufräumen**: Legacy-Backups in `archive/legacy/` verschoben.
+
 ## [2.2.0] - 2026-01-30
 ### Hinzugefügt
-- **CPU Bot**: Spieler 2 kann jetzt von der KI gesteuert werden (Checkbox im Menü).
-  - **Verhalten**: Wechselt zwischen Verfolgen (Chase P1) und freiem Herumfliegen (Wander).
-  - **Boost**: Nutzt zufällig Boost, um aufzuschließen.
-  - **Godmode**: Bot prallt von Wänden, Tunneln und Hindernissen ab, statt zu sterben.
+- **Spieloptionen erweitert**: Menü-Optionen und Verhaltenseinstellungen wurden ausgebaut.
 
 ## [2.1.8] - 2026-01-30
 ### Hinzugefügt

@@ -31,10 +31,9 @@ New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 $filesToCopy = @(
     "3dv17.html",
     "index.html",
-    "css/style.css",
-    "js/bot.js",
-    "js/game.js",
-    "js/three.min.js"
+    "css",
+    "js",
+    "assets"
 )
 
 $copied = New-Object System.Collections.Generic.List[string]
@@ -52,7 +51,13 @@ foreach ($relPath in $filesToCopy) {
         New-Item -ItemType Directory -Path $destDir -Force | Out-Null
     }
 
-    Copy-Item -Path $relPath -Destination $destPath -Force
+    $item = Get-Item -LiteralPath $relPath
+    if ($item.PSIsContainer) {
+        Copy-Item -Path $relPath -Destination $destPath -Recurse -Force
+    }
+    else {
+        Copy-Item -Path $relPath -Destination $destPath -Force
+    }
     $copied.Add($relPath)
 }
 
@@ -85,7 +90,7 @@ if ($missing.Count -gt 0) {
 if ($GitBackup) {
     Write-Host "Running Git backup (add/commit/push)..." -ForegroundColor Cyan
     git add -A
-    git commit -m "Version $newVer: $Message"
+    git commit -m "Version ${newVer}: $Message"
     git push origin main
 
     if ($LASTEXITCODE -eq 0) {

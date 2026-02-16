@@ -1,0 +1,24 @@
+{
+  "name": "mini-curve-fever-3d",
+  "version": "1.0.0",
+  "description": "A 3D arcade game inspired by Achtung die Kurve",
+  "main": "js/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "game",
+    "3d",
+    "threejs"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

@@ -1,0 +1,308 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Curve Fever 3D</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Fadenkreuz */
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 40px;
+            height: 40px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 50;
+            transition: all 0.15s ease;
+        }
+
+        .crosshair::before,
+        .crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .crosshair::before {
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            transform: translateY(-50%);
+        }
+
+        .crosshair::after {
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            transform: translateX(-50%);
+        }
+
+        .crosshair .circle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 28px;
+            height: 28px;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .crosshair .dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .crosshair.locked {
+            filter: drop-shadow(0 0 6px red);
+        }
+
+        .crosshair.locked::before,
+        .crosshair.locked::after {
+            background: rgba(255, 50, 50, 1);
+        }
+
+        .crosshair.locked .circle {
+            border-color: rgba(255, 50, 50, 1);
+            animation: crosshair-pulse 0.5s infinite;
+        }
+
+        .crosshair.locked .dot {
+            background: #ff3333;
+        }
+
+        @keyframes crosshair-pulse {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+        }
+
+        /* Splitscreen Positionen */
+        .crosshair.p1-split {
+            left: 25%;
+        }
+
+        .crosshair.p2-split {
+            left: 75%;
+        }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        <div id="crosshair-container">
+            <div id="crosshair-p1" class="crosshair" style="display: none;">
+                <div class="circle"></div>
+                <div class="dot"></div>
+            </div>
+            <div id="crosshair-p2" class="crosshair" style="display: none;">
+                <div class="circle"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ui-layer">
+        <div id="main-menu">
+            <div class="menu-content">
+                <h1>Mini Curve Fever 3D</h1>
+                <p class="subtitle">Match-Setup, Steuerung und Gameplay-Werte pro Runde konfigurieren</p>
+                <div id="keybind-warning" class="keybind-warning hidden"></div>
+
+                <div class="menu-layout">
+                    <div class="menu-column">
+                        <div class="menu-section">
+                            <label>Spielmodus</label>
+                            <div class="btn-group">
+                                <button id="btn-1p" class="mode-btn active" data-mode="1p">1 Spieler</button>
+                                <button id="btn-2p" class="mode-btn" data-mode="2p">2 Spieler</button>
+                            </div>
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="map-select">Map</label>
+                            <select id="map-select">
+                                <option value="standard">Standard Arena</option>
+                                <option value="empty">Leer</option>
+                                <option value="maze">Labyrinth</option>
+                                <option value="complex">Komplex</option>
+                                <option value="pyramid">Pyramide</option>
+                            </select>
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="auto-roll-toggle">Auto-Roll</label>
+                            <label class="toggle-row">
+                                <input type="checkbox" id="auto-roll-toggle" checked>
+                                <span>Stabilisierung aktiv</span>
+                            </label>
+                        </div>
+
+                        <div class="menu-section">
+                            <label>Invert Pitch (hoch/runter)</label>
+                            <div class="toggle-grid">
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="invert-p1">
+                                    <span>Spieler 1</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="invert-p2">
+                                    <span>Spieler 2</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="menu-section">
+                            <label>Cockpit-Kamera (Horizont dreht mit)</label>
+                            <div class="toggle-grid">
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="cockpit-cam-p1">
+                                    <span>Spieler 1</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="cockpit-cam-p2">
+                                    <span>Spieler 2</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="menu-section">
+                            <label class="toggle-row">
+                                <input type="checkbox" id="portals-toggle" checked>
+                                <span>Portale aktiviert</span>
+                            </label>
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="bot-count">Bots: <span id="bot-count-label">1</span></label>
+                            <input type="range" id="bot-count" min="0" max="8" value="1">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="win-count">Siege zum Gewinn: <span id="win-count-label">5</span></label>
+                            <input type="range" id="win-count" min="1" max="15" value="5">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="speed-slider">Geschwindigkeit: <span id="speed-label">18.0</span></label>
+                            <input type="range" id="speed-slider" min="8" max="40" step="0.5" value="18">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="turn-slider">Lenk-Empfindlichkeit: <span id="turn-label">2.2</span></label>
+                            <input type="range" id="turn-slider" min="0.8" max="5.0" step="0.1" value="2.2">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="lockon-slider">Lock-On Radius: <span id="lockon-label">15</span>°</label>
+                            <input type="range" id="lockon-slider" min="5" max="45" step="1" value="15">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="plane-size-slider">Flugzeug-Groesse: <span
+                                    id="plane-size-label">1.0</span></label>
+                            <input type="range" id="plane-size-slider" min="0.6" max="2.0" step="0.1" value="1.0">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="trail-width-slider">Strahldicke: <span
+                                    id="trail-width-label">0.60</span></label>
+                            <input type="range" id="trail-width-slider" min="0.2" max="2.5" step="0.05" value="0.6">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="gap-size-slider">Luecken-Groesse: <span id="gap-size-label">0.30</span></label>
+                            <input type="range" id="gap-size-slider" min="0.05" max="1.5" step="0.05" value="0.3">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="gap-frequency-slider">Luecken-Haeufigkeit: <span
+                                    id="gap-frequency-label">0.020</span></label>
+                            <input type="range" id="gap-frequency-slider" min="0" max="0.25" step="0.005" value="0.02">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="item-amount-slider">Item-Menge: <span id="item-amount-label">8</span></label>
+                            <input type="range" id="item-amount-slider" min="1" max="20" step="1" value="8">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="fire-rate-slider">Schussgeschwindigkeit: <span
+                                    id="fire-rate-label">0.45</span>s</label>
+                            <input type="range" id="fire-rate-slider" min="0.1" max="2.0" step="0.05" value="0.45">
+                        </div>
+
+                        <button id="btn-start" class="start-btn">Spiel starten</button>
+                    </div>
+
+                    <div class="menu-column">
+                        <div class="menu-section">
+                            <label>Tasten Spieler 1</label>
+                            <div id="keybind-p1" class="keybind-grid"></div>
+                        </div>
+
+                        <div class="menu-section">
+                            <label>Tasten Spieler 2</label>
+                            <div id="keybind-p2" class="keybind-grid"></div>
+                        </div>
+
+                        <div class="menu-section">
+                            <button id="btn-reset-keys" class="secondary-btn">Standard-Tasten wiederherstellen</button>
+                            <button id="btn-save-keys" class="secondary-btn" style="margin-top: 6px;">💾 Einstellungen
+                                speichern</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="hud" class="hidden">
+            <div id="p1-hud" class="player-hud left">
+                <div class="player-name">Spieler 1</div>
+                <div class="player-score">0</div>
+                <div id="p1-items" class="item-bar"></div>
+            </div>
+            <div id="p2-hud" class="player-hud right hidden">
+                <div class="player-name">Spieler 2</div>
+                <div class="player-score">0</div>
+                <div id="p2-items" class="item-bar"></div>
+            </div>
+            <div id="message-overlay" class="hidden">
+                <div id="message-text"></div>
+                <div id="message-sub"></div>
+            </div>
+            <div id="status-toast" class="hidden"></div>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+
+</html>

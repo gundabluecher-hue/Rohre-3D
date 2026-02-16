@@ -6,10 +6,32 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Mini Curve Fever 3D – 2-Spieler Split-Screen</title>
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    // Global Error Handler
+    window.onerror = function (msg, url, lineNo, columnNo, error) {
+      const string = msg.toLowerCase();
+      const substring = "script error";
+      if (string.indexOf(substring) > -1) {
+        alert('Script Error: See Console for details');
+      } else {
+        const message = [
+          'Message: ' + msg,
+          'URL: ' + url,
+          'Line: ' + lineNo,
+          'Column: ' + columnNo,
+          'Error object: ' + JSON.stringify(error)
+        ].join(' - ');
+        alert(message);
+      }
+      return false;
+    };
+    window.addEventListener('unhandledrejection', function (event) {
+      alert('Unhandled Rejection: ' + event.reason);
+    });
+  </script>
 </head>
 
 <body>
-
   <div id="ui">
     <h1>Mini Curve Fever 3D</h1>
     <p class="sub">
@@ -56,7 +78,35 @@
         <option value="2">2 Spieler (Split-Screen)</option>
       </select>
     </div>
-    <!-- Bot Features removed -->
+    <div class="row">
+      <label for="numExtraBots">Zusätzliche Bots</label>
+      <input id="numExtraBots" type="number" min="0" max="8" value="0" />
+    </div>
+
+    <div class="row">
+      <label for="chkBot1">Spieler 1 ist Bot (Smart Reflection)</label>
+      <input id="chkBot1" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="chkBot">Spieler 2 ist Bot (Smart Reflection)</label>
+      <input id="chkBot" type="checkbox" />
+    </div>
+    <div class="row">
+      <label for="rngBotSafeDist">Bot Sicherheitsabstand</label>
+      <input id="rngBotSafeDist" type="range" min="100" max="500" step="50" value="250" />
+    </div>
+    <div class="row">
+      <label for="rngBotRandom">Bot Randomness</label>
+      <input id="rngBotRandom" type="range" min="1" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="rngBotTurn">Bot Drehgeschwindigkeit</label>
+      <input id="rngBotTurn" type="range" min="1" max="10" step="1" value="5" />
+    </div>
+    <div class="row">
+      <label for="rngBotReact">Bot Reaktionsstärke</label>
+      <input id="rngBotReact" type="range" min="1" max="10" step="1" value="5" />
+    </div>
 
     <div class="row">
       <label for="chkSnap90">90°-Schnelldrehen</label>
@@ -283,9 +333,14 @@
     <button id="btnExitEditor" class="toolBtn ghost">Beenden</button>
   </div>
 
-  <script src="js/three.min.js"></script>
-  <script src="js/bot.js"></script>
-  <script src="js/game.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module" src="js/main.js"></script>
 </body>
 
 </html>

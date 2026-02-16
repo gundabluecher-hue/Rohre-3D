@@ -25,4 +25,4 @@ Nach dem Start prüfe:
 
 1. Browser-Konsole öffnen (F12)
 2. Fehlermeldung kopieren
-3. Gemini zeigen für Analyse
+3. Fehlermeldung hier einfügen für Analyse

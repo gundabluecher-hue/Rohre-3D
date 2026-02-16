@@ -61,8 +61,6 @@
       <input id="numExtraBots" type="number" min="0" max="8" value="0" />
     </div>
 
-
-
     <div class="row">
       <label for="chkBot1">Spieler 1 ist Bot (Smart Reflection)</label>
       <input id="chkBot1" type="checkbox" />
@@ -313,9 +311,13 @@
     <button id="btnExitEditor" class="toolBtn ghost">Beenden</button>
   </div>
 
-  <script src="js/three.min.js"></script>
-  <script src="js/bot.js"></script>
-  <script src="js/game.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module" src="js/main.js"></script>
 </body>
-
 </html>

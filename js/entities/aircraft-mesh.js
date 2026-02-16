@@ -3,190 +3,190 @@
  * Procedurally generiertes Flugzeug aus Three.js Primitiven
  */
 
+import * as THREE from 'three';
+
 export class AircraftMesh extends THREE.Group {
     constructor(color) {
         super();
 
         this.playerColor = color;
-        this.buildMesh();
-    }
 
-    /**
-     * Erstellt das Flugzeug-Modell
-     */
-    buildMesh() {
-        const color = new THREE.Color(this.playerColor);
-        const darkColor = color.clone().multiplyScalar(0.7);
-
-        // === RUMPF (Hauptkörper) ===
-        const bodyGeo = new THREE.CylinderGeometry(4, 3, 24, 12);
-        const bodyMat = new THREE.MeshStandardMaterial({
+        // Materalien
+        this.primaryMat = new THREE.MeshStandardMaterial({
             color: color,
-            metalness: 0.6,
             roughness: 0.3,
-            emissive: color.clone().multiplyScalar(0.2),
-            emissiveIntensity: 0.3
-        });
-        const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.rotation.z = Math.PI / 2; // Horizontal
-        body.castShadow = true;
-        this.add(body);
-
-        // === NASE (Bug) ===
-        const noseGeo = new THREE.ConeGeometry(3, 8, 12);
-        const nose = new THREE.Mesh(noseGeo, bodyMat);
-        nose.rotation.z = -Math.PI / 2;
-        nose.position.x = 16;
-        nose.castShadow = true;
-        this.add(nose);
-
-        // === FLÜGEL ===
-        const wingGeo = new THREE.BoxGeometry(28, 1.5, 8);
-        const wingMat = new THREE.MeshStandardMaterial({
-            color: darkColor,
-            metalness: 0.4,
-            roughness: 0.4,
-            emissive: darkColor.clone().multiplyScalar(0.15),
+            metalness: 0.6,
+            emissive: new THREE.Color(color).multiplyScalar(0.2),
             emissiveIntensity: 0.2
         });
-        const wings = new THREE.Mesh(wingGeo, wingMat);
-        wings.position.set(0, -1.5, 0);
-        wings.castShadow = true;
-        this.add(wings);
 
-        // === FLÜGEL-DETAILS (Ailerons) ===
-        const aileronGeo = new THREE.BoxGeometry(8, 0.8, 3);
-        const aileronL = new THREE.Mesh(aileronGeo, wingMat);
-        aileronL.position.set(-4, -1, 10);
-        this.add(aileronL);
+        this.secondaryMat = new THREE.MeshStandardMaterial({
+            color: 0x334155, // Dark slate
+            roughness: 0.7,
+            metalness: 0.2
+        });
 
-        const aileronR = new THREE.Mesh(aileronGeo, wingMat);
-        aileronR.position.set(-4, -1, -10);
-        this.add(aileronR);
+        this.cockpitMat = new THREE.MeshPhysicalMaterial({
+            color: 0x1e293b,
+            transmission: 0.5,
+            opacity: 0.7,
+            roughness: 0.2,
+            metalness: 0.1,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.1
+        });
 
-        // === COCKPIT (Kanzel) ===
-        const cockpitGeo = new THREE.SphereGeometry(3.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-        const cockpitMat = new THREE.MeshStandardMaterial({
-            color: 0x4488ff,
+        this.glowMat = new THREE.MeshBasicMaterial({
+            color: 0x60a5fa, // Engine glow
             transparent: true,
-            opacity: 0.75,
-            metalness: 0.9,
-            roughness: 0.1,
-            emissive: 0x2266bb,
-            emissiveIntensity: 0.5
-        });
-        const cockpit = new THREE.Mesh(cockpitGeo, cockpitMat);
-        cockpit.position.set(6, 2, 0);
-        cockpit.rotation.z = -Math.PI / 2;
-        this.add(cockpit);
-
-        // === HECK-FLÜGEL (Horizontal Stabilizer) ===
-        const tailWingGeo = new THREE.BoxGeometry(12, 1, 4);
-        const tailWing = new THREE.Mesh(tailWingGeo, wingMat);
-        tailWing.position.set(-10, 1, 0);
-        tailWing.castShadow = true;
-        this.add(tailWing);
-
-        // === SEITENLEITWERK (Vertical Stabilizer) ===
-        const finGeo = new THREE.BoxGeometry(1.5, 7, 6);
-        const fin = new THREE.Mesh(finGeo, wingMat);
-        fin.position.set(-10, 3.5, 0);
-        fin.castShadow = true;
-        this.add(fin);
-
-        // === TRIEBWERKE (Engines) ===
-        const engineGeo = new THREE.CylinderGeometry(1.5, 1.5, 6, 10);
-        const engineMat = new THREE.MeshStandardMaterial({
-            color: 0x333333,
-            metalness: 0.9,
-            roughness: 0.2
+            opacity: 0.8
         });
 
-        const engineL = new THREE.Mesh(engineGeo, engineMat);
-        engineL.rotation.z = Math.PI / 2;
-        engineL.position.set(-2, -1, 6);
-        this.add(engineL);
+        this.createBody();
+        this.createWings();
+        this.createTail();
+        this.createCockpit();
+        this.createEngines();
+        this.createCannon();
 
-        const engineR = new THREE.Mesh(engineGeo, engineMat);
-        engineR.rotation.z = Math.PI / 2;
-        engineR.position.set(-2, -1, -6);
-        this.add(engineR);
-
-        // === KANONE (Weapon) ===
-        const cannonGeo = new THREE.CylinderGeometry(0.9, 0.8, 14, 12);
-        const cannonMat = new THREE.MeshStandardMaterial({
-            color: 0x1a1a1a,
-            metalness: 0.95,
-            roughness: 0.15,
-            emissive: 0x050505,
-            emissiveIntensity: 0.2
-        });
-        this.cannon = new THREE.Mesh(cannonGeo, cannonMat);
-        this.cannon.rotation.z = Math.PI / 2;
-        this.cannon.position.set(10, -3, 0);
-        this.cannon.castShadow = true;
-        this.add(this.cannon);
-
-        // Mündung-Marker (unsichtbar, nur für Position)
-        this.muzzlePoint = new THREE.Object3D();
-        this.muzzlePoint.position.set(17, -3, 0); // Vorne an der Kanone
-        this.add(this.muzzlePoint);
-
-        // === LANDING GEAR (optional, vereinfacht) ===
-        const wheelGeo = new THREE.CylinderGeometry(1, 1, 0.8, 10);
-        const wheelMat = new THREE.MeshStandardMaterial({
-            color: 0x222222,
-            metalness: 0.3,
-            roughness: 0.7
-        });
-
-        const wheelFront = new THREE.Mesh(wheelGeo, wheelMat);
-        wheelFront.rotation.x = Math.PI / 2;
-        wheelFront.position.set(8, -4, 0);
-        this.add(wheelFront);
-
-        const wheelBackL = new THREE.Mesh(wheelGeo, wheelMat);
-        wheelBackL.rotation.x = Math.PI / 2;
-        wheelBackL.position.set(-4, -4, 3);
-        this.add(wheelBackL);
-
-        const wheelBackR = new THREE.Mesh(wheelGeo, wheelMat);
-        wheelBackR.rotation.x = Math.PI / 2;
-        wheelBackR.position.set(-4, -4, -3);
-        this.add(wheelBackR);
+        // Initial rotation to align with game physics (if needed)
+        // Physics: -Z is forward.
+        // Mesh: By default, cylinder is Y-up.
+        // So we rotate the group so local -Z is forward?
+        // Let's assume the construction below builds it along -Z.
     }
 
-    /**
-     * Gibt Mündungsposition in Weltkoordinaten zurück
-     */
+    createBody() {
+        // Main Fuselage
+        const geo = new THREE.CylinderGeometry(2.5, 3.5, 24, 12);
+        geo.rotateX(Math.PI / 2); // Align to Z-axis
+        const mesh = new THREE.Mesh(geo, this.primaryMat);
+        mesh.position.z = -2;
+        this.add(mesh); // Z range: -14 to +10
+
+        // Nose Cone
+        const noseGeo = new THREE.ConeGeometry(2.5, 8, 12);
+        noseGeo.rotateX(-Math.PI / 2); // Pointing to -Z
+        const nose = new THREE.Mesh(noseGeo, this.primaryMat);
+        nose.position.z = -18;
+        this.add(nose);
+    }
+
+    createWings() {
+        // Main Wings (Delta shapeish)
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(12, 10);
+        shape.lineTo(12, 4);
+        shape.lineTo(0, -6);
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: true, bevelSize: 0.5, bevelThickness: 0.5 });
+        geo.rotateX(Math.PI / 2); // Lay flat
+        geo.rotateY(-Math.PI / 2); // Mirror config?
+
+        // Left Wing
+        const leftWing = new THREE.Mesh(geo, this.primaryMat);
+        leftWing.position.set(-2, 0, 4);
+        leftWing.rotation.x = Math.PI; // Flip
+        leftWing.scale.set(1, 1, 1);
+        this.add(leftWing);
+
+        // Right Wing
+        const rightWing = new THREE.Mesh(geo, this.primaryMat);
+        rightWing.position.set(2, 0, 4);
+        // rightWing.rotation.z = Math.PI;
+        this.add(rightWing);
+
+        // Stabilizers (Canards)
+        const canardShape = new THREE.Shape();
+        canardShape.moveTo(0, 0);
+        canardShape.lineTo(4, 3);
+        canardShape.lineTo(4, 1);
+        canardShape.lineTo(0, -2);
+        const canardGeo = new THREE.ExtrudeGeometry(canardShape, { depth: 0.5, bevelEnabled: false });
+        canardGeo.rotateX(Math.PI / 2);
+        canardGeo.rotateY(-Math.PI / 2);
+
+        const leftCan = new THREE.Mesh(canardGeo, this.secondaryMat);
+        leftCan.position.set(-2, -0.5, -8);
+        leftCan.rotation.x = Math.PI;
+        this.add(leftCan);
+
+        const rightCan = new THREE.Mesh(canardGeo, this.secondaryMat);
+        rightCan.position.set(2, -0.5, -8);
+        this.add(rightCan);
+    }
+
+    createTail() {
+        // Vertical Stabilizer
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(5, 6);
+        shape.lineTo(3, 6);
+        shape.lineTo(-2, 0);
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.8, bevelEnabled: true, bevelSize: 0.2, bevelThickness: 0.2 });
+        // Centered
+        geo.translate(-1.5, 0, 0);
+
+        const tail = new THREE.Mesh(geo, this.primaryMat);
+        tail.position.set(0, 2, 8);
+        tail.rotation.y = Math.PI / 2; // Align to Z
+        this.add(tail);
+
+        // Horizontal Stabilizers? (Already have wings)
+    }
+
+    createCockpit() {
+        const geo = new THREE.CapsuleGeometry(1.4, 4, 4, 8);
+        const mesh = new THREE.Mesh(geo, this.cockpitMat);
+        mesh.rotation.x = Math.PI / 2;
+        mesh.position.set(0, 1.8, -4);
+        this.add(mesh);
+    }
+
+    createEngines() {
+        const geo = new THREE.CylinderGeometry(1.2, 1.0, 6, 8, 1, true);
+        geo.rotateX(Math.PI / 2);
+
+        // Left Engine
+        const lEng = new THREE.Mesh(geo, this.secondaryMat);
+        lEng.position.set(-3.5, 0.5, 6);
+        this.add(lEng);
+
+        // Right Engine
+        const rEng = new THREE.Mesh(geo, this.secondaryMat);
+        rEng.position.set(3.5, 0.5, 6);
+        this.add(rEng);
+
+        // Glow
+        const glowGeo = new THREE.CircleGeometry(1.0, 16);
+        const glowL = new THREE.Mesh(glowGeo, this.glowMat);
+        glowL.position.set(0, -3, 0); // Local to cylinder? No, absolute
+        glowL.rotation.x = Math.PI; // Face back
+        // Parenting to engine mesh to make it easier
+        lEng.add(glowL);
+        glowL.position.set(0, 3, 0); // End of cylinder (y=3 because height=6, centered)
+
+        const glowR = new THREE.Mesh(glowGeo, this.glowMat);
+        glowR.rotation.x = Math.PI;
+        rEng.add(glowR);
+        glowR.position.set(0, 3, 0);
+    }
+
+    createCannon() {
+        // Under nose gun
+        const geo = new THREE.CylinderGeometry(0.3, 0.3, 8, 6);
+        geo.rotateX(Math.PI / 2);
+        const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.4 }));
+        mesh.position.set(0, -1.8, -8);
+        this.add(mesh);
+
+        this.muzzlePos = new THREE.Vector3(0, -1.8, -12); // Approximate muzzle end
+    }
+
     getMuzzlePosition() {
-        const worldPos = new THREE.Vector3();
-        this.muzzlePoint.getWorldPosition(worldPos);
-        return worldPos;
-    }
-
-    /**
-     * Gibt Mündungsrichtung in Weltkoordinaten zurück
-     */
-    getMuzzleDirection() {
-        const worldDir = new THREE.Vector3(1, 0, 0); // Lokal: X-Achse
-        this.muzzlePoint.getWorldDirection(worldDir);
-        return worldDir.normalize();
-    }
-
-    /**
-     * Cleanup
-     */
-    dispose() {
-        this.traverse(obj => {
-            if (obj.geometry) obj.geometry.dispose();
-            if (obj.material) {
-                if (Array.isArray(obj.material)) {
-                    obj.material.forEach(mat => mat.dispose());
-                } else {
-                    obj.material.dispose();
-                }
-            }
-        });
+        // Return world position of muzzle
+        const v = this.muzzlePos.clone();
+        v.applyMatrix4(this.matrixWorld);
+        return v;
     }
 }

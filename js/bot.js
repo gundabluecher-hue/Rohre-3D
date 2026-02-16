@@ -1,7 +1,6 @@
-﻿/* =========================
-   Bot Logic (2P CPU) - Smart Reflection
-   Fixed Encoding (UTF-8)
-========================= */
+﻿import * as THREE from 'three';
+import { CONFIG } from './modules/Config.js';
+
 const botState = {
     mode: "SMART",
     checkStuckTimer: 0,
@@ -10,17 +9,14 @@ const botState = {
     raycaster: new THREE.Raycaster(),
     randomDir: new THREE.Vector3(0, 0, 1),
     interceptTimer: 0,
-    interimDir: null // Added missing property initialize
+    interimDir: null
 };
 
-function updateBot(botPlayer, humanPlayer, dt) {
+export function updateBot(botPlayer, humanPlayer, dt, obstacleGroup) {
     if (!botPlayer || !botPlayer.alive) return;
 
-    // Checks (chkBot1/chkBot2) are handled in game.js loop now.
-    // We just execute logic for whoever is passed as botPlayer.
-
     const pos = botPlayer.pos;
-    const fwd = forwardVector(botPlayer); // Calling global from game.js
+    const fwd = botPlayer.getForwardVector ? botPlayer.getForwardVector() : new THREE.Vector3(0, 0, 1).applyQuaternion(botPlayer.q);
 
     // --- Arena Config ---
     const halfW = CONFIG.ARENA_W / 2;
@@ -48,17 +44,16 @@ function updateBot(botPlayer, humanPlayer, dt) {
     }
 
     if (botState.isStuck) {
-        // Panic Escape
         const desiredDir = botState.randomDir;
-        const blend = fwd.lerp(desiredDir, 10 * dt).normalize();
+        const blend = fwd.clone().lerp(desiredDir, 10 * dt).normalize();
         lookAtDirection(botPlayer, blend);
         return;
     }
 
     // 2. SMART WALL AVOIDANCE (Reflection)
-    const warningDist = 550;   // Start steering away
-    const criticalDist = 220;  // Hard panic turn
-    let wallNormal = new THREE.Vector3();
+    const warningDist = 550;
+    const criticalDist = 220;
+    const wallNormal = new THREE.Vector3();
     let isCritical = false;
     let nearWall = false;
 
@@ -98,13 +93,11 @@ function updateBot(botPlayer, humanPlayer, dt) {
     let desiredDir = fwd.clone();
     let overrideTurnSpeed = null;
 
-    // Analyze Wall Threat
     if (nearWall) {
         wallNormal.normalize();
         const headingIntoWall = fwd.dot(wallNormal) < 0.1;
 
         if (headingIntoWall) {
-            // Reflection
             const reflection = fwd.clone().reflect(wallNormal).normalize();
 
             if (isCritical) {
@@ -124,8 +117,17 @@ function updateBot(botPlayer, humanPlayer, dt) {
         const rngSafeDist = document.getElementById("rngBotSafeDist");
         const safeDist = rngSafeDist ? parseInt(rngSafeDist.value) : 250;
 
-        // Random Wander
-        if (!botState.interimDir || Math.random() < 0.02) {
+        const rngRandom = document.getElementById("rngBotRandom");
+        const randomValue = rngRandom ? parseInt(rngRandom.value) : 5;
+        const clampedRandom = Math.min(10, Math.max(1, randomValue));
+        const randomChance = 0.005 + (clampedRandom - 1) * 0.005;
+
+        const rngReact = document.getElementById("rngBotReact");
+        const reactValue = rngReact ? parseInt(rngReact.value) : 5;
+        const clampedReact = Math.min(10, Math.max(1, reactValue));
+        const reactLerp = 0.2 + (clampedReact - 1) * 0.06;
+
+        if (!botState.interimDir || Math.random() < randomChance) {
             botState.interimDir = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
         }
 
@@ -136,28 +138,27 @@ function updateBot(botPlayer, humanPlayer, dt) {
             const dist = toPlayer.length();
 
             if (dist < safeDist) {
-                // Flee
                 targetVec = toPlayer.clone().negate().normalize();
             } else if (dist < safeDist * 2) {
-                // Orbit
-                targetVec = new THREE.Vector3().crossVectors(toPlayer.normalize(), new THREE.Vector3(0, 1, 0)).normalize();
+                targetVec = toPlayer.normalize();
             } else {
-                // Chase
                 targetVec = toPlayer.normalize();
             }
         }
 
-        desiredDir.lerp(targetVec, 0.4).normalize();
+        desiredDir.lerp(targetVec, reactLerp * dt * 5.0).normalize();
     }
 
     // 4. RAYCAST AVOIDANCE (Blocks)
-    if (!isCritical && typeof obstacleGroup !== "undefined") {
+    if (!isCritical && obstacleGroup) {
         const rayDist = 400;
         botState.raycaster.set(pos, fwd);
-        const intersects = botState.raycaster.intersectObjects(obstacleGroup.children, false);
-        if (intersects.length > 0 && intersects[0].distance < rayDist) {
-            desiredDir.add(new THREE.Vector3(0, 1, 0)).normalize();
-            overrideTurnSpeed = 6.0;
+        if (obstacleGroup.children && obstacleGroup.children.length > 0) {
+            const intersects = botState.raycaster.intersectObjects(obstacleGroup.children, false);
+            if (intersects.length > 0 && intersects[0].distance < rayDist) {
+                desiredDir.add(new THREE.Vector3(0, 1, 0)).normalize();
+                overrideTurnSpeed = 6.0;
+            }
         }
     }
 
@@ -177,6 +178,8 @@ function lookAtDirection(p, dir) {
     const right = new THREE.Vector3().crossVectors(up, dir).normalize();
     if (right.lengthSq() < 0.001) right.set(1, 0, 0);
     const correctedUp = new THREE.Vector3().crossVectors(dir, right).normalize();
+
+    // Legacy mapping: Forward is X axis.
     const m = new THREE.Matrix4();
     m.makeBasis(dir, correctedUp, right);
     p.q.setFromRotationMatrix(m);

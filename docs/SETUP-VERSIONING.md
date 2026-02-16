@@ -39,10 +39,9 @@ New-Item -ItemType Directory -Path "archive\\manual_$timestamp" -Force
 # 3. Wichtige Dateien kopieren
 Copy-Item "3dv17.html" "archive\\manual_$timestamp\\"
 Copy-Item "index.html" "archive\\manual_$timestamp\\" -ErrorAction SilentlyContinue
-Copy-Item "css\\style.css" "archive\\manual_$timestamp\\css\\style.css" -Force -ErrorAction SilentlyContinue
-Copy-Item "js\\bot.js" "archive\\manual_$timestamp\\js\\bot.js" -Force -ErrorAction SilentlyContinue
-Copy-Item "js\\game.js" "archive\\manual_$timestamp\\js\\game.js" -Force -ErrorAction SilentlyContinue
-Copy-Item "js\\three.min.js" "archive\\manual_$timestamp\\js\\three.min.js" -Force -ErrorAction SilentlyContinue
+Copy-Item "css" "archive\\manual_$timestamp\\css" -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item "js" "archive\\manual_$timestamp\\js" -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item "assets" "archive\\manual_$timestamp\\assets" -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "✅ Version manual_$timestamp erstellt!"
 ```

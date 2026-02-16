@@ -16,9 +16,10 @@ Ein 3D-Flugspiel im Stil von "Curve Fever" mit modernster Web-Technologie.
 
 ## Schnellstart 🚀
 
-1. Öffne `index.html` (aktuelle Spiel-Version) ODER `archive/v11-v16/3dv16_full.html` (vollständige Original-Version)
-2. Drücke **Start** oder **Enter**
-3. Fliege mit **W/A/S/D**, rolle mit **Q/E**, booste mit **Shift**
+1. Öffne `index.html` (Shortcut auf `3dv17.html`) ODER direkt `3dv17.html` (aktuelle Spiel-Version)
+2. Alternativ: `archive/v11-v16/3dv16_full.html` (vollständige Original-Version)
+3. Drücke **Start** oder **Enter**
+4. Fliege mit **W/A/S/D**, rolle mit **Q/E**, booste mit **Shift**
 
 ## Steuerung ⌨️
 
@@ -43,8 +44,8 @@ Ein 3D-Flugspiel im Stil von "Curve Fever" mit modernster Web-Technologie.
 
 ```
 3d/
-├── 3dv17.html              # Aktuelle Entwicklungsversion
-├── index.html              # Startseite
+├── 3dv17.html              # Aktuelle Entwicklungsversion (Single Source)
+├── index.html              # Shortcut/Startseite
 ├── README.md
 ├── aktuell/                # Kopie der aktuellen Version
 │   └── 3dv17.html
@@ -60,7 +61,7 @@ Ein 3D-Flugspiel im Stil von "Curve Fever" mit modernster Web-Technologie.
 │   ├── map editor.html
 │   └── mapload.html
 ├── scripts/                # Versionierungs-Skripte
-├── css/                    # Stylesheets
+├── css/                    # Stylesheets (aktuell: style.css)
 └── js/                     # JavaScript-Module
 ```
 
@@ -91,6 +92,14 @@ Ein 3D-Flugspiel im Stil von "Curve Fever" mit modernster Web-Technologie.
 - **Sprache:** JavaScript (ES6 Modules)
 - **Styling:** Vanilla CSS mit Custom Properties
 - **Architektur:** Modularer Aufbau, ECS-Pattern
+
+**Hinweis:** Die aktuelle Legacy-UI nutzt `css/style.css`. Die Dateien `css/main.css` und `css/ui.css` sind für die modulare Migration vorgesehen.
+
+### Lokaler Server (optional)
+Für ES-Module oder sauberes Laden über HTTP:
+```powershell
+.\scripts\serve.ps1 -Open
+```
 
 ## Maps 🗺️
 

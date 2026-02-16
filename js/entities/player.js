@@ -3,7 +3,8 @@
  * Verwaltet Spieler-Status, Position, Inventar, etc.
  */
 
-import { CONFIG, PLAYER_COLORS, BASE_UP, BASE_RIGHT, BASE_FORWARD } from '../core/config.js';
+import * as THREE from 'three';
+import { CONFIG, PLAYER_COLORS, BASE_UP, BASE_RIGHT, BASE_FORWARD } from '../modules/Config.js';
 import { generateId } from '../core/utils.js';
 
 export class Player {

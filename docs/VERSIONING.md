@@ -47,7 +47,7 @@ All versions:
 v2.0.3
    Date: 2026-01-29 20:15:00
    Message: Bug fixes
-   Files: 3dv17.html, index.html, css/style.css, js/bot.js, js/game.js, js/three.min.js
+   Files: 3dv17.html, index.html, css, js, assets
 ...
 ```
 
@@ -102,10 +102,9 @@ v2.0.3
 Bei jedem Backup:
 - `3dv17.html`
 - `index.html`
-- `css/style.css`
-- `js/bot.js`
-- `js/game.js`
-- `js/three.min.js`
+- `css/`
+- `js/`
+- `assets/`
 
 ## 💡 Tipps
 

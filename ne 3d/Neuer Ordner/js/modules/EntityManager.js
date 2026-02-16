@@ -39,12 +39,13 @@ function getEmptyInput() {
 }
 
 export class EntityManager {
-    constructor(renderer, arena, powerupManager, particles, audio) {
+    constructor(renderer, arena, powerupManager, particles, audio, recorder) {
         this.renderer = renderer;
         this.arena = arena;
         this.powerupManager = powerupManager;
         this.particles = particles;
         this.audio = audio;
+        this.recorder = recorder;
         this.players = [];
         this.humanPlayers = [];
         this.bots = [];
@@ -67,6 +68,7 @@ export class EntityManager {
     }
 
     setup(numHumans, numBots, options = {}) {
+        console.log(`[EntityManager] Setup: Humans=${numHumans}, Bots=${numBots}`);
         this.clear();
 
         const humanConfigs = Array.isArray(options.humanConfigs) ? options.humanConfigs : [];
@@ -105,6 +107,7 @@ export class EntityManager {
             const dir = this._findSafeSpawnDirection(pos);
             player.spawn(pos, dir);
             player.shootCooldown = 0;
+            if (this.recorder) this.recorder.logEvent('SPAWN', player.index);
         }
     }
 
@@ -212,8 +215,11 @@ export class EntityManager {
                         player.hasShield = false;
                         player.getDirection(this._tmpDir).multiplyScalar(2);
                         player.position.sub(this._tmpDir);
+                    } else if (player.isBot) {
+                        // Bot: unsterblich – von Wand abprallen
+                        this._bounceBot(player);
                     } else {
-                        if (!player.isBot && this.audio) this.audio.play('HIT');
+                        if (this.audio) this.audio.play('HIT');
                         if (this.particles) this.particles.spawnHit(player.position, player.color);
                         this._killPlayer(player);
                         continue;
@@ -226,8 +232,12 @@ export class EntityManager {
                     if (other.trail.checkCollision(player.position, CONFIG.PLAYER.HITBOX_RADIUS, skipRecent)) {
                         if (player.hasShield) {
                             player.hasShield = false;
+                        } else if (player.isBot) {
+                            // Bot: unsterblich – von Trail abprallen
+                            this._bounceBot(player);
+                            break;
                         } else {
-                            if (!player.isBot && this.audio) this.audio.play('HIT');
+                            if (this.audio) this.audio.play('HIT');
                             if (this.particles) this.particles.spawnHit(player.position, player.color);
                             this._killPlayer(player);
                             break;
@@ -253,32 +263,44 @@ export class EntityManager {
             }
         }
 
-        let aliveCount = 0;
-        let lastAlive = null;
-        for (const p of this.players) {
-            if (p.alive) { aliveCount++; lastAlive = p; }
-        }
-
         // Guard: nur einmal pro Runde onRoundEnd aufrufen
         if (this._roundEnded) return;
 
-        // Prüfen ob alle menschlichen Spieler tot sind
+        // Zähle nur menschliche Spieler (Bots sind unsterblich)
         let humansAlive = 0;
+        let lastHumanAlive = null;
         for (const h of this.humanPlayers) {
-            if (h.alive) humansAlive++;
+            if (h.alive) {
+                humansAlive++;
+                lastHumanAlive = h;
+            }
         }
 
-        // Runde beenden wenn:
-        // 1) Nur noch maximal 1 Spieler lebt (Multi-or-Bot-Endkampf)
-        // 2) Alle menschlichen Spieler tot (Singleplayer: Bots kämpfen nicht weiter)
-        const shouldEnd = (aliveCount <= 1 && this.players.length > 1)
-            || (aliveCount === 0 && this.players.length === 1)
-            || (humansAlive === 0 && this.humanPlayers.length > 0);
+        let shouldEnd = false;
+        let winner = null;
+
+        if (this.humanPlayers.length === 1) {
+            // Singleplayer: Runde endet wenn der Spieler stirbt (kein Gewinner)
+            if (humansAlive === 0) {
+                console.log('[EntityManager] Round End: Singleplayer Died');
+                shouldEnd = true;
+                winner = null;
+            }
+        } else if (this.humanPlayers.length >= 2) {
+            // Multiplayer: Runde endet wenn nur noch 1 Mensch lebt
+            if (humansAlive <= 1 && this.humanPlayers.length > 1) {
+                console.log(`[EntityManager] Round End: Multiplayer Survivor. HumansAlive=${humansAlive}, TotalHumans=${this.humanPlayers.length}, Winner=P${winner ? winner.index : 'None'}`);
+                shouldEnd = true;
+                winner = lastHumanAlive; // kann null sein wenn beide tot
+            }
+        } else {
+            // Nur Bots (kein Mensch) → Runde nie automatisch beenden
+        }
 
         if (shouldEnd) {
             this._roundEnded = true;
             if (this.onRoundEnd) {
-                this.onRoundEnd(lastAlive);
+                this.onRoundEnd(winner);
             }
         }
     }
@@ -592,10 +614,65 @@ export class EntityManager {
         player.kill();
         if (this.particles) this.particles.spawnExplosion(player.position, player.color);
         if (this.audio) this.audio.play('EXPLOSION');
+        if (this.recorder) this.recorder.logEvent('KILL', player.index);
         if (this.onPlayerDied) {
             this.onPlayerDied(player);
         }
     }
+
+    /** Bot prallt von Wand/Trail ab: Richtung reflektieren + zurückstoßen */
+    _bounceBot(player) {
+        // Aktuelle Flugrichtung ermitteln
+        player.getDirection(this._tmpDir);
+
+        // Nächste Wand bestimmen
+        const b = this.arena.bounds;
+        const pos = player.position;
+
+        // Distanzen zu den 6 Wänden berechnen
+        const dLeft = pos.x - b.minX;
+        const dRight = b.maxX - pos.x;
+        const dDown = pos.y - b.minY;
+        const dUp = b.maxY - pos.y;
+        const dFront = pos.z - b.minZ;
+        const dBack = b.maxZ - pos.z;
+
+        // Nächste Wand finden → Normale in _tmpVec2
+        let minDist = dLeft;
+        this._tmpVec2.set(1, 0, 0);
+
+        if (dRight < minDist) { minDist = dRight; this._tmpVec2.set(-1, 0, 0); }
+        if (dDown < minDist) { minDist = dDown; this._tmpVec2.set(0, 1, 0); }
+        if (dUp < minDist) { minDist = dUp; this._tmpVec2.set(0, -1, 0); }
+        if (dFront < minDist) { minDist = dFront; this._tmpVec2.set(0, 0, 1); }
+        if (dBack < minDist) { minDist = dBack; this._tmpVec2.set(0, 0, -1); }
+
+        // Richtung reflektieren: r = d - 2(d·n)n (ohne Mutation der Normalen)
+        const dot = this._tmpDir.dot(this._tmpVec2);
+        // _tmpDir = _tmpDir - 2*dot*normal
+        this._tmpDir.x -= 2 * dot * this._tmpVec2.x;
+        this._tmpDir.y -= 2 * dot * this._tmpVec2.y;
+        this._tmpDir.z -= 2 * dot * this._tmpVec2.z;
+        this._tmpDir.normalize();
+
+        // Neue Richtung auf den Quaternion anwenden
+        this._tmpVec.copy(pos).add(this._tmpDir);
+        player.group.lookAt(this._tmpVec);
+        player.quaternion.copy(player.group.quaternion);
+
+        // Zurückstoßen: 4 Einheiten in die neue Richtung (sicher aus Kollision)
+        player.position.addScaledVector(this._tmpDir, 4);
+
+        // Position clampen um sicherzustellen dass Bot in der Arena bleibt
+        const m = CONFIG.PLAYER.HITBOX_RADIUS + 0.5;
+        player.position.x = Math.max(b.minX + m, Math.min(b.maxX - m, player.position.x));
+        player.position.y = Math.max(b.minY + m, Math.min(b.maxY - m, player.position.y));
+        player.position.z = Math.max(b.minZ + m, Math.min(b.maxZ - m, player.position.z));
+
+        // Kurze Trail-Lücke nach Bounce
+        player.trail.forceGap(0.3);
+    }
+
 
     updateCameras(dt) {
         for (const player of this.players) {

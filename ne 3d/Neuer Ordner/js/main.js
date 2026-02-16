@@ -11,6 +11,7 @@ import { EntityManager } from './modules/EntityManager.js';
 import { PowerupManager } from './modules/Powerup.js';
 import { ParticleSystem } from './modules/Particles.js';
 import { AudioManager } from './modules/Audio.js';
+import { RoundRecorder } from './modules/RoundRecorder.js';
 
 const SETTINGS_STORAGE_KEY = 'mini-curve-fever-3d.settings.v3';
 const BASE_HITBOX_RADIUS = 0.8;
@@ -51,6 +52,9 @@ class Game {
         this.renderer = new Renderer(canvas);
         this.input = new InputManager();
         this.audio = new AudioManager();
+
+        // Debug Recorder
+        this.recorder = new RoundRecorder();
 
         this._applySettingsToRuntime();
         this.input.setBindings(this.settings.controls);
@@ -666,7 +670,14 @@ class Game {
 
         this.powerupManager = new PowerupManager(this.renderer, this.arena);
 
-        this.entityManager = new EntityManager(this.renderer, this.arena, this.powerupManager, this.particles, this.audio);
+        this.powerupManager = new PowerupManager(this.renderer, this.arena);
+
+        this.entityManager = new EntityManager(this.renderer, this.arena, this.powerupManager, this.particles, this.audio, this.recorder);
+        this.numHumans = this.settings.mode === 'MULTIPLAYER' ? 2 : 1;
+        this.numBots = this.settings.numBots;
+        this.mapKey = this.settings.mapKey;
+        this.winsNeeded = this.settings.winCount || 10;
+
         this.entityManager.setup(this.numHumans, this.numBots, {
             modelScale: this.settings.gameplay.planeScale,
             humanConfigs: [
@@ -725,6 +736,10 @@ class Game {
         this.powerupManager.clear();
 
         this.entityManager.spawnAll();
+
+        // Recording Start
+        this.recorder.startRound();
+
         this.gameLoop.setTimeScale(1.0);
         this.ui.messageOverlay.classList.add('hidden');
         this.ui.statusToast.classList.add('hidden');
@@ -735,18 +750,33 @@ class Game {
         this.state = 'ROUND_END';
         this.roundPause = 3.0;
 
+        // Recording Dump & Debug Text
+        // Recording Dump & Debug Text
+        // Recording Dump & Debug Text
+        console.log('--- ROUND END ---');
+        try {
+            // Recording Dump
+            this.recorder.dump(); // Log to console only
+        } catch (e) {
+            console.error('Recorder Dump Failed:', e);
+        }
+
         if (winner) {
             winner.score++;
         }
 
         this._updateHUD();
 
-        const matchWinner = this.entityManager.players.find((p) => p.score >= this.winsNeeded);
+        // Match-Sieg nur wenn nicht Singleplayer-Solo (also entweder MP oder mit Bots)
+        const totalBots = parseInt(this.numBots) || 0;
+        const canWinMatch = this.entityManager.getHumanPlayers().length > 1 || totalBots > 0;
+        const requiredWins = Math.max(5, this.winsNeeded); // SICHERHEIT: Mindestens 5 Siege
+        const matchWinner = canWinMatch ? this.entityManager.players.find((p) => p.score >= requiredWins) : null;
 
         if (matchWinner) {
             this.state = 'MATCH_END';
             const name = matchWinner.isBot ? `Bot ${matchWinner.index + 1}` : `Spieler ${matchWinner.index + 1}`;
-            this.ui.messageText.textContent = `Sieg: ${name}`;
+            this.ui.messageText.textContent = `Sieg: ${name} (Score: ${matchWinner.score})`;
             this.ui.messageSub.textContent = 'ENTER fuer neues Match oder ESC fuer Menue';
             this.ui.messageOverlay.classList.remove('hidden');
         } else if (winner) {
@@ -824,6 +854,11 @@ class Game {
     update(dt) {
         // FPS-Tracker (immer aktiv, kein Performance-Overhead)
         this._fpsTracker.update(dt);
+
+        // Debug Recording
+        if (this.state === 'PLAYING' && this.entityManager) {
+            this.recorder.recordFrame(this.entityManager.players);
+        }
 
         // Performance Analyse-Overlay aktualisieren (alle 250ms)
         if (this.stats) {
@@ -964,8 +999,12 @@ class Game {
         if (this.ui.crosshairP2) this.ui.crosshairP2.style.display = 'none';
         this._syncMenuControls();
     }
+    _showDebugLog(recorderDump) {
+        // Disabled
+    }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-    new Game();
+    // Game init
+    const game = new Game();
 });

@@ -1,5 +1,5 @@
 param(
-    [int]$Port = 8765,
+    [int]$Port = 9999,
     [int]$MaxPortTries = 20,
     [switch]$NoBrowser
 )

@@ -18,6 +18,7 @@ export class Arena {
     /** Baut die Arena für die gewählte Map */
     build(mapKey) {
         const map = CONFIG.MAPS[mapKey] || CONFIG.MAPS.standard;
+        this.currentMapKey = mapKey;
         const scale = CONFIG.ARENA.MAP_SCALE || 1;
         const [baseSx, baseSy, baseSz] = map.size;
         const sx = baseSx * scale;

@@ -63,6 +63,8 @@ export class Trail {
         this.segmentsData = new Float32Array(this.maxSegments * 7); // [x1, y1, z1, x2, y2, z2, radius]
         this.grid = new Map(); // Key: "x,z", Value: [segmentIndex, ...]
         this.segmentCells = new Int32Array(this.maxSegments); // Stores cell key hash for each segment
+        this._tmpCollisionNormal = new THREE.Vector3();
+        this._collisionResult = { hit: true, normal: this._tmpCollisionNormal };
     }
 
     setWidth(width) {
@@ -193,7 +195,7 @@ export class Trail {
         }
     }
 
-    checkCollision(position, radius, skipRecent = 20) {
+    _checkCollisionInternal(position, radius, skipRecent, outNormal = null) {
         if (this.segmentCount === 0) return false;
 
         const cellX = Math.floor(position.x / CELL_SIZE);
@@ -257,25 +259,35 @@ export class Trail {
                         else if (t > 1) t = 1;
                     }
 
-                    const cx = fromX + t * vx;
-                    const cy = fromY + t * vy;
-                    const cz = fromZ + t * vz;
+                    const closestX = fromX + t * vx;
+                    const closestY = fromY + t * vy;
+                    const closestZ = fromZ + t * vz;
 
-                    const dx = position.x - cx;
-                    const dy = position.y - cy;
-                    const dz = position.z - cz;
+                    const dx = position.x - closestX;
+                    const dy = position.y - closestY;
+                    const dz = position.z - closestZ;
                     const distSq = dx * dx + dy * dy + dz * dz;
 
                     if (distSq <= totalRadius * totalRadius) {
-                        // Avoid zero length normal
-                        const len = Math.sqrt(distSq) || 0.001;
-                        const normal = new THREE.Vector3(dx / len, dy / len, dz / len);
-                        return { hit: true, normal };
+                        if (outNormal) {
+                            const len = Math.sqrt(distSq) || 0.001;
+                            outNormal.set(dx / len, dy / len, dz / len);
+                        }
+                        return true;
                     }
                 }
             }
         }
         return false;
+    }
+
+    checkCollisionFast(position, radius, skipRecent = 20) {
+        return this._checkCollisionInternal(position, radius, skipRecent, null);
+    }
+
+    checkCollision(position, radius, skipRecent = 20) {
+        const hit = this._checkCollisionInternal(position, radius, skipRecent, this._tmpCollisionNormal);
+        return hit ? this._collisionResult : false;
     }
 
     _distanceSqPointToSegment(px, py, pz, fromX, fromY, fromZ, toX, toY, toZ) {

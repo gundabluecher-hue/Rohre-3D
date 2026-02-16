@@ -19,7 +19,9 @@ const SHARED_EMPTY_INPUT = {
     cameraSwitch: false,
     dropItem: false,
     shootItem: false,
+    shootItemIndex: -1,
     nextItem: false,
+    useItem: -1,
 };
 
 function getEmptyInput() {
@@ -34,7 +36,9 @@ function getEmptyInput() {
     SHARED_EMPTY_INPUT.cameraSwitch = false;
     SHARED_EMPTY_INPUT.dropItem = false;
     SHARED_EMPTY_INPUT.shootItem = false;
+    SHARED_EMPTY_INPUT.shootItemIndex = -1;
     SHARED_EMPTY_INPUT.nextItem = false;
+    SHARED_EMPTY_INPUT.useItem = -1;
     return SHARED_EMPTY_INPUT;
 }
 
@@ -65,6 +69,7 @@ export class EntityManager {
 
         // Lock-On Cache (einmal pro Frame berechnen)
         this._lockOnCache = new Map();
+        this.botDifficulty = CONFIG.BOT.ACTIVE_DIFFICULTY || CONFIG.BOT.DEFAULT_DIFFICULTY || 'NORMAL';
     }
 
     setup(numHumans, numBots, options = {}) {
@@ -73,6 +78,7 @@ export class EntityManager {
 
         const humanConfigs = Array.isArray(options.humanConfigs) ? options.humanConfigs : [];
         const modelScale = typeof options.modelScale === 'number' ? options.modelScale : (CONFIG.PLAYER.MODEL_SCALE || 1);
+        this.botDifficulty = options.botDifficulty || CONFIG.BOT.ACTIVE_DIFFICULTY || this.botDifficulty;
 
         this.humanPlayers = [];
         this.botByPlayer.clear();
@@ -93,10 +99,20 @@ export class EntityManager {
             const color = CONFIG.COLORS.BOT_COLORS[i % CONFIG.COLORS.BOT_COLORS.length];
             const player = new Player(this.renderer, numHumans + i, color, true);
             player.setControlOptions({ modelScale, invertPitch: false });
-            const ai = new BotAI();
+            const ai = new BotAI({ difficulty: this.botDifficulty, recorder: this.recorder });
             this.players.push(player);
             this.bots.push({ player, ai });
             this.botByPlayer.set(player, ai);
+        }
+    }
+
+    setBotDifficulty(profileName) {
+        this.botDifficulty = profileName || this.botDifficulty;
+        for (let i = 0; i < this.bots.length; i++) {
+            const bot = this.bots[i];
+            if (bot?.ai?.setDifficulty) {
+                bot.ai.setDifficulty(this.botDifficulty);
+            }
         }
     }
 
@@ -107,7 +123,10 @@ export class EntityManager {
             const dir = this._findSafeSpawnDirection(pos);
             player.spawn(pos, dir);
             player.shootCooldown = 0;
-            if (this.recorder) this.recorder.logEvent('SPAWN', player.index);
+            if (this.recorder) {
+                this.recorder.markPlayerSpawn(player);
+                this.recorder.logEvent('SPAWN', player.index, player.isBot ? 'bot=1' : 'bot=0');
+            }
         }
     }
 
@@ -199,10 +218,23 @@ export class EntityManager {
                 player.dropItem();
             }
 
+            if (input.useItem >= 0) {
+                const result = this._useInventoryItem(player, input.useItem);
+                if (result.ok) {
+                    if (this.recorder) {
+                        this.recorder.logEvent('ITEM_USE', player.index, `mode=use type=${result.type}`);
+                    }
+                } else if (!player.isBot) {
+                    this._notifyPlayerFeedback(player, result.reason);
+                }
+            }
+
             if (input.shootItem) {
-                const result = this._shootItemProjectile(player);
+                const result = this._shootItemProjectile(player, input.shootItemIndex);
                 if (!result.ok && !player.isBot) {
                     this._notifyPlayerFeedback(player, result.reason);
+                } else if (result.ok && this.recorder) {
+                    this.recorder.logEvent('ITEM_USE', player.index, `mode=shoot type=${result.type}`);
                 }
             }
 
@@ -217,11 +249,11 @@ export class EntityManager {
                         player.position.sub(this._tmpDir);
                     } else if (player.isBot) {
                         // Bot: unsterblich – von Wand abprallen
-                        this._bounceBot(player);
+                        this._bounceBot(player, null, 'WALL');
                     } else {
                         if (this.audio) this.audio.play('HIT');
                         if (this.particles) this.particles.spawnHit(player.position, player.color);
-                        this._killPlayer(player);
+                        this._killPlayer(player, 'WALL');
                         continue;
                     }
                 }
@@ -229,11 +261,6 @@ export class EntityManager {
                 for (const other of this.players) {
                     if (!other.alive) continue;
                     const skipRecent = other === player ? 15 : 0;
-                    // Check logic was moved into if(bot) block for separation, but human check needs it too?
-                    // Wait, checkCollision returns object now. The original code:
-                    // if (other.trail.checkCollision(...))
-                    // needs update for humans too if checkCollision return changed from bool to object
-
                     const collision = other.trail.checkCollision(player.position, CONFIG.PLAYER.HITBOX_RADIUS, skipRecent);
 
                     if (collision && collision.hit) {
@@ -243,13 +270,13 @@ export class EntityManager {
                             // Bot: unsterblich – von Trail abprallen
                             // Use the collision result we already have
                             if (collision && collision.hit) {
-                                this._bounceBot(player, collision.normal);
+                                this._bounceBot(player, collision.normal, 'TRAIL');
                                 break;
                             }
                         } else {
                             if (this.audio) this.audio.play('HIT');
                             if (this.particles) this.particles.spawnHit(player.position, player.color);
-                            this._killPlayer(player);
+                            this._killPlayer(player, other === player ? 'TRAIL_SELF' : 'TRAIL_OTHER');
                             break;
                         }
                     }
@@ -296,11 +323,18 @@ export class EntityManager {
         let winner = null;
 
         if (this.humanPlayers.length === 1) {
-            // Singleplayer: Runde endet wenn der Spieler stirbt (kein Gewinner)
+            // Singleplayer: Runde endet wenn der Spieler stirbt (Bot kann als Sieger gelten)
             if (humansAlive === 0) {
                 console.log('[EntityManager] Round End: Singleplayer Died');
                 shouldEnd = true;
                 winner = null;
+                for (let i = 0; i < this.bots.length; i++) {
+                    const botPlayer = this.bots[i].player;
+                    if (botPlayer && botPlayer.alive) {
+                        winner = botPlayer;
+                        break;
+                    }
+                }
             }
         } else if (this.humanPlayers.length >= 2) {
             // Multiplayer: Runde endet wenn nur noch 1 Mensch lebt
@@ -321,15 +355,45 @@ export class EntityManager {
         }
     }
 
-    _shootItemProjectile(player) {
+    _takeInventoryItem(player, preferredIndex = -1) {
+        if (!player.inventory || player.inventory.length === 0) {
+            return { ok: false, reason: 'Kein Item verfuegbar', type: null };
+        }
+
+        const index = Number.isInteger(preferredIndex) && preferredIndex >= 0
+            ? Math.min(preferredIndex, player.inventory.length - 1)
+            : Math.min(player.selectedItemIndex || 0, player.inventory.length - 1);
+
+        const type = player.inventory.splice(index, 1)[0];
+        if (player.inventory.length === 0) {
+            player.selectedItemIndex = 0;
+        } else if (player.selectedItemIndex >= player.inventory.length) {
+            player.selectedItemIndex = 0;
+        }
+
+        return { ok: true, type };
+    }
+
+    _useInventoryItem(player, preferredIndex = -1) {
+        const itemResult = this._takeInventoryItem(player, preferredIndex);
+        if (!itemResult.ok || !itemResult.type) {
+            return { ok: false, reason: 'Kein Item zum Nutzen' };
+        }
+
+        player.applyPowerup(itemResult.type);
+        return { ok: true, type: itemResult.type };
+    }
+
+    _shootItemProjectile(player, preferredIndex = -1) {
         if ((player.shootCooldown || 0) > 0) {
             return { ok: false, reason: `Schuss bereit in ${player.shootCooldown.toFixed(1)}s` };
         }
 
-        const type = player.inventory.length > 0 ? player.inventory.shift() : null;
-        if (!type) {
-            return { ok: false, reason: 'Kein Item zum Schiessen' };
+        const itemResult = this._takeInventoryItem(player, preferredIndex);
+        if (!itemResult.ok || !itemResult.type) {
+            return { ok: false, reason: 'Kein Item zum Schiessen', type: null };
         }
+        const type = itemResult.type;
 
         const power = CONFIG.POWERUP.TYPES[type];
         if (!power) {
@@ -361,7 +425,7 @@ export class EntityManager {
 
         player.shootCooldown = CONFIG.PROJECTILE.COOLDOWN;
         if (this.audio) this.audio.play('SHOOT');
-        return { ok: true };
+        return { ok: true, type };
     }
 
     _acquireProjectileMesh(type, color) {
@@ -626,18 +690,109 @@ export class EntityManager {
         }
     }
 
-    _killPlayer(player) {
+    _killPlayer(player, cause = 'UNKNOWN') {
         player.kill();
         if (this.particles) this.particles.spawnExplosion(player.position, player.color);
         if (this.audio) this.audio.play('EXPLOSION');
-        if (this.recorder) this.recorder.logEvent('KILL', player.index);
+        if (this.recorder) {
+            this.recorder.markPlayerDeath(player, cause);
+            this.recorder.logEvent('KILL', player.index, `cause=${cause}`);
+        }
         if (this.onPlayerDied) {
             this.onPlayerDied(player);
         }
     }
 
+    _isBotPositionSafe(player, position) {
+        const hitbox = CONFIG.PLAYER.HITBOX_RADIUS;
+        if (this.arena.checkCollision(position, hitbox)) {
+            return false;
+        }
+
+        for (let i = 0; i < this.players.length; i++) {
+            const other = this.players[i];
+            if (!other || !other.alive) continue;
+
+            const skipRecent = other === player ? 20 : 0;
+            if (other.trail.checkCollisionFast) {
+                if (other.trail.checkCollisionFast(position, hitbox, skipRecent)) {
+                    return false;
+                }
+            } else {
+                const collision = other.trail.checkCollision(position, hitbox, skipRecent);
+                if (collision && collision.hit) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    _clampBotPosition(vec) {
+        const b = this.arena.bounds;
+        const m = CONFIG.PLAYER.HITBOX_RADIUS + 0.5;
+        vec.x = Math.max(b.minX + m, Math.min(b.maxX - m, vec.x));
+        vec.y = Math.max(b.minY + m, Math.min(b.maxY - m, vec.y));
+        vec.z = Math.max(b.minZ + m, Math.min(b.maxZ - m, vec.z));
+    }
+
+    _findSafeBouncePosition(player, baseDirection, normal = null) {
+        const originX = player.position.x;
+        const originY = player.position.y;
+        const originZ = player.position.z;
+        const distances = [2.5, 4, 6, 8];
+
+        const variants = [
+            { x: baseDirection.x, y: baseDirection.y, z: baseDirection.z },
+        ];
+
+        if (normal) {
+            variants.push({
+                x: baseDirection.x + normal.x * 0.35,
+                y: baseDirection.y + normal.y * 0.35,
+                z: baseDirection.z + normal.z * 0.35,
+            });
+            variants.push({
+                x: baseDirection.x - normal.x * 0.22,
+                y: baseDirection.y - normal.y * 0.22,
+                z: baseDirection.z - normal.z * 0.22,
+            });
+        }
+
+        for (let v = 0; v < variants.length; v++) {
+            let vx = variants[v].x;
+            let vy = variants[v].y;
+            let vz = variants[v].z;
+            const len = Math.hypot(vx, vy, vz);
+            if (len < 0.0001) continue;
+            vx /= len;
+            vy /= len;
+            vz /= len;
+
+            for (let i = 0; i < distances.length; i++) {
+                const d = distances[i];
+                this._tmpVec.set(
+                    originX + vx * d,
+                    originY + vy * d,
+                    originZ + vz * d
+                );
+                this._clampBotPosition(this._tmpVec);
+                if (this._isBotPositionSafe(player, this._tmpVec)) {
+                    player.position.copy(this._tmpVec);
+                    return true;
+                }
+            }
+        }
+
+        this._tmpVec.set(originX + baseDirection.x * 2, originY + baseDirection.y * 2, originZ + baseDirection.z * 2);
+        this._clampBotPosition(this._tmpVec);
+        player.position.copy(this._tmpVec);
+        return false;
+    }
+
     /** Bot prallt von Wand/Trail ab: Richtung reflektieren + zurückstoßen */
-    _bounceBot(player, normalOverride = null) {
+    _bounceBot(player, normalOverride = null, source = 'WALL') {
         // Aktuelle Flugrichtung ermitteln
         player.getDirection(this._tmpDir);
 
@@ -647,7 +802,7 @@ export class EntityManager {
         let normal = this._tmpVec2;
 
         if (normalOverride) {
-            normal.copy(normalOverride);
+            normal.copy(normalOverride).normalize();
         } else {
             // Nächste Wand bestimmen
             // Distanzen zu den 6 Wänden berechnen
@@ -682,9 +837,14 @@ export class EntityManager {
         this._tmpDir.normalize();
 
         // Add randomness to bounce to prevent loops
-        this._tmpDir.x += (Math.random() - 0.5) * 0.5;
-        this._tmpDir.y += (Math.random() - 0.5) * 0.5;
-        this._tmpDir.z += (Math.random() - 0.5) * 0.5;
+        this._tmpDir.addScaledVector(normal, 0.25);
+        const randomScale = source === 'TRAIL' ? 0.35 : 0.24;
+        this._tmpDir.x += (Math.random() - 0.5) * randomScale;
+        this._tmpDir.y += (Math.random() - 0.5) * randomScale;
+        this._tmpDir.z += (Math.random() - 0.5) * randomScale;
+        if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+            this._tmpDir.y = 0;
+        }
         this._tmpDir.normalize();
 
         // Neue Richtung auf den Quaternion anwenden
@@ -692,17 +852,21 @@ export class EntityManager {
         player.group.lookAt(this._tmpVec);
         player.quaternion.copy(player.group.quaternion);
 
-        // Zurückstoßen: 4 Einheiten in die neue Richtung (sicher aus Kollision)
-        player.position.addScaledVector(this._tmpDir, 4);
-
-        // Position clampen um sicherzustellen dass Bot in der Arena bleibt
-        const m = CONFIG.PLAYER.HITBOX_RADIUS + 0.5;
-        player.position.x = Math.max(b.minX + m, Math.min(b.maxX - m, player.position.x));
-        player.position.y = Math.max(b.minY + m, Math.min(b.maxY - m, player.position.y));
-        player.position.z = Math.max(b.minZ + m, Math.min(b.maxZ - m, player.position.z));
+        // Mehrere Distanzen testen und erste sichere Position nehmen.
+        this._findSafeBouncePosition(player, this._tmpDir, normal);
 
         // Kurze Trail-Lücke nach Bounce
         player.trail.forceGap(0.3);
+
+        const botAI = this.botByPlayer.get(player);
+        if (botAI?.onBounce) {
+            botAI.onBounce(source, normal);
+        }
+
+        if (this.recorder) {
+            const eventType = source === 'TRAIL' ? 'BOUNCE_TRAIL' : 'BOUNCE_WALL';
+            this.recorder.logEvent(eventType, player.index);
+        }
     }
 
 

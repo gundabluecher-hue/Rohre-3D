@@ -84,6 +84,7 @@ export class Game {
             mapSelect: document.getElementById('map-select'),
             botSlider: document.getElementById('bot-count'),
             botLabel: document.getElementById('bot-count-label'),
+            botDifficultySelect: document.getElementById('bot-difficulty'),
             winSlider: document.getElementById('win-count'),
             winLabel: document.getElementById('win-count-label'),
             autoRollToggle: document.getElementById('auto-roll-toggle'),
@@ -131,8 +132,7 @@ export class Game {
         if (this.ui.portalBeamsToggle) {
             this.ui.portalBeamsToggle.addEventListener('change', (e) => {
                 this.settings.gameplay.portalBeams = e.target.checked;
-                this._saveSettings();
-                this._applySettingsToRuntime();
+                this._onSettingsChanged();
             });
         }
 
@@ -179,6 +179,7 @@ export class Game {
             mode: '1p',
             mapKey: 'standard',
             numBots: 1,
+            botDifficulty: 'NORMAL',
             winsNeeded: 5,
             autoRoll: true,
             invertPitch: {
@@ -202,6 +203,7 @@ export class Game {
                 lockOnAngle: 15,
                 planarMode: false,
                 portalCount: 0,
+                portalBeams: true,
             },
             controls: this._cloneDefaultControls(),
         };
@@ -249,6 +251,9 @@ export class Game {
             merged.mode = saved.mode === '2p' ? '2p' : '1p';
             merged.mapKey = CONFIG.MAPS[saved.mapKey] ? saved.mapKey : defaults.mapKey;
             merged.numBots = clamp(parseInt(saved.numBots ?? defaults.numBots, 10), 0, 8);
+            merged.botDifficulty = ['EASY', 'NORMAL', 'HARD'].includes(saved.botDifficulty)
+                ? saved.botDifficulty
+                : defaults.botDifficulty;
             merged.winsNeeded = clamp(parseInt(saved.winsNeeded ?? defaults.winsNeeded, 10), 1, 15);
             merged.autoRoll = typeof saved.autoRoll === 'boolean' ? saved.autoRoll : defaults.autoRoll;
 
@@ -271,6 +276,9 @@ export class Game {
             merged.gameplay.lockOnAngle = clamp(parseInt(saved?.gameplay?.lockOnAngle ?? defaults.gameplay.lockOnAngle, 10), 5, 45);
             merged.gameplay.planarMode = !!(saved?.gameplay?.planarMode ?? defaults.gameplay.planarMode);
             merged.gameplay.portalCount = clamp(parseInt(saved?.gameplay?.portalCount ?? defaults.gameplay.portalCount, 10), 0, 20);
+            merged.gameplay.portalBeams = saved?.gameplay?.portalBeams !== undefined
+                ? !!saved.gameplay.portalBeams
+                : defaults.gameplay.portalBeams;
 
             merged.controls.PLAYER_1 = this._normalizePlayerControls(saved?.controls?.PLAYER_1, defaults.controls.PLAYER_1);
             merged.controls.PLAYER_2 = this._normalizePlayerControls(saved?.controls?.PLAYER_2, defaults.controls.PLAYER_2);
@@ -299,7 +307,7 @@ export class Game {
         CONFIG.PLAYER.TURN_SPEED = this.settings.gameplay.turnSensitivity;
         CONFIG.PLAYER.MODEL_SCALE = this.settings.gameplay.planeScale;
         CONFIG.PLAYER.HITBOX_RADIUS = 0.8 * this.settings.gameplay.planeScale;
-        CONFIG.PLAYER.AUTO_ROLL = this.settings.gameplay.autoRoll;
+        CONFIG.PLAYER.AUTO_ROLL = this.settings.autoRoll;
 
         if (this.settings.gameplay) {
             CONFIG.GAMEPLAY.PLANAR_MODE = !!this.settings.gameplay.planarMode;
@@ -317,9 +325,14 @@ export class Game {
             CONFIG.GAMEPLAY.PORTAL_BEAMS = this.settings.gameplay.portalBeams !== undefined ? !!this.settings.gameplay.portalBeams : true;
         }
 
+        CONFIG.BOT.ACTIVE_DIFFICULTY = this.settings.botDifficulty || CONFIG.BOT.DEFAULT_DIFFICULTY;
+
         // Apply immediately if arena exists
         if (this.arena && this.arena.toggleBeams) {
             this.arena.toggleBeams(CONFIG.GAMEPLAY.PORTAL_BEAMS);
+        }
+        if (this.entityManager && this.entityManager.setBotDifficulty) {
+            this.entityManager.setBotDifficulty(CONFIG.BOT.ACTIVE_DIFFICULTY);
         }
 
         this.input.setBindings(this.settings.controls);
@@ -344,6 +357,14 @@ export class Game {
             this.settings.numBots = clamp(parseInt(this.ui.botSlider.value, 10), 0, 8);
             this._onSettingsChanged();
         });
+
+        if (this.ui.botDifficultySelect) {
+            this.ui.botDifficultySelect.addEventListener('change', () => {
+                const value = String(this.ui.botDifficultySelect.value || '').toUpperCase();
+                this.settings.botDifficulty = ['EASY', 'NORMAL', 'HARD'].includes(value) ? value : 'NORMAL';
+                this._onSettingsChanged();
+            });
+        }
 
         this.ui.winSlider.addEventListener('input', () => {
             this.settings.winsNeeded = clamp(parseInt(this.ui.winSlider.value, 10), 1, 15);
@@ -496,6 +517,9 @@ export class Game {
 
         this.ui.botSlider.value = String(this.settings.numBots);
         this.ui.botLabel.textContent = String(this.settings.numBots);
+        if (this.ui.botDifficultySelect) {
+            this.ui.botDifficultySelect.value = this.settings.botDifficulty || 'NORMAL';
+        }
 
         this.ui.winSlider.value = String(this.settings.winsNeeded);
         this.ui.winLabel.textContent = String(this.settings.winsNeeded);
@@ -512,6 +536,9 @@ export class Game {
         }
 
         this.ui.portalsToggle.checked = this.settings.portalsEnabled;
+        if (this.ui.portalBeamsToggle) {
+            this.ui.portalBeamsToggle.checked = this.settings.gameplay.portalBeams !== false;
+        }
 
         const portalCountSlider = document.getElementById('portal-count-slider');
         const portalCountLabel = document.getElementById('portal-count-label');
@@ -743,13 +770,14 @@ export class Game {
 
 
         this.entityManager = new EntityManager(this.renderer, this.arena, this.powerupManager, this.particles, this.audio, this.recorder);
-        this.numHumans = this.settings.mode === 'MULTIPLAYER' ? 2 : 1;
+        this.numHumans = this.settings.mode === '2p' ? 2 : 1;
         this.numBots = this.settings.numBots;
         this.mapKey = this.settings.mapKey;
-        this.winsNeeded = this.settings.winCount || 10;
+        this.winsNeeded = this.settings.winsNeeded || 5;
 
         this.entityManager.setup(this.numHumans, this.numBots, {
             modelScale: this.settings.gameplay.planeScale,
+            botDifficulty: this.settings.botDifficulty || 'NORMAL',
             humanConfigs: [
                 { invertPitch: this.settings.invertPitch.PLAYER_1, cockpitCamera: this.settings.cockpitCamera.PLAYER_1 },
                 { invertPitch: this.settings.invertPitch.PLAYER_2, cockpitCamera: this.settings.cockpitCamera.PLAYER_2 },
@@ -805,10 +833,10 @@ export class Game {
         }
         this.powerupManager.clear();
 
-        this.entityManager.spawnAll();
-
         // Recording Start
-        this.recorder.startRound();
+        this.recorder.startRound(this.entityManager.players);
+
+        this.entityManager.spawnAll();
 
         this.gameLoop.setTimeScale(1.0);
         this.ui.messageOverlay.classList.add('hidden');
@@ -825,6 +853,10 @@ export class Game {
         // Recording Dump & Debug Text
         console.log('--- ROUND END ---');
         try {
+            const roundMetrics = this.recorder.finalizeRound(winner, this.entityManager.players);
+            if (roundMetrics) {
+                console.log('[Recorder] Round KPI:', roundMetrics);
+            }
             // Recording Dump
             this.recorder.dump(); // Log to console only
         } catch (e) {
@@ -1080,6 +1112,74 @@ export class Game {
     }
     _showDebugLog(recorderDump) {
         // Disabled
+    }
+
+    captureBotBaseline(label = 'BASELINE') {
+        const normalized = String(label || 'BASELINE').toUpperCase();
+        const baseline = this.recorder.captureBaseline(normalized);
+        this._showStatusToast(`Bot-Baseline gespeichert: ${normalized}`);
+        console.log(`[Recorder] Baseline gespeichert (${normalized}):`, baseline);
+        return baseline;
+    }
+
+    printBotValidationReport(label = 'BASELINE') {
+        const normalized = String(label || 'BASELINE').toUpperCase();
+        const aggregate = this.recorder.getAggregateMetrics();
+        const comparison = this.recorder.compareWithBaseline(normalized);
+        const matrix = this.recorder.getValidationMatrix();
+        const report = {
+            label: normalized,
+            aggregate,
+            comparison,
+            matrix,
+        };
+        console.log('[Recorder] Validation report:', report);
+        return report;
+    }
+
+    getBotValidationMatrix() {
+        return this.recorder.getValidationMatrix();
+    }
+
+    printBotTestProtocol() {
+        const matrix = this.getBotValidationMatrix();
+        const protocol = {
+            steps: [
+                '1) applyBotValidationScenario(0) und 10 Runden spielen.',
+                '2) captureBotBaseline(\"BASELINE\") ausfuehren.',
+                '3) Weitere Szenarien aus der Matrix durchspielen.',
+                '4) printBotValidationReport(\"BASELINE\") fuer KPI-Vergleich ausfuehren.',
+            ],
+            matrix,
+        };
+        console.log('[Recorder] Bot-Testprotokoll:', protocol);
+        return protocol;
+    }
+
+    applyBotValidationScenario(idOrIndex = 0) {
+        const matrix = this.getBotValidationMatrix();
+        if (!matrix || matrix.length === 0) return null;
+
+        let scenario = null;
+        if (typeof idOrIndex === 'number') {
+            scenario = matrix[Math.max(0, Math.min(matrix.length - 1, idOrIndex))];
+        } else {
+            scenario = matrix.find((s) => s.id === idOrIndex) || matrix[0];
+        }
+        if (!scenario) return null;
+
+        this.settings.mode = scenario.mode === '2p' ? '2p' : '1p';
+        this.settings.numBots = scenario.bots;
+        this.settings.mapKey = scenario.mapKey;
+        this.settings.gameplay.planarMode = !!scenario.planarMode;
+        this.settings.gameplay.portalCount = scenario.portalCount;
+        this.settings.portalsEnabled = scenario.portalCount > 0 || this.settings.portalsEnabled;
+        this.settings.winsNeeded = Math.max(1, this.settings.winsNeeded);
+        this._onSettingsChanged();
+
+        this._showStatusToast(`Szenario ${scenario.id} geladen`);
+        console.log('[Recorder] Validation scenario loaded:', scenario);
+        return scenario;
     }
 }
 

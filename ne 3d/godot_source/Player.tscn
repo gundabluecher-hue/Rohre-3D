@@ -1,0 +1,28 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Player.gd" id="1_player_script"]
+[ext_resource type="Script" path="res://Trail.gd" id="2_trail_script"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
+radius = 0.6
+height = 1.8
+
+[sub_resource type="SphereMesh" id="SphereMesh_player_body"]
+radius = 0.7
+height = 1.4
+
+[node name="Player" type="CharacterBody3D"]
+script = ExtResource("1_player_script")
+trail_node = NodePath("Trail")
+visuals = NodePath("Visuals")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapsuleShape3D_player")
+
+[node name="Trail" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("2_trail_script")
+
+[node name="Visuals" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="Visuals"]
+mesh = SubResource("SphereMesh_player_body")

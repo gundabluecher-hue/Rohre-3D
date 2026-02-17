@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Portal.gd" id="1_portal_script"]
+
+[node name="Portal" type="Area3D"]
+script = ExtResource("1_portal_script")
+monitoring = true
+monitorable = true

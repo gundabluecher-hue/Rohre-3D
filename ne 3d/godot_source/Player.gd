@@ -310,7 +310,8 @@ func _check_collisions() -> void:
 			skip_recent = 18
 
 		if trail.call("check_collision", global_position, Config.HITBOX_RADIUS, skip_recent):
-			_handle_impact("trail", Vector3.ZERO)
+			var trail_cause := "trail_self" if p == self else "trail"
+			_handle_impact(trail_cause, Vector3.ZERO)
 			return
 
 func _handle_impact(cause: String, normal: Vector3) -> void:

@@ -12,6 +12,10 @@ var settings: Dictionary = {}
 var _menu_open_in_game: bool = false
 var _updating_controls: bool = false
 var _controls: Dictionary = {}
+var _keybind_buttons: Dictionary = {}
+var _keybind_warning: Label = null
+var _capturing_action: String = ""
+var _keybind_entries: Array[Dictionary] = []
 
 var _title_label: Label = null
 var _start_button: Button = null
@@ -20,6 +24,7 @@ var _resume_button: Button = null
 func _ready() -> void:
 	layer = 10
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_keybind_entries = _build_keybind_entries()
 	_build_ui()
 	visible = false
 
@@ -34,10 +39,38 @@ func open_menu(in_game: bool) -> void:
 	_sync_controls()
 
 func close_menu() -> void:
+	_capturing_action = ""
+	_refresh_keybind_ui()
 	visible = false
 
 func is_open() -> bool:
 	return visible
+
+func is_capturing_key() -> bool:
+	return not _capturing_action.is_empty()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not visible:
+		return
+	if _capturing_action.is_empty():
+		return
+	if not (event is InputEventKey):
+		return
+
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return
+
+	get_viewport().set_input_as_handled()
+	if key_event.keycode == KEY_ESCAPE:
+		_capturing_action = ""
+		_refresh_keybind_ui()
+		return
+
+	_set_action_key(_capturing_action, int(key_event.keycode))
+	_capturing_action = ""
+	_refresh_keybind_ui()
+	_emit_settings_changed()
 
 func _build_ui() -> void:
 	var root := Control.new()
@@ -114,10 +147,17 @@ func _build_ui() -> void:
 	_add_slider_row(content, "items", "Items", 1.0, 20.0, 1.0, true, 0)
 	_add_slider_row(content, "fire_rate", "Fire Rate", 0.1, 2.0, 0.05, false, 2)
 	_add_slider_row(content, "lock_on_angle", "Lock-On", 5.0, 45.0, 1.0, false, 0, "deg")
+	_add_option_row(content, "quality_mode", "Quality Mode", [
+		{"label": "HIGH", "value": "HIGH"},
+		{"label": "LOW", "value": "LOW"}
+	])
+	_add_check_row(content, "show_fps_overlay", "FPS Overlay")
+	_add_check_row(content, "adaptive_quality", "Adaptive Quality")
 	_add_check_row(content, "portals_enabled", "Portals Enabled")
 	_add_check_row(content, "planar_mode", "Planar Mode")
 	_add_slider_row(content, "portal_count", "Portal Count", 0.0, 20.0, 1.0, true, 0)
 	_add_check_row(content, "portal_beams", "Portal Beams")
+	_add_keybind_section(content)
 
 	var buttons := HBoxContainer.new()
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -194,6 +234,8 @@ func _add_option_row(parent: VBoxContainer, key: String, title: String, options:
 				settings["map_key"] = String(selected)
 			"bot_difficulty":
 				settings["bot_difficulty"] = String(selected).to_upper()
+			"quality_mode":
+				_set_performance_value("quality_mode", String(selected).to_upper())
 		_emit_settings_changed()
 	)
 
@@ -215,9 +257,15 @@ func _add_check_row(parent: VBoxContainer, key: String, title: String) -> void:
 	check.toggled.connect(func(pressed: bool) -> void:
 		if _updating_controls:
 			return
-		_set_gameplay_value(key, pressed)
-		if key == "planar_mode" and pressed and int(_get_gameplay_value("portal_count", 0)) == 0:
-			_set_gameplay_value("portal_count", 4)
+		match key:
+			"show_fps_overlay":
+				_set_performance_value("show_fps_overlay", pressed)
+			"adaptive_quality":
+				_set_performance_value("adaptive_quality", pressed)
+			_:
+				_set_gameplay_value(key, pressed)
+				if key == "planar_mode" and pressed and int(_get_gameplay_value("portal_count", 0)) == 0:
+					_set_gameplay_value("portal_count", 4)
 		_emit_settings_changed()
 	)
 
@@ -289,11 +337,24 @@ func _set_gameplay_value(key: String, value: Variant) -> void:
 	gameplay[key] = value
 	settings["gameplay"] = gameplay
 
+func _set_performance_value(key: String, value: Variant) -> void:
+	var performance: Dictionary = settings.get("performance", {})
+	if not (performance is Dictionary):
+		performance = {}
+	performance[key] = value
+	settings["performance"] = performance
+
 func _get_gameplay_value(key: String, fallback: Variant) -> Variant:
 	var gameplay = settings.get("gameplay", {})
 	if not (gameplay is Dictionary):
 		return fallback
 	return gameplay.get(key, fallback)
+
+func _get_performance_value(key: String, fallback: Variant) -> Variant:
+	var performance = settings.get("performance", {})
+	if not (performance is Dictionary):
+		return fallback
+	return performance.get(key, fallback)
 
 func _update_slider_label(key: String) -> void:
 	if not _controls.has(key):
@@ -323,6 +384,7 @@ func _sync_controls() -> void:
 	_select_option("mode", String(settings.get("mode", "1p")))
 	_select_option("map_key", String(settings.get("map_key", "standard")))
 	_select_option("bot_difficulty", String(settings.get("bot_difficulty", "NORMAL")).to_upper())
+	_select_option("quality_mode", String(_get_performance_value("quality_mode", "HIGH")).to_upper())
 
 	_set_slider("bots", float(settings.get("bots", 1)))
 	_set_slider("wins_needed", float(settings.get("wins_needed", 5)))
@@ -339,9 +401,12 @@ func _sync_controls() -> void:
 	_set_check("portals_enabled", bool(_get_gameplay_value("portals_enabled", true)))
 	_set_check("planar_mode", bool(_get_gameplay_value("planar_mode", false)))
 	_set_check("portal_beams", bool(_get_gameplay_value("portal_beams", true)))
+	_set_check("show_fps_overlay", bool(_get_performance_value("show_fps_overlay", false)))
+	_set_check("adaptive_quality", bool(_get_performance_value("adaptive_quality", true)))
 
 	_updating_controls = false
 	_refresh_buttons()
+	_refresh_keybind_ui()
 
 func _select_option(key: String, value: Variant) -> void:
 	if not _controls.has(key):
@@ -384,3 +449,187 @@ func _emit_settings_changed() -> void:
 func _on_defaults_pressed() -> void:
 	settings = Config.get_default_settings()
 	_emit_settings_changed()
+
+func _add_keybind_section(parent: VBoxContainer) -> void:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 6)
+	parent.add_child(section)
+
+	var title := Label.new()
+	title.text = "Key Rebinding"
+	title.add_theme_font_size_override("font_size", 17)
+	section.add_child(title)
+
+	var help := Label.new()
+	help.text = "Click a key, then press a new one. ESC cancels capture."
+	section.add_child(help)
+
+	_keybind_warning = Label.new()
+	_keybind_warning.visible = false
+	_keybind_warning.add_theme_color_override("font_color", Color(1.0, 0.46, 0.46, 1.0))
+	section.add_child(_keybind_warning)
+
+	var rows := VBoxContainer.new()
+	rows.name = "KeyRows"
+	rows.add_theme_constant_override("separation", 4)
+	section.add_child(rows)
+
+	for entry in _keybind_entries:
+		_add_keybind_row(rows, String(entry.get("action", "")), String(entry.get("label", "")))
+
+func _add_keybind_row(parent: VBoxContainer, action: String, label_text: String) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	parent.add_child(row)
+
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size = Vector2(260, 0)
+	row.add_child(label)
+
+	var button := Button.new()
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.pressed.connect(func() -> void:
+		_start_key_capture(action)
+	)
+	row.add_child(button)
+	_keybind_buttons[action] = button
+
+func _start_key_capture(action: String) -> void:
+	_capturing_action = action
+	_refresh_keybind_ui()
+
+func _refresh_keybind_ui() -> void:
+	if _keybind_buttons.is_empty():
+		return
+
+	var usage := _collect_key_usage()
+	for action in _keybind_buttons.keys():
+		var button := _keybind_buttons[action] as Button
+		if button == null:
+			continue
+
+		var action_name := String(action)
+		if _capturing_action == action_name:
+			button.text = "Press key..."
+			button.modulate = Color(0.8, 1.0, 0.86, 1.0)
+			continue
+
+		var codes := _keycodes_for_action(action_name)
+		var has_conflict := _action_has_conflict(action_name, usage)
+		button.text = _format_keycodes(codes)
+		if has_conflict:
+			button.text += "  (Conflict)"
+			button.modulate = Color(1.0, 0.6, 0.6, 1.0)
+		else:
+			button.modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+	_update_keybind_warning(usage)
+
+func _keycodes_for_action(action: String) -> Array[int]:
+	var result: Array[int] = []
+	if not InputMap.has_action(action):
+		return result
+	for event in InputMap.action_get_events(action):
+		if not (event is InputEventKey):
+			continue
+		var keycode := int(event.keycode)
+		if keycode <= 0:
+			continue
+		if result.has(keycode):
+			continue
+		result.append(keycode)
+	return result
+
+func _collect_key_usage() -> Dictionary:
+	var usage: Dictionary = {}
+	for entry in _keybind_entries:
+		var action := String(entry.get("action", ""))
+		for keycode in _keycodes_for_action(action):
+			var key := int(keycode)
+			var actions: Array = usage.get(key, [])
+			if not actions.has(action):
+				actions.append(action)
+			usage[key] = actions
+	return usage
+
+func _action_has_conflict(action: String, usage: Dictionary) -> bool:
+	for keycode in _keycodes_for_action(action):
+		var actions: Array = usage.get(int(keycode), [])
+		if actions.size() > 1:
+			return true
+	return false
+
+func _update_keybind_warning(usage: Dictionary) -> void:
+	if _keybind_warning == null:
+		return
+
+	var conflicts: Array[String] = []
+	for keycode_variant in usage.keys():
+		var keycode := int(keycode_variant)
+		var actions: Array = usage[keycode_variant]
+		if actions.size() <= 1:
+			continue
+		conflicts.append(OS.get_keycode_string(keycode))
+	conflicts.sort()
+
+	if conflicts.is_empty():
+		_keybind_warning.visible = false
+		_keybind_warning.text = ""
+		return
+
+	_keybind_warning.visible = true
+	_keybind_warning.text = "Conflicts: %s" % ", ".join(conflicts)
+
+func _format_keycodes(codes: Array[int]) -> String:
+	if codes.is_empty():
+		return "-"
+	var labels: Array[String] = []
+	for keycode in codes:
+		labels.append(OS.get_keycode_string(int(keycode)))
+	return " / ".join(labels)
+
+func _set_action_key(action: String, keycode: int) -> void:
+	if keycode <= 0:
+		return
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+
+	var existing := InputMap.action_get_events(action)
+	for event in existing:
+		if event is InputEventKey:
+			InputMap.action_erase_event(action, event)
+
+	var input_event := InputEventKey.new()
+	input_event.keycode = keycode
+	InputMap.action_add_event(action, input_event)
+
+func _build_keybind_entries() -> Array[Dictionary]:
+	return [
+		{"action": "pitch_up", "label": "P1 Pitch Up"},
+		{"action": "pitch_down", "label": "P1 Pitch Down"},
+		{"action": "yaw_left", "label": "P1 Yaw Left"},
+		{"action": "yaw_right", "label": "P1 Yaw Right"},
+		{"action": "roll_left", "label": "P1 Roll Left"},
+		{"action": "roll_right", "label": "P1 Roll Right"},
+		{"action": "boost", "label": "P1 Boost"},
+		{"action": "shoot_item", "label": "P1 Shoot Item"},
+		{"action": "use_item", "label": "P1 Use Item"},
+		{"action": "drop_item", "label": "P1 Drop Item"},
+		{"action": "next_item", "label": "P1 Next Item"},
+		{"action": "pitch_up_p2", "label": "P2 Pitch Up"},
+		{"action": "pitch_down_p2", "label": "P2 Pitch Down"},
+		{"action": "yaw_left_p2", "label": "P2 Yaw Left"},
+		{"action": "yaw_right_p2", "label": "P2 Yaw Right"},
+		{"action": "roll_left_p2", "label": "P2 Roll Left"},
+		{"action": "roll_right_p2", "label": "P2 Roll Right"},
+		{"action": "boost_p2", "label": "P2 Boost"},
+		{"action": "shoot_item_p2", "label": "P2 Shoot Item"},
+		{"action": "use_item_p2", "label": "P2 Use Item"},
+		{"action": "drop_item_p2", "label": "P2 Drop Item"},
+		{"action": "next_item_p2", "label": "P2 Next Item"},
+		{"action": "camera_mode", "label": "Global Camera Mode"},
+		{"action": "cycle_focus_player", "label": "Global Focus Cycle"},
+		{"action": "restart_game", "label": "Global Restart"},
+		{"action": "pause_game", "label": "Global Pause"}
+	]

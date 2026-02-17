@@ -390,6 +390,11 @@ static func get_default_settings() -> Dictionary:
 		"bots": 1,
 		"bot_difficulty": BOT_DEFAULT_DIFFICULTY,
 		"wins_needed": TARGET_SCORE,
+		"performance": {
+			"show_fps_overlay": false,
+			"quality_mode": "HIGH",
+			"adaptive_quality": true
+		},
 		"gameplay": {
 			"speed": PLAYER_SPEED,
 			"turn": YAW_SPEED,
@@ -427,6 +432,17 @@ static func normalize_settings(raw: Dictionary) -> Dictionary:
 	if not BOT_DIFFICULTY_PROFILES.has(difficulty):
 		difficulty = BOT_DEFAULT_DIFFICULTY
 	normalized["bot_difficulty"] = difficulty
+
+	var performance_defaults: Dictionary = normalized["performance"]
+	var performance_input = raw.get("performance", {})
+	if performance_input is Dictionary:
+		performance_defaults["show_fps_overlay"] = bool(performance_input.get("show_fps_overlay", performance_defaults["show_fps_overlay"]))
+		var quality_mode := String(performance_input.get("quality_mode", performance_defaults["quality_mode"])).strip_edges().to_upper()
+		if quality_mode != "LOW":
+			quality_mode = "HIGH"
+		performance_defaults["quality_mode"] = quality_mode
+		performance_defaults["adaptive_quality"] = bool(performance_input.get("adaptive_quality", performance_defaults["adaptive_quality"]))
+	normalized["performance"] = performance_defaults
 
 	var gameplay_defaults: Dictionary = normalized["gameplay"]
 	var gameplay_input = raw.get("gameplay", {})

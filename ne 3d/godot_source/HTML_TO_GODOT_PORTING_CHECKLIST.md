@@ -38,22 +38,22 @@ Ziel: funktionale ParitÃ¤t der Godot-Version mit der HTML/Three.js-Version.
 
 ## Medium Priority
 
-1. Fighter-HUD-ParitÃ¤t
+1. [x] Fighter-HUD-ParitÃ¤t
 - Scope: kÃ¼nstlicher Horizont, Pitch-Ladder, Tape-Scales, Lock-Reticle mit Distanz.
 - Godot-Targets: `godot_source/HUD.gd`.
 - HTML-Referenz: `Neuer Ordner/js/modules/HUD.js:113`, `Neuer Ordner/index.html:315`.
 
-2. Key-Rebinding-UI + Konflikterkennung
+2. [x] Key-Rebinding-UI + Konflikterkennung
 - Scope: Ingame Keybind-Editor mit Warnung bei Doppelbelegung.
 - Godot-Targets: `godot_source/Main.gd`, neue UI/Settings-Scripts.
 - HTML-Referenz: `Neuer Ordner/js/main.js:582`, `Neuer Ordner/js/main.js:656`.
 
-3. Recorder/KPI-System
+3. [x] Recorder/KPI-System
 - Scope: Round-Metriken, Baseline, Vergleichsreport.
 - Godot-Targets: neues `RoundRecorder.gd`, Integration in `godot_source/GameManager.gd`.
 - HTML-Referenz: `Neuer Ordner/js/modules/RoundRecorder.js:43`.
 
-4. Performance/Quality-Toggles
+4. [x] Performance/Quality-Toggles
 - Scope: FPS-Overlay, Quality-Mode, optional adaptive QualitÃ¤tsreduktion.
 - Godot-Targets: `godot_source/Main.gd`, `godot_source/HUD.gd`, Render-Settings.
 - HTML-Referenz: `Neuer Ordner/js/main.js:153`, `Neuer Ordner/js/main.js:989`.

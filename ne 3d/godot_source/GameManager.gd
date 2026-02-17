@@ -4,6 +4,7 @@ const Config = preload("res://Config.gd")
 const BotControllerScript = preload("res://BotController.gd")
 const AudioBusScript = preload("res://AudioBus.gd")
 const ProjectileScript = preload("res://Projectile.gd")
+const RoundRecorderScript = preload("res://RoundRecorder.gd")
 
 signal game_started(mode: String)
 signal state_changed(new_state: int, old_state: int)
@@ -17,6 +18,7 @@ signal player_spawned(player: Node, player_index: int, is_bot: bool)
 signal player_died(player_index: int, cause: String)
 signal powerup_collected(player_index: int, type_idx: int)
 signal feedback(message: String)
+signal kpi_updated(last_round: Dictionary, aggregate: Dictionary)
 
 enum GameState { BOOT, COUNTDOWN, PLAYING, ROUND_END, GAME_OVER, PAUSED }
 
@@ -58,6 +60,7 @@ var _qa_powerup_queue: Array[int] = []
 var _qa_powerup_timer: float = 0.0
 var _collision_query_shape: SphereShape3D = SphereShape3D.new()
 var _collision_query: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+var _recorder = RoundRecorderScript.new()
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -187,6 +190,38 @@ func get_scores_snapshot() -> Dictionary:
 
 func get_players_snapshot() -> Array:
 	return players.duplicate()
+
+func get_last_round_metrics() -> Dictionary:
+	return _recorder.get_last_round_metrics()
+
+func get_aggregate_metrics() -> Dictionary:
+	return _recorder.get_aggregate_metrics()
+
+func capture_bot_baseline(label: String = "BASELINE") -> Dictionary:
+	return _recorder.capture_baseline(label)
+
+func compare_bot_baseline(label: String = "BASELINE") -> Dictionary:
+	return _recorder.compare_with_baseline(label)
+
+func get_validation_matrix() -> Array[Dictionary]:
+	return _recorder.get_validation_matrix()
+
+func get_recorder_dump(label: String = "BASELINE") -> Dictionary:
+	return _recorder.dump(label)
+
+func print_validation_report(label: String = "BASELINE") -> Dictionary:
+	var normalized := label.strip_edges().to_upper()
+	if normalized.is_empty():
+		normalized = "BASELINE"
+	var report := {
+		"label": normalized,
+		"aggregate": _recorder.get_aggregate_metrics(),
+		"comparison": _recorder.compare_with_baseline(normalized),
+		"matrix": _recorder.get_validation_matrix()
+	}
+	print("[Recorder] Validation report:")
+	print(JSON.stringify(report, "\t"))
+	return report
 
 func apply_runtime_settings(settings: Dictionary, apply_live: bool = true) -> void:
 	var normalized := Config.normalize_settings(settings)
@@ -521,6 +556,11 @@ func _update_countdown(delta: float) -> void:
 
 	_round_timer = 0.0
 	_change_state(GameState.PLAYING)
+	_recorder.start_round(players)
+	for p in players:
+		if p == null or not is_instance_valid(p):
+			continue
+		_recorder.mark_player_spawn(p)
 	_qa_apply_initial_powerup_sweep()
 	emit_signal("round_started", current_round)
 
@@ -533,6 +573,7 @@ func _emit_countdown_tick() -> void:
 
 func _update_playing(delta: float) -> void:
 	_qa_update_powerup_sweep(delta)
+	_recorder.record_frame(players)
 	_round_timer += delta
 	if _round_timer >= Config.MAX_ROUND_SECONDS:
 		_request_round_end(-1, "timeout")
@@ -583,6 +624,13 @@ func _request_round_end(round_winner_index: int, cause: String) -> void:
 			scores[round_winner_index] = 0
 		scores[round_winner_index] = int(scores[round_winner_index]) + 1
 		_emit_score_changed()
+
+	var winner_node: Node = null
+	if round_winner_index >= 0:
+		winner_node = _find_player_by_index(round_winner_index)
+	var round_metrics := _recorder.finalize_round(winner_node, players)
+	if not round_metrics.is_empty():
+		emit_signal("kpi_updated", round_metrics, _recorder.get_aggregate_metrics())
 
 	emit_signal("round_ended", current_round, round_winner_index, cause)
 	_play_audio("round_end")
@@ -663,6 +711,19 @@ func _apply_slow_time(duration: float, scale: float) -> void:
 
 func _on_player_died(player_index: int, cause: String) -> void:
 	emit_signal("player_died", player_index, cause)
+	var dead_player := _find_player_by_index(player_index)
+	if dead_player != null:
+		_recorder.mark_player_death(dead_player, cause)
+
+	match cause:
+		"wall":
+			_recorder.log_event("BOUNCE_WALL", player_index, cause)
+		"trail", "trail_self":
+			_recorder.log_event("BOUNCE_TRAIL", player_index, cause)
+		"stuck":
+			_recorder.log_event("STUCK", player_index, cause)
+		_:
+			_recorder.log_event("DEATH", player_index, cause)
 
 	if state != GameState.PLAYING:
 		return
@@ -682,6 +743,7 @@ func _on_player_died(player_index: int, cause: String) -> void:
 
 func _on_player_powerup_applied(player_index: int, type_idx: int) -> void:
 	emit_signal("powerup_collected", player_index, type_idx)
+	_recorder.log_event("ITEM_USE", player_index, Config.powerup_key_from_type(type_idx))
 
 	if type_idx != Config.PowerupType.SLOW_TIME:
 		return
@@ -698,6 +760,7 @@ func _on_player_audio_event(event_name: String, _player_index: int) -> void:
 func _on_player_item_shot(player_index: int, type_idx: int) -> void:
 	if state != GameState.PLAYING:
 		return
+	_recorder.log_event("ITEM_SHOT", player_index, Config.powerup_key_from_type(type_idx))
 	var shooter := _find_player_by_index(player_index)
 	if shooter == null:
 		return

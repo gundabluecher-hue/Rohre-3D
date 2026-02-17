@@ -39,6 +39,14 @@ var _split_camera_p1: Camera3D = null
 var _split_camera_p2: Camera3D = null
 var _hud_p2: Control = null
 
+var _fps_samples: Array[float] = []
+var _fps_average: float = 60.0
+var _perf_refresh_timer: float = 0.0
+var _adaptive_timer: float = 0.0
+var _fps_overlay_enabled: bool = false
+var _quality_mode: String = "HIGH"
+var _adaptive_quality_enabled: bool = true
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_ensure_input_actions()
@@ -61,8 +69,14 @@ func _ready() -> void:
 
 	call_deferred("_bind_runtime_refs")
 
-func _process(_delta: float) -> void:
-	if Input.is_action_just_pressed("pause_game"):
+func _process(delta: float) -> void:
+	_update_performance_metrics(delta)
+
+	var capturing_key := false
+	if runtime_menu != null and runtime_menu.has_method("is_capturing_key"):
+		capturing_key = bool(runtime_menu.call("is_capturing_key"))
+
+	if not capturing_key and Input.is_action_just_pressed("pause_game"):
 		if runtime_menu.call("is_open"):
 			_on_menu_resume_requested()
 		else:
@@ -181,6 +195,7 @@ func _apply_settings_to_runtime(rebuild_map: bool) -> void:
 	map_key = String(_settings.get("map_key", map_key))
 
 	var gameplay: Dictionary = _settings.get("gameplay", {})
+	var performance: Dictionary = _settings.get("performance", {})
 	var wins_needed := int(_settings.get("wins_needed", Config.TARGET_SCORE))
 	var difficulty := String(_settings.get("bot_difficulty", Config.BOT_DEFAULT_DIFFICULTY)).to_upper()
 	var runtime_settings := _settings.duplicate(true)
@@ -210,6 +225,8 @@ func _apply_settings_to_runtime(rebuild_map: bool) -> void:
 		elif rebuild_map and arena.has_method("build_map"):
 			arena.call("build_map", map_key)
 
+	_apply_performance_settings(performance)
+
 	if runtime_menu != null:
 		runtime_menu.call("set_settings", _settings)
 
@@ -230,6 +247,115 @@ func _wire_references() -> void:
 	if _hud_p2 != null:
 		_hud_p2.set("game_manager", game_manager)
 		_hud_p2.set("camera_node", _split_camera_p2)
+
+	_push_hud_performance_snapshot()
+
+func _apply_performance_settings(performance: Dictionary) -> void:
+	_fps_overlay_enabled = bool(performance.get("show_fps_overlay", false))
+	_adaptive_quality_enabled = bool(performance.get("adaptive_quality", true))
+	_set_quality_mode(String(performance.get("quality_mode", "HIGH")), false)
+	_push_hud_performance_snapshot()
+
+func _set_quality_mode(mode_name: String, persist_to_settings: bool) -> void:
+	var normalized := mode_name.strip_edges().to_upper()
+	if normalized != "LOW":
+		normalized = "HIGH"
+	if _quality_mode == normalized:
+		return
+
+	_quality_mode = normalized
+	var scale := 0.72 if _quality_mode == "LOW" else 1.0
+	_apply_quality_scale(scale)
+
+	var sun := get_node_or_null("World/DirectionalLight3D") as DirectionalLight3D
+	if sun != null:
+		sun.shadow_enabled = _quality_mode == "HIGH"
+
+	if persist_to_settings:
+		var performance: Dictionary = _settings.get("performance", {})
+		if not (performance is Dictionary):
+			performance = {}
+		performance["quality_mode"] = _quality_mode
+		_settings["performance"] = performance
+		if runtime_menu != null:
+			runtime_menu.call("set_settings", _settings)
+
+	_push_hud_performance_snapshot()
+
+func _apply_quality_scale(scale: float) -> void:
+	var clamped: float = clampf(scale, 0.5, 1.0)
+	var main_viewport := get_viewport()
+	if main_viewport != null:
+		main_viewport.scaling_3d_scale = clamped
+	if _split_viewport_p1 != null:
+		_split_viewport_p1.scaling_3d_scale = clamped
+	if _split_viewport_p2 != null:
+		_split_viewport_p2.scaling_3d_scale = clamped
+
+func _update_performance_metrics(delta: float) -> void:
+	if delta <= 0.0:
+		return
+
+	var fps := 1.0 / delta
+	_fps_samples.append(fps)
+	while _fps_samples.size() > 60:
+		_fps_samples.remove_at(0)
+
+	if not _fps_samples.is_empty():
+		var sum := 0.0
+		for value in _fps_samples:
+			sum += value
+		_fps_average = sum / float(_fps_samples.size())
+
+	_perf_refresh_timer += delta
+	if _perf_refresh_timer >= 0.25:
+		_perf_refresh_timer = 0.0
+		_push_hud_performance_snapshot()
+
+	if _adaptive_quality_enabled:
+		_adaptive_timer += delta
+		if _adaptive_timer >= 3.0:
+			_adaptive_timer = 0.0
+			var menu_open: bool = runtime_menu != null and bool(runtime_menu.call("is_open"))
+			if _fps_average < 30.0 and _quality_mode != "LOW" and _match_started and not menu_open:
+				_set_quality_mode("LOW", true)
+				_save_settings()
+	else:
+		_adaptive_timer = 0.0
+
+func _build_performance_snapshot() -> Dictionary:
+	var alive_players := 0
+	if game_manager != null and game_manager.has_method("get_players_snapshot"):
+		var players_value = game_manager.call("get_players_snapshot")
+		if players_value is Array:
+			var players: Array = players_value
+			for p in players:
+				if not is_instance_valid(p):
+					continue
+				if bool(p.get("alive")):
+					alive_players += 1
+
+	var frame_ms := 1000.0 / _fps_average if _fps_average > 0.001 else 0.0
+	return {
+		"fps": _fps_average,
+		"frame_ms": frame_ms,
+		"alive_players": alive_players,
+		"quality_mode": _quality_mode,
+		"adaptive_quality": _adaptive_quality_enabled
+	}
+
+func _push_hud_performance_snapshot() -> void:
+	var snapshot := _build_performance_snapshot()
+	if hud != null:
+		if hud.has_method("set_performance_overlay_enabled"):
+			hud.call("set_performance_overlay_enabled", _fps_overlay_enabled)
+		if hud.has_method("set_performance_snapshot"):
+			hud.call("set_performance_snapshot", snapshot)
+	if _hud_p2 != null:
+		if _hud_p2.has_method("set_performance_overlay_enabled"):
+			_hud_p2.call("set_performance_overlay_enabled", _fps_overlay_enabled)
+		if _hud_p2.has_method("set_performance_snapshot"):
+			_hud_p2.call("set_performance_snapshot", snapshot)
 
 func _parse_cli_args() -> void:
 	for arg in OS.get_cmdline_user_args():
@@ -485,6 +611,7 @@ func _setup_split_screen_nodes() -> void:
 		move_child(_hud_p2, runtime_menu.get_index())
 
 	_split_root.visible = false
+	_apply_quality_scale(0.72 if _quality_mode == "LOW" else 1.0)
 
 func _update_split_viewport_sizes() -> void:
 	if _split_viewport_p1 == null or _split_viewport_p2 == null:
@@ -528,6 +655,8 @@ func _configure_split_screen(enabled: bool) -> void:
 		if enabled:
 			_set_hud_region(_hud_p2, 0.5, 1.0)
 			_hud_p2.set("camera_node", _split_camera_p2)
+
+	_push_hud_performance_snapshot()
 
 func _set_hud_region(target_hud: Control, left_anchor: float, right_anchor: float) -> void:
 	target_hud.anchor_left = left_anchor
@@ -590,3 +719,80 @@ func _ensure_action(action: String, keycode: int) -> void:
 	var ev := InputEventKey.new()
 	ev.keycode = keycode
 	InputMap.action_add_event(action, ev)
+
+func capture_bot_baseline(label: String = "BASELINE") -> Dictionary:
+	if game_manager == null or not game_manager.has_method("capture_bot_baseline"):
+		return {}
+	var baseline: Dictionary = game_manager.call("capture_bot_baseline", label)
+	print("[Recorder] Baseline captured (%s)" % String(baseline.get("label", label)))
+	print(JSON.stringify(baseline, "\t"))
+	return baseline
+
+func print_bot_validation_report(label: String = "BASELINE") -> Dictionary:
+	if game_manager == null or not game_manager.has_method("print_validation_report"):
+		return {}
+	return game_manager.call("print_validation_report", label)
+
+func get_bot_validation_matrix() -> Array[Dictionary]:
+	if game_manager == null or not game_manager.has_method("get_validation_matrix"):
+		return []
+	var matrix_value = game_manager.call("get_validation_matrix")
+	if not (matrix_value is Array):
+		return []
+	var matrix: Array[Dictionary] = []
+	for entry in matrix_value:
+		if entry is Dictionary:
+			matrix.append(entry)
+	return matrix
+
+func print_bot_test_protocol() -> Dictionary:
+	var matrix := get_bot_validation_matrix()
+	var protocol := {
+		"steps": [
+			"1) apply_bot_validation_scenario(0) and play 10 rounds.",
+			"2) capture_bot_baseline(\"BASELINE\")",
+			"3) Play other scenarios from matrix.",
+			"4) print_bot_validation_report(\"BASELINE\") for KPI deltas."
+		],
+		"matrix": matrix
+	}
+	print("[Recorder] Bot test protocol:")
+	print(JSON.stringify(protocol, "\t"))
+	return protocol
+
+func apply_bot_validation_scenario(id_or_index: Variant = 0) -> Dictionary:
+	var matrix := get_bot_validation_matrix()
+	if matrix.is_empty():
+		return {}
+
+	var scenario: Dictionary = {}
+	if typeof(id_or_index) == TYPE_INT:
+		var idx: int = clampi(int(id_or_index), 0, matrix.size() - 1)
+		scenario = matrix[idx]
+	else:
+		var key := String(id_or_index)
+		for entry in matrix:
+			if String(entry.get("id", "")) == key:
+				scenario = entry
+				break
+		if scenario.is_empty():
+			scenario = matrix[0]
+
+	_settings = Config.normalize_settings(_settings)
+	_settings["mode"] = "2p" if String(scenario.get("mode", "1p")) == "2p" else "1p"
+	_settings["bots"] = int(scenario.get("bots", _settings.get("bots", 1)))
+	_settings["map_key"] = String(scenario.get("mapKey", _settings.get("map_key", "standard")))
+
+	var gameplay: Dictionary = _settings.get("gameplay", {})
+	gameplay["planar_mode"] = bool(scenario.get("planarMode", false))
+	gameplay["portal_count"] = int(scenario.get("portalCount", gameplay.get("portal_count", 0)))
+	gameplay["portals_enabled"] = bool(gameplay["portal_count"] > 0)
+	_settings["gameplay"] = gameplay
+
+	_save_settings()
+	_apply_settings_to_runtime(true)
+	if runtime_menu != null:
+		runtime_menu.call("set_settings", _settings)
+
+	print("[Recorder] Loaded validation scenario: %s" % String(scenario.get("id", "unknown")))
+	return scenario

@@ -66,6 +66,15 @@ export const CONFIG = {
         SHADOW_MAP_SIZE: 512,
     },
 
+    // ---- Debug / Performance ----
+    DEBUG: {
+        PERF: {
+            ENABLED: false,
+            SAMPLE_EVERY: 4,
+            MAX_SAMPLES: 2048,
+        },
+    },
+
     // ---- Powerups ----
     POWERUP: {
         SPAWN_INTERVAL: 3.0,
@@ -97,6 +106,30 @@ export const CONFIG = {
         REACTION_TIME: 0.13,
         LOOK_AHEAD: 13,
         AGGRESSION: 0.58,
+        LEARNING: {
+            ENABLED: false,
+            STORAGE_KEY: 'mini-curve-fever-3d.bot-learning.v1',
+            STORAGE_KEY_3D: 'mini-curve-fever-3d.bot-learning.v1.3d',
+            STORAGE_KEY_PLANAR: 'mini-curve-fever-3d.bot-learning.v1.planar',
+            ALPHA: 0.16,
+            GAMMA: 0.92,
+            EPSILON_START: 0.35,
+            EPSILON_MIN: 0.04,
+            EPSILON_DECAY: 0.9995,
+            MAX_STATES: 2500,
+            SAVE_EVERY_UPDATES: 200,
+            MIN_SAVE_INTERVAL_MS: 4000,
+            REWARD: {
+                SURVIVAL_PER_SEC: 0.03,
+                BOUNCE_WALL: -0.35,
+                BOUNCE_TRAIL: -0.55,
+                KILL: 2.2,
+                DEATH: -2.8,
+                ROUND_WIN: 1.4,
+                ROUND_LOSS: -0.8,
+                ROUND_DRAW: -0.25,
+            },
+        },
         DIFFICULTY_PROFILES: {
             EASY: {
                 reactionTime: 0.24,

@@ -76,6 +76,7 @@ export class Player {
         this.cockpitCamera = false;
         this.spawnProtectionTimer = 0;
         this.planarAimOffset = 0;
+        this.forcePlanarMode = false;
 
         // Kamera-Modus
         this.cameraMode = 0;
@@ -228,7 +229,7 @@ export class Player {
         // Planar Mode State: keep the spawn level chosen by the spawner.
         const fallbackY = CONFIG.PLAYER.START_Y || 5;
         const spawnY = Number.isFinite(position?.y) ? position.y : fallbackY;
-        this.currentPlanarY = CONFIG.GAMEPLAY.PLANAR_MODE ? spawnY : fallbackY;
+        this.currentPlanarY = this.isPlanarMode() ? spawnY : fallbackY;
         this.trail.clear();
         this.trail.resetWidth();
         this.group.visible = true;
@@ -248,6 +249,7 @@ export class Player {
     update(dt, input) {
         if (!this.alive) return;
         this.spawnProtectionTimer = Math.max(0, this.spawnProtectionTimer - dt);
+        const planarMode = this.isPlanarMode();
 
         // Effekte aktualisieren
         this._updateEffects(dt);
@@ -277,7 +279,7 @@ export class Player {
             }
 
             // Planar Mode: Ignore pitch input
-            if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+            if (planarMode) {
                 pitchInput = 0;
             }
 
@@ -303,12 +305,12 @@ export class Player {
             this._tmpEuler2.setFromQuaternion(this.quaternion, 'YXZ');
             this._tmpEuler2.z *= (1 - CONFIG.PLAYER.AUTO_ROLL_SPEED * dt);
 
-            if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+            if (planarMode) {
                 this._tmpEuler2.x = 0; // Strict pitch lock 
             }
 
             this.quaternion.setFromEuler(this._tmpEuler2);
-        } else if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+        } else if (planarMode) {
             // Strict pitch lock even if rolling
             this._tmpEuler2.setFromQuaternion(this.quaternion, 'YXZ');
             this._tmpEuler2.x = 0;
@@ -333,14 +335,14 @@ export class Player {
         this._tmpVec.set(0, 0, -1).applyQuaternion(this.quaternion);
         this.velocity.copy(this._tmpVec).multiplyScalar(this.speed);
 
-        if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+        if (planarMode) {
             this.velocity.y = 0;
             // Use currentPlanarY instead of static constant
             this.position.y = this.currentPlanarY;
         }
 
         this.position.x += this.velocity.x * dt;
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+        if (!planarMode) {
             this.position.y += this.velocity.y * dt;
         }
         this.position.z += this.velocity.z * dt;
@@ -428,6 +430,9 @@ export class Player {
         }
         if (typeof options.cockpitCamera === 'boolean') {
             this.cockpitCamera = options.cockpitCamera;
+        }
+        if (typeof options.forcePlanarMode === 'boolean') {
+            this.forcePlanarMode = options.forcePlanarMode;
         }
     }
 
@@ -540,6 +545,10 @@ export class Player {
         this.group.visible = false;
     }
 
+    isPlanarMode() {
+        return !!(CONFIG.GAMEPLAY.PLANAR_MODE || this.forcePlanarMode);
+    }
+
     getDirection(out = null) {
         if (out) {
             return out.set(0, 0, -1).applyQuaternion(this.quaternion);
@@ -562,7 +571,7 @@ export class Player {
         const target = out || new THREE.Vector3();
         this.getDirection(target).normalize();
 
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+        if (!this.isPlanarMode()) {
             return target;
         }
 

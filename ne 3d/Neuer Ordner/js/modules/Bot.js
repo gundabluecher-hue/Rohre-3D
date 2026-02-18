@@ -4,8 +4,15 @@
 
 import * as THREE from 'three';
 import { CONFIG } from './Config.js';
+import { BotLearningEngine } from './BotLearning.js';
+import { perfStart, perfEnd } from './PerfDebug.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const PERF_SECTION_BOT_UPDATE = 'bot.update';
+const PERF_SECTION_BOT_SENSE = 'bot.senseEnvironment';
+const PERF_SECTION_BOT_SCORE_PROBE = 'bot.scoreProbe';
+const PERF_SECTION_BOT_DECIDE_STEERING = 'bot.decideSteering';
+const PERF_SECTION_BOT_DECIDE_ITEM = 'bot.decideItemUsage';
 
 const MAP_BEHAVIOR = {
     standard: { caution: 0.0, portalBias: 0.0, aggressionBias: 0.0 },
@@ -27,6 +34,17 @@ const ITEM_RULES = {
     INVERT: { self: -0.7, offense: 0.85, defensiveScale: 0.15, emergencyScale: 0.0, combatSelf: -0.4 },
 };
 
+const LEARN_ACTION_INDEX = Object.freeze({
+    NO_OP: 0,
+    YAW_LEFT: 1,
+    YAW_RIGHT: 2,
+    PITCH_UP: 3,
+    PITCH_DOWN: 4,
+    BOOST: 5,
+    USE_ITEM: 6,
+    SHOOT_ITEM: 7,
+});
+
 function createProbe(name, yaw, pitch, weight = 0) {
     return {
         name,
@@ -45,6 +63,29 @@ function createProbe(name, yaw, pitch, weight = 0) {
 export class BotAI {
     constructor(options = {}) {
         this.recorder = options.recorder || null;
+        this.learningEngine = options.learning instanceof BotLearningEngine ? options.learning : null;
+        this.botId = options.botId || `bot-${Math.random().toString(36).slice(2, 8)}`;
+        this.learningEnabled = !!options.learningEnabled;
+        this.learningTraining = !!options.learningTraining;
+        this.forcePlanarMode = !!options.forcePlanarMode;
+        this._learningReward = {
+            survivalPerSec: CONFIG.BOT.LEARNING?.REWARD?.SURVIVAL_PER_SEC ?? 0.03,
+            bounceWall: CONFIG.BOT.LEARNING?.REWARD?.BOUNCE_WALL ?? -0.35,
+            bounceTrail: CONFIG.BOT.LEARNING?.REWARD?.BOUNCE_TRAIL ?? -0.55,
+            kill: CONFIG.BOT.LEARNING?.REWARD?.KILL ?? 2.2,
+            death: CONFIG.BOT.LEARNING?.REWARD?.DEATH ?? -2.8,
+            roundWin: CONFIG.BOT.LEARNING?.REWARD?.ROUND_WIN ?? 1.4,
+            roundLoss: CONFIG.BOT.LEARNING?.REWARD?.ROUND_LOSS ?? -0.8,
+            roundDraw: CONFIG.BOT.LEARNING?.REWARD?.ROUND_DRAW ?? -0.25,
+        };
+        this._learning = {
+            lastStateKey: '',
+            lastActionIndex: -1,
+            rewardBuffer: 0,
+            roundReward: 0,
+            decisionCount: 0,
+            updateCount: 0,
+        };
 
         this.currentInput = {
             pitchUp: false,
@@ -206,6 +247,24 @@ export class BotAI {
         this.state.recoveryActive = false;
     }
 
+    setLearningOptions(options = {}) {
+        if (Object.prototype.hasOwnProperty.call(options, 'learningEngine')) {
+            this.learningEngine = options.learningEngine instanceof BotLearningEngine ? options.learningEngine : this.learningEngine;
+        }
+        if (Object.prototype.hasOwnProperty.call(options, 'enabled')) {
+            this.learningEnabled = !!options.enabled;
+        }
+        if (Object.prototype.hasOwnProperty.call(options, 'training')) {
+            this.learningTraining = !!options.training;
+        }
+        if (Object.prototype.hasOwnProperty.call(options, 'forcePlanarMode')) {
+            this.forcePlanarMode = !!options.forcePlanarMode;
+        }
+        if (!this._isLearningActive()) {
+            this._clearLearningTransition();
+        }
+    }
+
     onBounce(type, normal = null) {
         const pressure = type === 'TRAIL' ? 1.3 : 0.9;
         this._recentBouncePressure = Math.min(4, this._recentBouncePressure + pressure);
@@ -213,6 +272,36 @@ export class BotAI {
             this._lastCollisionNormal.copy(normal).normalize();
             this._hasCollisionNormal = true;
         }
+        if (this._isLearningActive()) {
+            this._addLearningReward(type === 'TRAIL' ? this._learningReward.bounceTrail : this._learningReward.bounceWall);
+        }
+    }
+
+    onKill(targetPlayer = null, cause = 'UNKNOWN') {
+        if (!this._isLearningActive()) return;
+        this._addLearningReward(this._learningReward.kill);
+        if (this.recorder?.logEvent) {
+            const victim = targetPlayer ? `victim=${targetPlayer.index}` : 'victim=-1';
+            this.recorder.logEvent('LEARN_KILL', Number.isFinite(targetPlayer?.index) ? targetPlayer.index : -1, `killer=${this.botId} cause=${cause} ${victim}`);
+        }
+    }
+
+    onDeath(cause = 'UNKNOWN') {
+        if (!this._isLearningActive()) return;
+        this._addLearningReward(this._learningReward.death);
+        this._finalizeLearningTransition(true, `death:${cause}`);
+    }
+
+    onRoundEnd(outcome = 'draw') {
+        if (!this._isLearningActive()) return;
+        if (outcome === 'win') {
+            this._addLearningReward(this._learningReward.roundWin);
+        } else if (outcome === 'loss') {
+            this._addLearningReward(this._learningReward.roundLoss);
+        } else {
+            this._addLearningReward(this._learningReward.roundDraw);
+        }
+        this._finalizeLearningTransition(true, `round:${outcome}`);
     }
 
     _resetInput(input) {
@@ -305,7 +394,7 @@ export class BotAI {
         player.getDirection(this._tmpForward).normalize();
         this._buildBasis(this._tmpForward);
 
-        const candidates = CONFIG.GAMEPLAY.PLANAR_MODE
+        const candidates = this._isPlanarMode()
             ? [
                 { yaw: -1, pitch: 0, weight: 0.02 },
                 { yaw: 1, pitch: 0, weight: 0.02 },
@@ -330,7 +419,7 @@ export class BotAI {
         for (let i = 0; i < candidates.length; i++) {
             const candidate = candidates[i];
             this._tmpVec.copy(this._tmpForward).addScaledVector(this._tmpRight, candidate.yaw * 0.95);
-            if (!CONFIG.GAMEPLAY.PLANAR_MODE && candidate.pitch !== 0) {
+            if (!this._isPlanarMode() && candidate.pitch !== 0) {
                 this._tmpVec.addScaledVector(this._tmpUp, candidate.pitch * 0.75);
             }
             this._tmpVec.normalize();
@@ -363,7 +452,7 @@ export class BotAI {
                 score -= awayDot * 0.65;
             }
 
-            if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+            if (!this._isPlanarMode()) {
                 const margin = 7;
                 const projectedY = player.position.y + this._tmpVec.y * 9;
                 if (projectedY < arena.bounds.minY + margin || projectedY > arena.bounds.maxY - margin) {
@@ -388,9 +477,9 @@ export class BotAI {
 
         const maneuver = this._selectRecoveryManeuver(player, arena, allPlayers);
         this.state.recoveryYaw = maneuver?.yaw || (Math.random() > 0.5 ? 1 : -1);
-        this.state.recoveryPitch = CONFIG.GAMEPLAY.PLANAR_MODE ? 0 : (maneuver?.pitch || 0);
+        this.state.recoveryPitch = this._isPlanarMode() ? 0 : (maneuver?.pitch || 0);
 
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+        if (!this._isPlanarMode()) {
             const margin = 8;
             if (player.position.y < arena.bounds.minY + margin) this.state.recoveryPitch = 1;
             else if (player.position.y > arena.bounds.maxY - margin) this.state.recoveryPitch = -1;
@@ -413,7 +502,7 @@ export class BotAI {
         this._buildBasis(this._tmpForward);
         this._tmpVec.copy(this._tmpForward);
         this._tmpVec.addScaledVector(this._tmpRight, this.state.recoveryYaw * 0.22);
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+        if (!this._isPlanarMode()) {
             this._tmpVec.addScaledVector(this._tmpUp, this.state.recoveryPitch * 0.2);
         }
         this._tmpVec.normalize();
@@ -442,7 +531,7 @@ export class BotAI {
         if (this.state.recoveryYaw > 0) this.currentInput.yawRight = true;
         else if (this.state.recoveryYaw < 0) this.currentInput.yawLeft = true;
 
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+        if (!this._isPlanarMode()) {
             if (this.state.recoveryPitch > 0) this.currentInput.pitchUp = true;
             else if (this.state.recoveryPitch < 0) this.currentInput.pitchDown = true;
         }
@@ -468,7 +557,7 @@ export class BotAI {
 
         probe.dir.copy(forward);
         if (yawFactor !== 0) probe.dir.addScaledVector(right, yawFactor);
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE && pitchFactor !== 0) probe.dir.addScaledVector(up, pitchFactor);
+        if (!this._isPlanarMode() && pitchFactor !== 0) probe.dir.addScaledVector(up, pitchFactor);
         probe.dir.normalize();
     }
 
@@ -494,59 +583,64 @@ export class BotAI {
     }
 
     _scoreProbe(player, arena, allPlayers, probe, lookAhead) {
-        const step = this.profile.probeStep;
+        const perfToken = perfStart(PERF_SECTION_BOT_SCORE_PROBE);
+        try {
+            const step = this.profile.probeStep;
 
-        // Phase 1: Adaptive LookAhead pro Probe-Typ
-        let probeLookAhead = lookAhead;
-        const absYaw = Math.abs(probe.yaw);
-        if (absYaw > 2.5) {
-            probeLookAhead = lookAhead * 0.4;  // backward
-        } else if (absYaw > 1.2) {
-            probeLookAhead = lookAhead * 0.7;  // wide sides
-        }
-
-        let wallDist = probeLookAhead;
-        let trailDist = probeLookAhead;
-        let immediateDanger = false;
-
-        for (let d = step; d <= probeLookAhead; d += step) {
-            this._tmpVec.copy(player.position).addScaledVector(probe.dir, d);
-
-            if (arena.checkCollision(this._tmpVec, 1.35)) {
-                wallDist = d;
-                if (d <= step * 1.5) immediateDanger = true;
-                break;
+            // Phase 1: Adaptive LookAhead pro Probe-Typ
+            let probeLookAhead = lookAhead;
+            const absYaw = Math.abs(probe.yaw);
+            if (absYaw > 2.5) {
+                probeLookAhead = lookAhead * 0.4;  // backward
+            } else if (absYaw > 1.2) {
+                probeLookAhead = lookAhead * 0.7;  // wide sides
             }
 
-            if (this._checkTrailHit(this._tmpVec, player, allPlayers)) {
-                trailDist = d;
-                if (d <= step * 1.5) immediateDanger = true;
-                break;
+            let wallDist = probeLookAhead;
+            let trailDist = probeLookAhead;
+            let immediateDanger = false;
+
+            for (let d = step; d <= probeLookAhead; d += step) {
+                this._tmpVec.copy(player.position).addScaledVector(probe.dir, d);
+
+                if (arena.checkCollision(this._tmpVec, 1.35)) {
+                    wallDist = d;
+                    if (d <= step * 1.5) immediateDanger = true;
+                    break;
+                }
+
+                if (this._checkTrailHit(this._tmpVec, player, allPlayers)) {
+                    trailDist = d;
+                    if (d <= step * 1.5) immediateDanger = true;
+                    break;
+                }
             }
+
+            // Phase 1: Speed-basiertes Risiko
+            const speedRatio = player.baseSpeed > 0 ? player.speed / player.baseSpeed : 1;
+            const speedFactor = Math.max(0, speedRatio - 1) * 0.3;
+
+            const wallRisk = 1 - Math.min(1, wallDist / probeLookAhead);
+            const trailRisk = 1 - Math.min(1, trailDist / probeLookAhead);
+            let risk = wallRisk * (1.1 + this.sense.mapCaution + speedFactor)
+                + trailRisk * (1.45 + this.sense.mapCaution * 0.5 + speedFactor * 0.7);
+
+            risk += probe.weight;
+            if (immediateDanger) risk += 2.2;
+
+            // Easy bots make more mistakes, hard bots remain clean.
+            if (this.profile.errorRate > 0 && Math.random() < this.profile.errorRate) {
+                risk += (Math.random() - 0.2) * 0.65;
+            }
+
+            probe.wallDist = wallDist;
+            probe.trailDist = trailDist;
+            probe.clearance = Math.min(wallDist, trailDist);
+            probe.immediateDanger = immediateDanger;
+            probe.risk = risk;
+        } finally {
+            perfEnd(PERF_SECTION_BOT_SCORE_PROBE, perfToken);
         }
-
-        // Phase 1: Speed-basiertes Risiko
-        const speedRatio = player.baseSpeed > 0 ? player.speed / player.baseSpeed : 1;
-        const speedFactor = Math.max(0, speedRatio - 1) * 0.3;
-
-        const wallRisk = 1 - Math.min(1, wallDist / probeLookAhead);
-        const trailRisk = 1 - Math.min(1, trailDist / probeLookAhead);
-        let risk = wallRisk * (1.1 + this.sense.mapCaution + speedFactor)
-            + trailRisk * (1.45 + this.sense.mapCaution * 0.5 + speedFactor * 0.7);
-
-        risk += probe.weight;
-        if (immediateDanger) risk += 2.2;
-
-        // Easy bots make more mistakes, hard bots remain clean.
-        if (this.profile.errorRate > 0 && Math.random() < this.profile.errorRate) {
-            risk += (Math.random() - 0.2) * 0.65;
-        }
-
-        probe.wallDist = wallDist;
-        probe.trailDist = trailDist;
-        probe.clearance = Math.min(wallDist, trailDist);
-        probe.immediateDanger = immediateDanger;
-        probe.risk = risk;
     }
 
     _selectTarget(player, allPlayers) {
@@ -685,7 +779,7 @@ export class BotAI {
                 const side = this._tmpRight.dot(this._tmpVec3);
                 evadeYaw = side > 0 ? -1 : 1;
 
-                if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+                if (!this._isPlanarMode()) {
                     // Vertikale Komponente: wenn Projektil von oben → runter, etc.
                     const verticalApproach = this._tmpVec.y;
                     evadePitch = verticalApproach > 0.2 ? -1 : (verticalApproach < -0.2 ? 1 : 0);
@@ -705,7 +799,7 @@ export class BotAI {
     // ================================================================
     _senseHeight(player, arena) {
         this.sense.heightBias = 0;
-        if (CONFIG.GAMEPLAY.PLANAR_MODE) return;
+        if (this._isPlanarMode()) return;
 
         const bias = this.profile.heightBias || 0;
         if (bias <= 0) return;
@@ -761,7 +855,7 @@ export class BotAI {
         if (Math.abs(repulseX) > 0.05) {
             this.sense.botRepulsionYaw = repulseX > 0 ? 1 : -1;
         }
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE && Math.abs(repulseY) > 0.05) {
+        if (!this._isPlanarMode() && Math.abs(repulseY) > 0.05) {
             this.sense.botRepulsionPitch = repulseY > 0 ? 1 : -1;
         }
     }
@@ -798,7 +892,7 @@ export class BotAI {
         this.sense.pursuitActive = true;
         this.sense.pursuitAimDot = aimDot;
         this.sense.pursuitYaw = Math.abs(yawSignal) > 0.05 ? (yawSignal > 0 ? 1 : -1) : 0;
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+        if (!this._isPlanarMode()) {
             this.sense.pursuitPitch = Math.abs(pitchSignal) > 0.08 ? (pitchSignal > 0 ? 1 : -1) : 0;
         }
     }
@@ -910,7 +1004,7 @@ export class BotAI {
             const probe = this._probes[i];
             const isVertical = Math.abs(probe.pitch) > 0.001;
 
-            if (CONFIG.GAMEPLAY.PLANAR_MODE && isVertical) {
+            if (this._isPlanarMode() && isVertical) {
                 continue;
             }
 
@@ -979,7 +1073,7 @@ export class BotAI {
         const pitchSignal = this._tmpUp.dot(this._tmpVec);
 
         this._decision.yaw = Math.abs(yawSignal) > 0.08 ? (yawSignal > 0 ? 1 : -1) : 0;
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+        if (!this._isPlanarMode()) {
             this._decision.pitch = Math.abs(pitchSignal) > 0.08 ? (pitchSignal > 0 ? 1 : -1) : 0;
         }
 
@@ -1006,12 +1100,12 @@ export class BotAI {
 
         let desiredYaw = Math.abs(yawSignal) > 0.06 ? (yawSignal > 0 ? 1 : -1) : 0;
         let desiredPitch = 0;
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE && Math.abs(pitchSignal) > 0.08) {
+        if (!this._isPlanarMode() && Math.abs(pitchSignal) > 0.08) {
             desiredPitch = pitchSignal > 0 ? 1 : -1;
         }
 
         // Phase 5: Höhenbias einmischen (leichter Pitch-Modifier)
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE && desiredPitch === 0 && Math.abs(this.sense.heightBias) > 0.15) {
+        if (!this._isPlanarMode() && desiredPitch === 0 && Math.abs(this.sense.heightBias) > 0.15) {
             desiredPitch = this.sense.heightBias > 0 ? 1 : -1;
         }
 
@@ -1019,7 +1113,7 @@ export class BotAI {
         if (desiredYaw === 0 && this.sense.botRepulsionYaw !== 0) {
             desiredYaw = this.sense.botRepulsionYaw;
         }
-        if (!CONFIG.GAMEPLAY.PLANAR_MODE && desiredPitch === 0 && this.sense.botRepulsionPitch !== 0) {
+        if (!this._isPlanarMode() && desiredPitch === 0 && this.sense.botRepulsionPitch !== 0) {
             desiredPitch = this.sense.botRepulsionPitch;
         }
 
@@ -1129,10 +1223,168 @@ export class BotAI {
         return input;
     }
 
+    _isLearningActive() {
+        return !!(this.learningEnabled && this.learningEngine && this.learningEngine.enabled !== false);
+    }
+
+    _isPlanarMode() {
+        return !!(CONFIG.GAMEPLAY.PLANAR_MODE || this.forcePlanarMode);
+    }
+
+    _canTrainLearning() {
+        return !!(this._isLearningActive() && this.learningTraining);
+    }
+
+    _addLearningReward(value) {
+        if (!this._isLearningActive()) return;
+        if (!Number.isFinite(value)) return;
+        this._learning.rewardBuffer += value;
+        this._learning.roundReward += value;
+    }
+
+    _clearLearningTransition() {
+        this._learning.lastStateKey = '';
+        this._learning.lastActionIndex = -1;
+        this._learning.rewardBuffer = 0;
+    }
+
+    _getLearningStateKey(player, arena) {
+        if (!this._isLearningActive()) return '';
+        return this.learningEngine.encodeState({
+            player,
+            sense: this.sense,
+            arena,
+            planarMode: this._isPlanarMode(),
+        });
+    }
+
+    _getLearningAllowedActions(player) {
+        if (!this._isLearningActive()) return null;
+        const count = this.learningEngine.getActionCount();
+        const allowed = new Array(count).fill(true);
+        const planarMode = this._isPlanarMode();
+
+        if (planarMode) {
+            allowed[LEARN_ACTION_INDEX.PITCH_UP] = false;
+            allowed[LEARN_ACTION_INDEX.PITCH_DOWN] = false;
+        }
+        const hasItems = !!(player.inventory && player.inventory.length > 0);
+        if (!hasItems || this.state.itemUseCooldown > 0) {
+            allowed[LEARN_ACTION_INDEX.USE_ITEM] = false;
+        }
+        if (!hasItems || this.state.itemShootCooldown > 0) {
+            allowed[LEARN_ACTION_INDEX.SHOOT_ITEM] = false;
+        }
+        if (this.sense.immediateDanger || this.sense.forwardRisk > 0.82) {
+            allowed[LEARN_ACTION_INDEX.USE_ITEM] = false;
+        }
+        return allowed;
+    }
+
+    _flushLearningTransition(nextStateKey) {
+        if (!this._isLearningActive()) return;
+        if (this._learning.lastActionIndex < 0 || !this._learning.lastStateKey) return;
+
+        const reward = this._learning.rewardBuffer;
+        const result = this.learningEngine.updateTransition({
+            stateKey: this._learning.lastStateKey,
+            actionIndex: this._learning.lastActionIndex,
+            reward,
+            nextStateKey,
+            terminal: false,
+            training: this._canTrainLearning(),
+        });
+        this._learning.rewardBuffer = 0;
+        if (result?.updated) {
+            this._learning.updateCount++;
+            if (this.recorder?.recordLearningStep) {
+                this.recorder.recordLearningStep(reward, result.tdError, result.epsilon, this.learningEngine.getActionName(this._learning.lastActionIndex));
+            }
+        }
+    }
+
+    _finalizeLearningTransition(terminal = true, reason = '') {
+        if (!this._isLearningActive()) return;
+        if (this._learning.lastActionIndex < 0 || !this._learning.lastStateKey) {
+            this._learning.rewardBuffer = 0;
+            return;
+        }
+
+        const reward = this._learning.rewardBuffer;
+        const result = this.learningEngine.updateTransition({
+            stateKey: this._learning.lastStateKey,
+            actionIndex: this._learning.lastActionIndex,
+            reward,
+            nextStateKey: '',
+            terminal: !!terminal,
+            training: this._canTrainLearning(),
+        });
+        if (result?.updated && this.recorder?.recordLearningStep) {
+            this.recorder.recordLearningStep(reward, result.tdError, result.epsilon, this.learningEngine.getActionName(this._learning.lastActionIndex));
+        }
+        if (this.recorder?.logEvent) {
+            this.recorder.logEvent('LEARN_EPISODE_END', -1, `bot=${this.botId} reason=${reason || 'terminal'} reward=${reward.toFixed(3)}`);
+        }
+        this._clearLearningTransition();
+    }
+
+    _applyLearningAction(player, stateKey) {
+        if (!this._isLearningActive() || !stateKey) return;
+
+        const actionIndex = this.learningEngine.selectAction(stateKey, {
+            training: this._canTrainLearning(),
+            allowedActions: this._getLearningAllowedActions(player),
+        });
+        this._learning.lastStateKey = stateKey;
+        this._learning.lastActionIndex = actionIndex;
+        this._learning.decisionCount++;
+
+        switch (actionIndex) {
+            case LEARN_ACTION_INDEX.YAW_LEFT:
+                this._decision.yaw = -1;
+                break;
+            case LEARN_ACTION_INDEX.YAW_RIGHT:
+                this._decision.yaw = 1;
+                break;
+            case LEARN_ACTION_INDEX.PITCH_UP:
+                if (!this._isPlanarMode()) this._decision.pitch = 1;
+                break;
+            case LEARN_ACTION_INDEX.PITCH_DOWN:
+                if (!this._isPlanarMode()) this._decision.pitch = -1;
+                break;
+            case LEARN_ACTION_INDEX.BOOST:
+                this._decision.boost = true;
+                break;
+            case LEARN_ACTION_INDEX.USE_ITEM:
+                if (player.inventory && player.inventory.length > 0 && this.state.itemUseCooldown <= 0) {
+                    const useIndex = Math.min(player.selectedItemIndex || 0, player.inventory.length - 1);
+                    this._decision.useItem = useIndex;
+                    this._decision.shootItem = false;
+                    this._decision.shootItemIndex = -1;
+                    this.state.itemUseCooldown = this.profile.itemUseCooldown;
+                }
+                break;
+            case LEARN_ACTION_INDEX.SHOOT_ITEM:
+                if (player.inventory && player.inventory.length > 0 && this.state.itemShootCooldown <= 0) {
+                    const shootIndex = Math.min(player.selectedItemIndex || 0, player.inventory.length - 1);
+                    this._decision.shootItem = true;
+                    this._decision.shootItemIndex = shootIndex;
+                    this._decision.useItem = -1;
+                    this.state.itemShootCooldown = this.profile.itemShootCooldown;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
     update(dt, player, arena, allPlayers, projectiles) {
         const activeDifficulty = CONFIG.BOT.ACTIVE_DIFFICULTY || this._profileName;
         if (activeDifficulty !== this._profileName) {
             this._setDifficulty(activeDifficulty);
+        }
+        if (this._isLearningActive()) {
+            this._addLearningReward((this._learningReward.survivalPerSec || 0) * dt);
         }
 
         this._updateTimers(dt);
@@ -1153,6 +1405,8 @@ export class BotAI {
 
         this._resetDecision();
         this._senseEnvironment(player, arena, allPlayers, projectiles);
+        const learningStateKey = this._getLearningStateKey(player, arena);
+        this._flushLearningTransition(learningStateKey);
 
         if (this.sense.immediateDanger && this.state.recoveryCooldown <= 0 && this._recentBouncePressure > 2.3) {
             this._enterRecovery(player, arena, allPlayers, 'collision-pressure');
@@ -1191,6 +1445,7 @@ export class BotAI {
         }
 
         this._decideItemUsage(player);
+        this._applyLearningAction(player, learningStateKey);
         return this._applyDecisionToInput();
     }
 }

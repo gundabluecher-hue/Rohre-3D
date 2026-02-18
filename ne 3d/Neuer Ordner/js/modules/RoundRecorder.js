@@ -22,6 +22,9 @@ function createRoundSummary() {
         bounceTrailEvents: 0,
         itemUseEvents: 0,
         stuckPerMinute: 0,
+        learningUpdates: 0,
+        learningRewardSum: 0,
+        learningTdAbsSum: 0,
     };
 }
 
@@ -37,6 +40,9 @@ function createAggregateSummary() {
         totalBounceTrailEvents: 0,
         totalItemUseEvents: 0,
         botWins: 0,
+        totalLearningUpdates: 0,
+        totalLearningReward: 0,
+        totalLearningTdAbs: 0,
     };
 }
 
@@ -87,6 +93,9 @@ export class RoundRecorder {
         this._roundBounceWallEvents = 0;
         this._roundBounceTrailEvents = 0;
         this._roundItemUseEvents = 0;
+        this._roundLearningUpdates = 0;
+        this._roundLearningRewardSum = 0;
+        this._roundLearningTdAbsSum = 0;
         for (let i = 0; i < MAX_TRACKED_PLAYERS; i++) {
             this.playerSpawnTime[i] = -1;
             this.playerDeathTime[i] = -1;
@@ -168,6 +177,26 @@ export class RoundRecorder {
         }
     }
 
+    recordLearningStep(reward = 0, tdError = 0, epsilon = 0, action = '') {
+        if (!this._enabled) return;
+        const safeReward = Number.isFinite(reward) ? reward : 0;
+        const safeTdError = Number.isFinite(tdError) ? tdError : 0;
+        const safeEpsilon = Number.isFinite(epsilon) ? epsilon : 0;
+
+        this._roundLearningUpdates++;
+        this._roundLearningRewardSum += safeReward;
+        this._roundLearningTdAbsSum += Math.abs(safeTdError);
+
+        // Keep event log compact during long training sessions.
+        if (this._roundLearningUpdates % 8 === 0) {
+            this.logEvent(
+                'LEARN_STEP',
+                -1,
+                `a=${action || 'NO_OP'} r=${safeReward.toFixed(3)} td=${safeTdError.toFixed(3)} e=${safeEpsilon.toFixed(3)}`
+            );
+        }
+    }
+
     finalizeRound(winner, players = []) {
         if (!this._enabled) return null;
 
@@ -211,6 +240,9 @@ export class RoundRecorder {
         round.bounceTrailEvents = this._roundBounceTrailEvents;
         round.itemUseEvents = this._roundItemUseEvents;
         round.stuckPerMinute = roundDuration > 0 ? this._roundStuckEvents / (roundDuration / 60) : 0;
+        round.learningUpdates = this._roundLearningUpdates;
+        round.learningRewardSum = this._roundLearningRewardSum;
+        round.learningTdAbsSum = this._roundLearningTdAbsSum;
 
         this.roundSummaryIndex = (this.roundSummaryIndex + 1) % MAX_ROUNDS;
         if (this.roundSummaryCount < MAX_ROUNDS) this.roundSummaryCount++;
@@ -224,6 +256,9 @@ export class RoundRecorder {
         this._aggregate.totalBounceWallEvents += this._roundBounceWallEvents;
         this._aggregate.totalBounceTrailEvents += this._roundBounceTrailEvents;
         this._aggregate.totalItemUseEvents += this._roundItemUseEvents;
+        this._aggregate.totalLearningUpdates += this._roundLearningUpdates;
+        this._aggregate.totalLearningReward += this._roundLearningRewardSum;
+        this._aggregate.totalLearningTdAbs += this._roundLearningTdAbsSum;
         if (winner?.isBot) this._aggregate.botWins += 1;
 
         this._lastRoundSummary = {
@@ -240,6 +275,9 @@ export class RoundRecorder {
             bounceTrailEvents: round.bounceTrailEvents,
             itemUseEvents: round.itemUseEvents,
             stuckPerMinute: round.stuckPerMinute,
+            learningUpdates: round.learningUpdates,
+            learningRewardSum: round.learningRewardSum,
+            learningTdAbsSum: round.learningTdAbsSum,
         };
 
         this.logEvent('ROUND_END', round.winnerIndex, `duration=${round.duration.toFixed(2)}`);
@@ -264,6 +302,11 @@ export class RoundRecorder {
             bounceWallPerRound: rounds > 0 ? this._aggregate.totalBounceWallEvents / rounds : 0,
             bounceTrailPerRound: rounds > 0 ? this._aggregate.totalBounceTrailEvents / rounds : 0,
             itemUsePerRound: rounds > 0 ? this._aggregate.totalItemUseEvents / rounds : 0,
+            learningUpdatesPerRound: rounds > 0 ? this._aggregate.totalLearningUpdates / rounds : 0,
+            learningRewardPerRound: rounds > 0 ? this._aggregate.totalLearningReward / rounds : 0,
+            learningTdAbsMean: this._aggregate.totalLearningUpdates > 0
+                ? this._aggregate.totalLearningTdAbs / this._aggregate.totalLearningUpdates
+                : 0,
         };
     }
 
@@ -277,18 +320,22 @@ export class RoundRecorder {
         if (!this._baselines.has(label)) return null;
         const baseline = this._baselines.get(label);
         const current = this.getAggregateMetrics();
+        const b = baseline || {};
         return {
             label,
             baseline,
             current,
             delta: {
-                botWinRate: current.botWinRate - baseline.botWinRate,
-                averageBotSurvival: current.averageBotSurvival - baseline.averageBotSurvival,
-                selfCollisionsPerRound: current.selfCollisionsPerRound - baseline.selfCollisionsPerRound,
-                stuckEventsPerMinute: current.stuckEventsPerMinute - baseline.stuckEventsPerMinute,
-                bounceWallPerRound: current.bounceWallPerRound - baseline.bounceWallPerRound,
-                bounceTrailPerRound: current.bounceTrailPerRound - baseline.bounceTrailPerRound,
-                itemUsePerRound: current.itemUsePerRound - baseline.itemUsePerRound,
+                botWinRate: current.botWinRate - (b.botWinRate || 0),
+                averageBotSurvival: current.averageBotSurvival - (b.averageBotSurvival || 0),
+                selfCollisionsPerRound: current.selfCollisionsPerRound - (b.selfCollisionsPerRound || 0),
+                stuckEventsPerMinute: current.stuckEventsPerMinute - (b.stuckEventsPerMinute || 0),
+                bounceWallPerRound: current.bounceWallPerRound - (b.bounceWallPerRound || 0),
+                bounceTrailPerRound: current.bounceTrailPerRound - (b.bounceTrailPerRound || 0),
+                itemUsePerRound: current.itemUsePerRound - (b.itemUsePerRound || 0),
+                learningUpdatesPerRound: current.learningUpdatesPerRound - (b.learningUpdatesPerRound || 0),
+                learningRewardPerRound: current.learningRewardPerRound - (b.learningRewardPerRound || 0),
+                learningTdAbsMean: current.learningTdAbsMean - (b.learningTdAbsMean || 0),
             },
         };
     }

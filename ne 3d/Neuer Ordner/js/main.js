@@ -14,6 +14,7 @@ import { ParticleSystem } from './modules/Particles.js';
 import { AudioManager } from './modules/Audio.js';
 import { HUD } from './modules/HUD.js';
 import { RoundRecorder } from './modules/RoundRecorder.js';
+import { BotLearningEngine } from './modules/BotLearning.js';
 
 const SETTINGS_STORAGE_KEY = 'mini-curve-fever-3d.settings.v4';
 const SETTINGS_STORAGE_LEGACY_KEYS = ['mini-curve-fever-3d.settings.v3'];
@@ -77,6 +78,30 @@ export class Game {
 
         // Debug Recorder
         this.recorder = new RoundRecorder();
+        const baseLearningStorageKey = CONFIG.BOT.LEARNING?.STORAGE_KEY || 'mini-curve-fever-3d.bot-learning.v1';
+        const storageKey3D = CONFIG.BOT.LEARNING?.STORAGE_KEY_3D || `${baseLearningStorageKey}.3d`;
+        const storageKeyPlanar = CONFIG.BOT.LEARNING?.STORAGE_KEY_PLANAR || `${baseLearningStorageKey}.planar`;
+        if (typeof localStorage !== 'undefined') {
+            try {
+                if (storageKey3D !== baseLearningStorageKey) {
+                    const legacyPayload = localStorage.getItem(baseLearningStorageKey);
+                    const hasNew3DPayload = !!localStorage.getItem(storageKey3D);
+                    if (legacyPayload && !hasNew3DPayload) {
+                        localStorage.setItem(storageKey3D, legacyPayload);
+                    }
+                }
+            } catch {
+                // Ignore storage migration errors.
+            }
+        }
+        this.botLearning3D = new BotLearningEngine({
+            storageKey: storageKey3D,
+        });
+        this.botLearningPlanar = new BotLearningEngine({
+            storageKey: storageKeyPlanar,
+        });
+        // Legacy alias for places that still reference a single engine.
+        this.botLearning = this.botLearning3D;
 
         this._applySettingsToRuntime();
         this.input.setBindings(this.settings.controls);
@@ -94,6 +119,7 @@ export class Game {
         this.ui = {
             mainMenu: document.getElementById('main-menu'),
             hud: document.getElementById('hud'),
+            p1Hud: document.getElementById('p1-hud'),
             p2Hud: document.getElementById('p2-hud'),
             p1Score: document.querySelector('#p1-hud .player-score'),
             p2Score: document.querySelector('#p2-hud .player-score'),
@@ -154,6 +180,21 @@ export class Game {
             profileLoadButton: document.getElementById('btn-profile-load'),
             profileDeleteButton: document.getElementById('btn-profile-delete'),
             startButton: document.getElementById('btn-start'),
+
+            trainingEnabledToggle: document.getElementById('training-enabled-toggle'),
+            trainingBotOnlyToggle: document.getElementById('training-bot-only-toggle'),
+            trainingMortalBotsToggle: document.getElementById('training-mortal-bots-toggle'),
+            trainingAutoRestartToggle: document.getElementById('training-auto-restart-toggle'),
+            trainingSpectatorSplitToggle: document.getElementById('training-spectator-split-toggle'),
+            trainingDualWorldsToggle: document.getElementById('training-dual-worlds-toggle'),
+            trainingTimeScaleSlider: document.getElementById('training-time-scale-slider'),
+            trainingTimeScaleLabel: document.getElementById('training-time-scale-label'),
+            trainingAutoSaveSlider: document.getElementById('training-autosave-rounds-slider'),
+            trainingAutoSaveLabel: document.getElementById('training-autosave-rounds-label'),
+            trainingStartButton: document.getElementById('btn-training-start'),
+            trainingSaveButton: document.getElementById('btn-training-save'),
+            trainingResetButton: document.getElementById('btn-training-reset'),
+            trainingStatus: document.getElementById('training-status'),
         };
 
         this._navButtons = [];
@@ -200,6 +241,10 @@ export class Game {
                     this.stats = null;
                 }
             }
+        });
+
+        window.addEventListener('beforeunload', () => {
+            this._saveLearningData(false, true);
         });
     }
 
@@ -321,6 +366,16 @@ export class Game {
                 planarLevelCount: 5,
                 portalBeams: false,
             },
+            training: {
+                enabled: false,
+                botVsBotOnly: false,
+                mortalBots: false,
+                autoRestart: true,
+                spectatorSplit: false,
+                dualWorlds: false,
+                timeScale: 1.0,
+                autoSaveRounds: 5,
+            },
             controls: this._cloneDefaultControls(),
         };
     }
@@ -385,6 +440,27 @@ export class Game {
         merged.gameplay.portalCount = clamp(parseInt(src?.gameplay?.portalCount ?? defaults.gameplay.portalCount, 10), 0, 20);
         merged.gameplay.planarLevelCount = clamp(parseInt(src?.gameplay?.planarLevelCount ?? defaults.gameplay.planarLevelCount, 10), 2, 10);
         merged.gameplay.portalBeams = false;
+
+        merged.training.enabled = !!(src?.training?.enabled ?? defaults.training.enabled);
+        merged.training.botVsBotOnly = !!(src?.training?.botVsBotOnly ?? defaults.training.botVsBotOnly);
+        merged.training.mortalBots = !!(src?.training?.mortalBots ?? defaults.training.mortalBots);
+        merged.training.autoRestart = src?.training?.autoRestart !== undefined
+            ? !!src.training.autoRestart
+            : defaults.training.autoRestart;
+        merged.training.spectatorSplit = !!(src?.training?.spectatorSplit ?? defaults.training.spectatorSplit);
+        merged.training.dualWorlds = !!(src?.training?.dualWorlds ?? defaults.training.dualWorlds);
+        const parsedTrainingScale = parseFloat(src?.training?.timeScale ?? defaults.training.timeScale);
+        merged.training.timeScale = clamp(
+            Number.isFinite(parsedTrainingScale) ? parsedTrainingScale : defaults.training.timeScale,
+            0.5,
+            8.0
+        );
+        const parsedAutoSaveRounds = parseInt(src?.training?.autoSaveRounds ?? defaults.training.autoSaveRounds, 10);
+        merged.training.autoSaveRounds = clamp(
+            Number.isFinite(parsedAutoSaveRounds) ? parsedAutoSaveRounds : defaults.training.autoSaveRounds,
+            1,
+            50
+        );
 
         merged.controls.PLAYER_1 = this._normalizePlayerControls(src?.controls?.PLAYER_1, defaults.controls.PLAYER_1);
         merged.controls.PLAYER_2 = this._normalizePlayerControls(src?.controls?.PLAYER_2, defaults.controls.PLAYER_2);
@@ -476,8 +552,14 @@ export class Game {
     }
 
     _applySettingsToRuntime() {
-        this.numHumans = this.settings.mode === '2p' ? 2 : 1;
-        this.numBots = this.settings.numBots;
+        const trainingBotOnly = !!(this.settings.training?.enabled && this.settings.training?.botVsBotOnly);
+        const trainingDualWorlds = !!(trainingBotOnly && this.settings.training?.dualWorlds);
+        this.numHumans = trainingBotOnly ? 0 : (this.settings.mode === '2p' ? 2 : 1);
+        const minBots = trainingDualWorlds ? 4 : (trainingBotOnly ? 2 : 0);
+        const maxBots = trainingDualWorlds ? 4 : 8;
+        const parsedBots = parseInt(this.settings.numBots, 10);
+        this.numBots = clamp(Number.isFinite(parsedBots) ? parsedBots : minBots, minBots, maxBots);
+        this.settings.numBots = this.numBots;
         this.mapKey = this.settings.mapKey;
         this.winsNeeded = this.settings.winsNeeded;
 
@@ -505,6 +587,7 @@ export class Game {
         }
 
         CONFIG.BOT.ACTIVE_DIFFICULTY = this.settings.botDifficulty || CONFIG.BOT.DEFAULT_DIFFICULTY;
+        this._setLearningEnginesEnabled(!!this.settings.training?.enabled);
 
         // Apply immediately if arena exists
         if (this.arena && this.arena.toggleBeams) {
@@ -513,10 +596,16 @@ export class Game {
         if (this.entityManager && this.entityManager.setBotDifficulty) {
             this.entityManager.setBotDifficulty(CONFIG.BOT.ACTIVE_DIFFICULTY);
         }
+        if (this.entityManager && this.entityManager.setTrainingOptions) {
+            this.entityManager.setTrainingOptions(this.settings.training);
+        }
 
         this.input.setBindings(this.settings.controls);
 
         CONFIG.HOMING.LOCK_ON_ANGLE = this.settings.gameplay.lockOnAngle;
+        if (this.gameLoop) {
+            this.gameLoop.setTimeScale(this._getTrainingBaseTimeScale());
+        }
     }
 
     _setupMenuListeners() {
@@ -744,6 +833,82 @@ export class Game {
                 this._copyBuildInfoToClipboard();
             });
         }
+
+        if (this.ui.trainingEnabledToggle) {
+            this.ui.trainingEnabledToggle.addEventListener('change', () => {
+                this.settings.training.enabled = !!this.ui.trainingEnabledToggle.checked;
+                this._onSettingsChanged();
+            });
+        }
+        if (this.ui.trainingBotOnlyToggle) {
+            this.ui.trainingBotOnlyToggle.addEventListener('change', () => {
+                this.settings.training.botVsBotOnly = !!this.ui.trainingBotOnlyToggle.checked;
+                if (this.settings.training.botVsBotOnly) {
+                    const requiredBots = this.settings.training.dualWorlds ? 4 : 2;
+                    this.settings.numBots = Math.max(requiredBots, this.settings.numBots || requiredBots);
+                    this.settings.training.mortalBots = true;
+                }
+                this._onSettingsChanged();
+            });
+        }
+        if (this.ui.trainingMortalBotsToggle) {
+            this.ui.trainingMortalBotsToggle.addEventListener('change', () => {
+                this.settings.training.mortalBots = !!this.ui.trainingMortalBotsToggle.checked;
+                this._onSettingsChanged();
+            });
+        }
+        if (this.ui.trainingAutoRestartToggle) {
+            this.ui.trainingAutoRestartToggle.addEventListener('change', () => {
+                this.settings.training.autoRestart = !!this.ui.trainingAutoRestartToggle.checked;
+                this._onSettingsChanged();
+            });
+        }
+        if (this.ui.trainingSpectatorSplitToggle) {
+            this.ui.trainingSpectatorSplitToggle.addEventListener('change', () => {
+                this.settings.training.spectatorSplit = !!this.ui.trainingSpectatorSplitToggle.checked;
+                this._onSettingsChanged();
+            });
+        }
+        if (this.ui.trainingDualWorldsToggle) {
+            this.ui.trainingDualWorldsToggle.addEventListener('change', () => {
+                this.settings.training.dualWorlds = !!this.ui.trainingDualWorldsToggle.checked;
+                if (this.settings.training.dualWorlds) {
+                    this.settings.training.enabled = true;
+                    this.settings.training.botVsBotOnly = true;
+                    this.settings.training.mortalBots = true;
+                    this.settings.training.spectatorSplit = true;
+                    this.settings.numBots = 4;
+                }
+                this._onSettingsChanged();
+            });
+        }
+        if (this.ui.trainingTimeScaleSlider) {
+            this.ui.trainingTimeScaleSlider.addEventListener('input', () => {
+                this.settings.training.timeScale = clamp(parseFloat(this.ui.trainingTimeScaleSlider.value), 0.5, 8.0);
+                this._onSettingsChanged();
+            });
+        }
+        if (this.ui.trainingAutoSaveSlider) {
+            this.ui.trainingAutoSaveSlider.addEventListener('input', () => {
+                this.settings.training.autoSaveRounds = clamp(parseInt(this.ui.trainingAutoSaveSlider.value, 10), 1, 50);
+                this._onSettingsChanged();
+            });
+        }
+        if (this.ui.trainingStartButton) {
+            this.ui.trainingStartButton.addEventListener('click', () => {
+                this._startDeveloperTraining();
+            });
+        }
+        if (this.ui.trainingSaveButton) {
+            this.ui.trainingSaveButton.addEventListener('click', () => {
+                this._saveLearningData(true);
+            });
+        }
+        if (this.ui.trainingResetButton) {
+            this.ui.trainingResetButton.addEventListener('click', () => {
+                this._resetLearningData();
+            });
+        }
     }
 
     _setupMenuNavigation() {
@@ -958,10 +1123,40 @@ export class Game {
         this.ui.lockOnSlider.value = String(this.settings.gameplay.lockOnAngle);
         this.ui.lockOnLabel.textContent = String(this.settings.gameplay.lockOnAngle);
 
+        if (this.ui.trainingEnabledToggle) {
+            this.ui.trainingEnabledToggle.checked = !!this.settings.training?.enabled;
+        }
+        if (this.ui.trainingBotOnlyToggle) {
+            this.ui.trainingBotOnlyToggle.checked = !!this.settings.training?.botVsBotOnly;
+        }
+        if (this.ui.trainingMortalBotsToggle) {
+            this.ui.trainingMortalBotsToggle.checked = !!this.settings.training?.mortalBots;
+        }
+        if (this.ui.trainingAutoRestartToggle) {
+            this.ui.trainingAutoRestartToggle.checked = !!this.settings.training?.autoRestart;
+        }
+        if (this.ui.trainingSpectatorSplitToggle) {
+            this.ui.trainingSpectatorSplitToggle.checked = !!this.settings.training?.spectatorSplit;
+        }
+        if (this.ui.trainingDualWorldsToggle) {
+            this.ui.trainingDualWorldsToggle.checked = !!this.settings.training?.dualWorlds;
+        }
+        if (this.ui.trainingTimeScaleSlider && this.ui.trainingTimeScaleLabel) {
+            const scale = clamp(parseFloat(this.settings.training?.timeScale ?? 1), 0.5, 8.0);
+            this.ui.trainingTimeScaleSlider.value = scale.toFixed(1);
+            this.ui.trainingTimeScaleLabel.textContent = scale.toFixed(1);
+        }
+        if (this.ui.trainingAutoSaveSlider && this.ui.trainingAutoSaveLabel) {
+            const rounds = clamp(parseInt(this.settings.training?.autoSaveRounds ?? 5, 10), 1, 50);
+            this.ui.trainingAutoSaveSlider.value = String(rounds);
+            this.ui.trainingAutoSaveLabel.textContent = String(rounds);
+        }
+
         this._renderKeybindEditor();
         this._syncP2HudVisibility();
         this._syncProfileControls();
         this._updateSaveButtonState();
+        this._updateTrainingStatus();
     }
 
     _markSettingsDirty(isDirty) {
@@ -1283,7 +1478,129 @@ export class Game {
     }
 
     _syncP2HudVisibility() {
-        this.ui.p2Hud.classList.toggle('hidden', this.numHumans !== 2);
+        if (this.ui.p1Hud) {
+            this.ui.p1Hud.classList.toggle('hidden', this.numHumans < 1);
+        }
+        if (this.ui.p2Hud) {
+            this.ui.p2Hud.classList.toggle('hidden', this.numHumans !== 2);
+        }
+    }
+
+    _getTrainingBaseTimeScale() {
+        const enabled = !!this.settings?.training?.enabled;
+        if (!enabled) return 1.0;
+        const parsed = parseFloat(this.settings.training.timeScale ?? 1.0);
+        return clamp(Number.isFinite(parsed) ? parsed : 1.0, 0.5, 8.0);
+    }
+
+    _isTrainingBotOnlyMode() {
+        return !!(this.settings?.training?.enabled && this.settings?.training?.botVsBotOnly);
+    }
+
+    _isTrainingDualWorldsMode() {
+        return !!(
+            this._isTrainingBotOnlyMode()
+            && this.settings?.training?.dualWorlds
+            && (this.numBots || 0) >= 4
+        );
+    }
+
+    _isTrainingSpectatorSplitMode() {
+        if (this._isTrainingDualWorldsMode()) {
+            return true;
+        }
+        return !!(
+            this._isTrainingBotOnlyMode()
+            && this.settings?.training?.spectatorSplit
+            && (this.numBots || 0) >= 2
+        );
+    }
+
+    _getLearningEngines() {
+        const out = [];
+        if (this.botLearning3D) out.push(this.botLearning3D);
+        if (this.botLearningPlanar && this.botLearningPlanar !== this.botLearning3D) {
+            out.push(this.botLearningPlanar);
+        }
+        return out;
+    }
+
+    _getLearningEngineMap() {
+        return {
+            mode3d: this.botLearning3D || null,
+            planar: this.botLearningPlanar || this.botLearning3D || null,
+        };
+    }
+
+    _setLearningEnginesEnabled(enabled) {
+        const active = !!enabled;
+        const engines = this._getLearningEngines();
+        for (let i = 0; i < engines.length; i++) {
+            engines[i].setEnabled(active);
+            engines[i].setTrainingEnabled(active);
+        }
+    }
+
+    _updateTrainingStatus() {
+        if (!this.ui.trainingStatus) return;
+        const stats3D = this.botLearning3D ? this.botLearning3D.getStats() : null;
+        const statsPlanar = this.botLearningPlanar ? this.botLearningPlanar.getStats() : null;
+        const training = this.settings?.training || {};
+        if (!stats3D && !statsPlanar) {
+            this.ui.trainingStatus.textContent = 'Learning engine nicht verfuegbar.';
+            return;
+        }
+
+        const stateCount = (stats3D?.states || 0) + (statsPlanar?.states || 0);
+        const updateCount = (stats3D?.totalUpdates || 0) + (statsPlanar?.totalUpdates || 0);
+        const rewardSum = (stats3D?.totalReward || 0) + (statsPlanar?.totalReward || 0);
+        const epsilon3D = Number.isFinite(stats3D?.epsilon) ? stats3D.epsilon.toFixed(3) : 'n/a';
+        const epsilonPlanar = Number.isFinite(statsPlanar?.epsilon) ? statsPlanar.epsilon.toFixed(3) : 'n/a';
+
+        const lines = [
+            `Learning: ${training.enabled ? 'AN' : 'AUS'} | BotOnly: ${training.botVsBotOnly ? 'JA' : 'NEIN'} | Mortal: ${training.mortalBots ? 'JA' : 'NEIN'}`,
+            `Split: ${this._isTrainingSpectatorSplitMode() ? 'JA' : 'NEIN'} | Dual-Welten: ${this._isTrainingDualWorldsMode() ? 'JA' : 'NEIN'} | Auto-Restart: ${training.autoRestart ? 'JA' : 'NEIN'}`,
+            `States(3D/Planar/Total): ${stats3D?.states || 0}/${statsPlanar?.states || 0}/${stateCount} | Updates: ${updateCount}`,
+            `Epsilon(3D/Planar): ${epsilon3D}/${epsilonPlanar} | RewardSum: ${rewardSum.toFixed(2)} | TimeScale: ${this._getTrainingBaseTimeScale().toFixed(1)}x`,
+        ];
+        this.ui.trainingStatus.textContent = lines.join('\n');
+    }
+
+    _saveLearningData(showToast = false, force = true) {
+        const engines = this._getLearningEngines();
+        if (engines.length === 0) return false;
+        let ok = true;
+        for (let i = 0; i < engines.length; i++) {
+            ok = engines[i].save(force) && ok;
+        }
+        this._updateTrainingStatus();
+        if (showToast) {
+            this._showStatusToast(ok ? 'Lerndaten gespeichert' : 'Lerndaten konnten nicht gespeichert werden', 1400, ok ? 'success' : 'error');
+        }
+        return ok;
+    }
+
+    _resetLearningData() {
+        const engines = this._getLearningEngines();
+        if (engines.length === 0) return;
+        for (let i = 0; i < engines.length; i++) {
+            engines[i].reset(true);
+        }
+        this._updateTrainingStatus();
+        this._showStatusToast('Lerndaten zurueckgesetzt', 1500, 'success');
+    }
+
+    _startDeveloperTraining() {
+        this.settings.training.enabled = true;
+        this.settings.training.botVsBotOnly = true;
+        this.settings.training.mortalBots = true;
+        this.settings.training.autoRestart = true;
+        this.settings.training.spectatorSplit = true;
+        this.settings.training.dualWorlds = true;
+        this.settings.numBots = 4;
+        this._onSettingsChanged();
+        this._showStatusToast('Developer-Training gestartet', 1200, 'success');
+        this.startMatch();
     }
 
     startMatch() {
@@ -1295,7 +1612,8 @@ export class Game {
         this.ui.messageOverlay.classList.add('hidden');
         this.ui.statusToast.classList.add('hidden');
 
-        this.renderer.setSplitScreen(this.numHumans === 2);
+        const useSpectatorSplit = this._isTrainingSpectatorSplitMode();
+        this.renderer.setSplitScreen(this.numHumans === 2 || useSpectatorSplit);
         this._syncP2HudVisibility();
 
         if (this.entityManager) {
@@ -1314,15 +1632,19 @@ export class Game {
 
 
 
-        this.entityManager = new EntityManager(this.renderer, this.arena, this.powerupManager, this.particles, this.audio, this.recorder);
-        this.numHumans = this.settings.mode === '2p' ? 2 : 1;
-        this.numBots = this.settings.numBots;
-        this.mapKey = this.settings.mapKey;
-        this.winsNeeded = this.settings.winsNeeded || 5;
-
+        this.entityManager = new EntityManager(
+            this.renderer,
+            this.arena,
+            this.powerupManager,
+            this.particles,
+            this.audio,
+            this.recorder,
+            this._getLearningEngineMap()
+        );
         this.entityManager.setup(this.numHumans, this.numBots, {
             modelScale: this.settings.gameplay.planeScale,
             botDifficulty: this.settings.botDifficulty || 'NORMAL',
+            training: this.settings.training,
             humanConfigs: [
                 { invertPitch: this.settings.invertPitch.PLAYER_1, cockpitCamera: this.settings.cockpitCamera.PLAYER_1 },
                 { invertPitch: this.settings.invertPitch.PLAYER_2, cockpitCamera: this.settings.cockpitCamera.PLAYER_2 },
@@ -1334,6 +1656,12 @@ export class Game {
 
         for (let i = 0; i < this.numHumans; i++) {
             this.renderer.createCamera(i);
+        }
+        if (this.numHumans === 0) {
+            this.renderer.createCamera(0);
+            if (useSpectatorSplit) {
+                this.renderer.createCamera(1);
+            }
         }
 
         for (const player of this.entityManager.players) {
@@ -1378,7 +1706,7 @@ export class Game {
             player.planarAimOffset = 0;
         }
 
-        this.gameLoop.setTimeScale(1.0);
+        this.gameLoop.setTimeScale(this._getTrainingBaseTimeScale());
         this.ui.messageOverlay.classList.add('hidden');
         this.ui.statusToast.classList.add('hidden');
         this._updateHUD();
@@ -1388,12 +1716,10 @@ export class Game {
         this.state = 'ROUND_END';
         this.roundPause = 3.0;
 
-        // Recording Dump & Debug Text
-        // Recording Dump & Debug Text
-        // Recording Dump & Debug Text
         console.log('--- ROUND END ---');
+        let roundMetrics = null;
         try {
-            const roundMetrics = this.recorder.finalizeRound(winner, this.entityManager.players);
+            roundMetrics = this.recorder.finalizeRound(winner, this.entityManager.players);
             if (roundMetrics) {
                 console.log('[Recorder] Round KPI:', roundMetrics);
             }
@@ -1401,6 +1727,23 @@ export class Game {
             this.recorder.dump(); // Log to console only
         } catch (e) {
             console.error('Recorder Dump Failed:', e);
+        }
+
+        const trainingEnabled = !!this.settings.training?.enabled;
+        if (trainingEnabled && this._getLearningEngines().length > 0) {
+            const rounds = this.recorder.getAggregateMetrics().rounds;
+            const autoSaveRounds = clamp(parseInt(this.settings.training?.autoSaveRounds ?? 5, 10), 1, 50);
+            if (rounds > 0 && rounds % autoSaveRounds === 0) {
+                this._saveLearningData(false, true);
+            }
+            this._updateTrainingStatus();
+        }
+
+        const autoTrainingLoop = this._isTrainingBotOnlyMode() && !!this.settings.training?.autoRestart;
+        if (autoTrainingLoop) {
+            this.ui.messageOverlay.classList.add('hidden');
+            this.roundPause = 0.35;
+            return;
         }
 
         if (winner) {
@@ -1697,13 +2040,16 @@ export class Game {
                 this.hudP2.setVisibility(false);
             }
 
+            const baseScale = this._getTrainingBaseTimeScale();
+            let slowFactor = 1.0;
             for (const p of this.entityManager.players) {
                 for (const effect of p.activeEffects) {
                     if (effect.type === 'SLOW_TIME') {
-                        this.gameLoop.setTimeScale(CONFIG.POWERUP.TYPES.SLOW_TIME.timeScale);
+                        slowFactor = Math.min(slowFactor, CONFIG.POWERUP.TYPES.SLOW_TIME.timeScale);
                     }
                 }
             }
+            this.gameLoop.setTimeScale(baseScale * slowFactor);
         } else if (this.state === 'ROUND_END') {
             if (this.input.wasPressed('Escape')) {
                 this._returnToMenu();
@@ -1771,6 +2117,7 @@ export class Game {
             this.ui.crosshairP2.style.top = '50%';
             this.ui.crosshairP2.style.transform = 'translate(-50%, -50%) rotate(0deg)';
         }
+        this._saveLearningData(false, true);
         this._syncMenuControls();
     }
     _showDebugLog(recorderDump) {
@@ -1859,6 +2206,10 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
         console.log('DOM ready, initializing Game...');
         const game = new Game();
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('autotrain') === '1') {
+            game._startDeveloperTraining();
+        }
         // Global access for debugging
         window.GAME_INSTANCE = game;
     } catch (err) {

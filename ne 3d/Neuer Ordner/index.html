@@ -341,6 +341,50 @@
                             </button>
                         </div>
                         <div class="menu-section">
+                            <h2 class="section-title">Bot Learning / Developer-Modus</h2>
+                            <label class="toggle-row">
+                                <input type="checkbox" id="training-enabled-toggle">
+                                <span>Lernschicht aktivieren</span>
+                            </label>
+                            <label class="toggle-row">
+                                <input type="checkbox" id="training-bot-only-toggle">
+                                <span>Nur Bots gegeneinander (0 menschliche Spieler)</span>
+                            </label>
+                            <label class="toggle-row">
+                                <input type="checkbox" id="training-mortal-bots-toggle">
+                                <span>Bots sterblich (kein Bounce-Unsterblich-Modus)</span>
+                            </label>
+                            <label class="toggle-row">
+                                <input type="checkbox" id="training-auto-restart-toggle" checked>
+                                <span>Runden automatisch neu starten</span>
+                            </label>
+                            <label class="toggle-row">
+                                <input type="checkbox" id="training-spectator-split-toggle">
+                                <span>Bot-Spectator Split-Screen (2 Kameraansichten)</span>
+                            </label>
+                            <label class="toggle-row">
+                                <input type="checkbox" id="training-dual-worlds-toggle">
+                                <span>2 Welten: je 2 Bots (Welt 2 im Ebenen-Modus)</span>
+                            </label>
+
+                            <label for="training-time-scale-slider">Training-Speed: <span id="training-time-scale-label">1.0</span>x</label>
+                            <input type="range" id="training-time-scale-slider" min="0.5" max="8.0" step="0.1" value="1.0">
+
+                            <label for="training-autosave-rounds-slider">Autosave alle <span id="training-autosave-rounds-label">5</span> Runden</label>
+                            <input type="range" id="training-autosave-rounds-slider" min="1" max="50" step="1" value="5">
+
+                            <button type="button" id="btn-training-start" class="secondary-btn secondary-btn-spaced">
+                                Developer-Training starten
+                            </button>
+                            <button type="button" id="btn-training-save" class="secondary-btn secondary-btn-spaced">
+                                Lerndaten jetzt speichern
+                            </button>
+                            <button type="button" id="btn-training-reset" class="secondary-btn secondary-btn-spaced">
+                                Lerndaten zuruecksetzen
+                            </button>
+                            <div id="training-status" class="build-info-detail"></div>
+                        </div>
+                        <div class="menu-section">
                             <p class="debug-hint">Drücke <kbd>F</kbd> im Spiel für FPS-Overlay</p>
                             <p class="debug-hint">Drücke <kbd>P</kbd> im Spiel für Grafik-Toggle</p>
                         </div>

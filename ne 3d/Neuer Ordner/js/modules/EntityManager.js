@@ -43,13 +43,14 @@ function getEmptyInput() {
 }
 
 export class EntityManager {
-    constructor(renderer, arena, powerupManager, particles, audio, recorder) {
+    constructor(renderer, arena, powerupManager, particles, audio, recorder, learningEngines = null) {
         this.renderer = renderer;
         this.arena = arena;
         this.powerupManager = powerupManager;
         this.particles = particles;
         this.audio = audio;
         this.recorder = recorder;
+        this.learningEngines = this._normalizeLearningEngines(learningEngines);
         this.players = [];
         this.humanPlayers = [];
         this.bots = [];
@@ -67,10 +68,70 @@ export class EntityManager {
         this._tmpDir = new THREE.Vector3();
         this._tmpDir2 = new THREE.Vector3();
         this._tmpCamAnchor = new THREE.Vector3();
+        this._tmpBoundaryNormal = new THREE.Vector3();
 
         // Lock-On Cache (einmal pro Frame berechnen)
         this._lockOnCache = new Map();
         this.botDifficulty = CONFIG.BOT.ACTIVE_DIFFICULTY || CONFIG.BOT.DEFAULT_DIFFICULTY || 'NORMAL';
+        this.trainingEnabled = false;
+        this.mortalBots = false;
+        this.botOnlyRoundEnd = false;
+        this.dualWorlds = false;
+        this.worldCount = 1;
+        this._worldZones = [];
+        this._worldRoundState = [];
+        this._arenaViewCache = new Map();
+    }
+
+    _isLearningEngineLike(candidate) {
+        return !!(
+            candidate
+            && typeof candidate.selectAction === 'function'
+            && typeof candidate.updateTransition === 'function'
+            && typeof candidate.getStats === 'function'
+        );
+    }
+
+    _normalizeLearningEngines(source) {
+        const engines = {
+            mode3d: null,
+            planar: null,
+        };
+
+        if (this._isLearningEngineLike(source)) {
+            engines.mode3d = source;
+            engines.planar = source;
+            return engines;
+        }
+
+        if (source && typeof source === 'object') {
+            if (this._isLearningEngineLike(source.mode3d)) {
+                engines.mode3d = source.mode3d;
+            } else if (this._isLearningEngineLike(source.mode3D)) {
+                engines.mode3d = source.mode3D;
+            }
+            if (this._isLearningEngineLike(source.planar)) {
+                engines.planar = source.planar;
+            } else if (this._isLearningEngineLike(source.planarMode)) {
+                engines.planar = source.planarMode;
+            }
+        }
+
+        if (!engines.mode3d && engines.planar) {
+            engines.mode3d = engines.planar;
+        }
+        if (!engines.planar && engines.mode3d) {
+            engines.planar = engines.mode3d;
+        }
+        return engines;
+    }
+
+    _resolveLearningEngine(forcePlanarMode = false) {
+        const usePlanar = !!(forcePlanarMode || CONFIG.GAMEPLAY.PLANAR_MODE);
+        if (usePlanar) {
+            return this.learningEngines.planar || this.learningEngines.mode3d || null;
+        }
+        return this.learningEngines.mode3d || this.learningEngines.planar || null;
     }
 
     setup(numHumans, numBots, options = {}) {
@@ -80,6 +141,15 @@ export class EntityManager {
         const humanConfigs = Array.isArray(options.humanConfigs) ? options.humanConfigs : [];
         const modelScale = typeof options.modelScale === 'number' ? options.modelScale : (CONFIG.PLAYER.MODEL_SCALE || 1);
         this.botDifficulty = options.botDifficulty || CONFIG.BOT.ACTIVE_DIFFICULTY || this.botDifficulty;
+        const training = (options.training && typeof options.training === 'object') ? options.training : {};
+        this.trainingEnabled = !!training.enabled;
+        this.mortalBots = !!training.mortalBots;
+        this.botOnlyRoundEnd = !!training.botVsBotOnly;
+        this.dualWorlds = !!(this.botOnlyRoundEnd && training.dualWorlds);
+        this.worldCount = this.dualWorlds ? 2 : 1;
+        this._worldZones = [];
+        this._worldRoundState = [];
+        this._arenaViewCache.clear();
 
         this.humanPlayers = [];
         this.botByPlayer.clear();
@@ -91,7 +161,9 @@ export class EntityManager {
                 invertPitch: !!humanConfigs[i]?.invertPitch,
                 cockpitCamera: !!humanConfigs[i]?.cockpitCamera,
                 modelScale,
+                forcePlanarMode: false,
             });
+            player.worldId = 0;
             this.players.push(player);
             this.humanPlayers.push(player);
         }
@@ -99,10 +171,26 @@ export class EntityManager {
         for (let i = 0; i < numBots; i++) {
             const color = CONFIG.COLORS.BOT_COLORS[i % CONFIG.COLORS.BOT_COLORS.length];
             const player = new Player(this.renderer, numHumans + i, color, true);
-            player.setControlOptions({ modelScale, invertPitch: false });
-            const ai = new BotAI({ difficulty: this.botDifficulty, recorder: this.recorder });
+            const worldId = this.dualWorlds ? (Math.floor(i / 2) % this.worldCount) : 0;
+            const forcePlanarMode = this.dualWorlds && worldId === 1;
+            const learningEngine = this._resolveLearningEngine(forcePlanarMode);
+            player.setControlOptions({
+                modelScale,
+                invertPitch: false,
+                forcePlanarMode,
+            });
+            player.worldId = worldId;
+            const ai = new BotAI({
+                difficulty: this.botDifficulty,
+                recorder: this.recorder,
+                learning: learningEngine,
+                learningEnabled: this.trainingEnabled,
+                learningTraining: this.trainingEnabled,
+                botId: `bot-w${worldId}-${numHumans + i}`,
+                forcePlanarMode,
+            });
             this.players.push(player);
-            this.bots.push({ player, ai });
+            this.bots.push({ player, ai, worldId });
             this.botByPlayer.set(player, ai);
         }
     }
@@ -117,19 +205,285 @@ export class EntityManager {
         }
     }
 
+    setTrainingOptions(training = {}) {
+        this.trainingEnabled = !!training.enabled;
+        this.mortalBots = !!training.mortalBots;
+        this.botOnlyRoundEnd = !!training.botVsBotOnly;
+        this.dualWorlds = !!(this.botOnlyRoundEnd && training.dualWorlds);
+        this.worldCount = this.dualWorlds ? 2 : 1;
+        this._worldZones = [];
+        this._worldRoundState = [];
+        this._arenaViewCache.clear();
+
+        for (let i = 0; i < this.bots.length; i++) {
+            const bot = this.bots[i];
+            const worldId = this.dualWorlds ? (Math.floor(i / 2) % this.worldCount) : 0;
+            if (bot?.player) {
+                bot.player.worldId = worldId;
+            }
+            if (bot) {
+                bot.worldId = worldId;
+            }
+            const forcePlanarMode = this.dualWorlds && worldId === 1;
+            if (bot?.player?.setControlOptions) {
+                bot.player.setControlOptions({ forcePlanarMode });
+            }
+            if (bot?.ai?.setLearningOptions) {
+                const learningEngine = this._resolveLearningEngine(forcePlanarMode);
+                bot.ai.setLearningOptions({
+                    learningEngine,
+                    enabled: this.trainingEnabled,
+                    training: this.trainingEnabled,
+                    forcePlanarMode,
+                });
+            }
+        }
+    }
+
+    _isDualWorldsActive() {
+        return !!(this.dualWorlds && this.worldCount >= 2);
+    }
+
+    _getWorldIdForPlayer(player) {
+        if (!player) return 0;
+        if (Number.isInteger(player.worldId)) {
+            return Math.max(0, Math.min(this.worldCount - 1, player.worldId));
+        }
+        return 0;
+    }
+
+    _areInSameWorld(a, b) {
+        if (!this._isDualWorldsActive()) return true;
+        return this._getWorldIdForPlayer(a) === this._getWorldIdForPlayer(b);
+    }
+
+    _buildWorldZones() {
+        const bounds = this.arena?.bounds;
+        if (!bounds) {
+            this._worldZones = [];
+            return;
+        }
+        if (!this._isDualWorldsActive()) {
+            this._worldZones = [{ ...bounds, worldId: 0 }];
+            return;
+        }
+
+        const midX = (bounds.minX + bounds.maxX) * 0.5;
+        const splitGap = Math.max(2.5, (bounds.maxX - bounds.minX) * 0.05);
+        const leftMax = midX - splitGap * 0.5;
+        const rightMin = midX + splitGap * 0.5;
+
+        this._worldZones = [
+            {
+                worldId: 0,
+                minX: bounds.minX,
+                maxX: leftMax,
+                minY: bounds.minY,
+                maxY: bounds.maxY,
+                minZ: bounds.minZ,
+                maxZ: bounds.maxZ,
+            },
+            {
+                worldId: 1,
+                minX: rightMin,
+                maxX: bounds.maxX,
+                minY: bounds.minY,
+                maxY: bounds.maxY,
+                minZ: bounds.minZ,
+                maxZ: bounds.maxZ,
+            },
+        ];
+    }
+
+    _getWorldBounds(worldId = 0) {
+        if (this._worldZones.length === 0) {
+            this._buildWorldZones();
+        }
+        if (this._worldZones.length === 0) {
+            return this.arena?.bounds || null;
+        }
+        if (!this._isDualWorldsActive()) {
+            return this._worldZones[0];
+        }
+        const idx = Math.max(0, Math.min(this._worldZones.length - 1, worldId));
+        return this._worldZones[idx] || this._worldZones[0];
+    }
+
+    _resetWorldRoundState() {
+        const count = this._isDualWorldsActive() ? this.worldCount : 1;
+        this._worldRoundState = [];
+        for (let i = 0; i < count; i++) {
+            this._worldRoundState.push({
+                resolved: false,
+                winner: null,
+            });
+        }
+    }
+
+    _getPlayersInWorld(worldId) {
+        if (!this._isDualWorldsActive()) return this.players;
+        const out = [];
+        for (let i = 0; i < this.players.length; i++) {
+            const p = this.players[i];
+            if (this._getWorldIdForPlayer(p) === worldId) {
+                out.push(p);
+            }
+        }
+        return out;
+    }
+
+    _getProjectilesInWorld(worldId) {
+        if (!this._isDualWorldsActive()) return this.projectiles;
+        const out = [];
+        for (let i = 0; i < this.projectiles.length; i++) {
+            const projectile = this.projectiles[i];
+            const projectileWorld = Number.isInteger(projectile?.worldId) ? projectile.worldId : 0;
+            if (projectileWorld === worldId) {
+                out.push(projectile);
+            }
+        }
+        return out;
+    }
+
+    _getArenaViewForWorld(worldId) {
+        if (!this._isDualWorldsActive()) {
+            return this.arena;
+        }
+
+        let view = this._arenaViewCache.get(worldId);
+        if (!view) {
+            view = {
+                bounds: {
+                    minX: 0,
+                    maxX: 0,
+                    minY: 0,
+                    maxY: 0,
+                    minZ: 0,
+                    maxZ: 0,
+                },
+                currentMapKey: 'standard',
+                portalsEnabled: false,
+                portals: [],
+                checkCollision: (position, radius = 0) => (
+                    this.arena.checkCollision(position, radius)
+                    || this._isPositionOutOfWorldBounds(position, worldId, radius)
+                ),
+            };
+            this._arenaViewCache.set(worldId, view);
+        }
+
+        const arenaBounds = this.arena?.bounds;
+        const zone = this._getWorldBounds(worldId);
+        if (arenaBounds) {
+            view.bounds.minY = arenaBounds.minY;
+            view.bounds.maxY = arenaBounds.maxY;
+            view.bounds.minZ = arenaBounds.minZ;
+            view.bounds.maxZ = arenaBounds.maxZ;
+        }
+        if (zone) {
+            view.bounds.minX = zone.minX;
+            view.bounds.maxX = zone.maxX;
+        } else if (arenaBounds) {
+            view.bounds.minX = arenaBounds.minX;
+            view.bounds.maxX = arenaBounds.maxX;
+        }
+
+        view.currentMapKey = this.arena?.currentMapKey || 'standard';
+        view.portalsEnabled = !!this.arena?.portalsEnabled;
+        view.portals = Array.isArray(this.arena?.portals) ? this.arena.portals : [];
+
+        return view;
+    }
+
+    _getRandomPositionInWorld(worldId = 0, margin = 12, planarLevel = null) {
+        const zone = this._getWorldBounds(worldId);
+        if (!zone) return this.arena.getRandomPosition(margin);
+
+        const innerMinX = zone.minX + margin;
+        const innerMaxX = zone.maxX - margin;
+        const innerMinY = zone.minY + margin;
+        const innerMaxY = zone.maxY - margin;
+        const innerMinZ = zone.minZ + margin;
+        const innerMaxZ = zone.maxZ - margin;
+
+        const minX = Math.min(innerMinX, innerMaxX);
+        const maxX = Math.max(innerMinX, innerMaxX);
+        const minZ = Math.min(innerMinZ, innerMaxZ);
+        const maxZ = Math.max(innerMinZ, innerMaxZ);
+
+        const x = minX + Math.random() * (maxX - minX);
+        const z = minZ + Math.random() * (maxZ - minZ);
+        let y = innerMinY + Math.random() * Math.max(0.0001, (innerMaxY - innerMinY));
+        if (Number.isFinite(planarLevel)) {
+            y = planarLevel;
+        }
+        return new THREE.Vector3(x, y, z);
+    }
+
+    _isPositionOutOfWorldBounds(position, worldId = 0, radius = 0) {
+        if (!this._isDualWorldsActive()) return false;
+        const zone = this._getWorldBounds(worldId);
+        if (!zone) return false;
+        const r = Math.max(0, radius);
+        return (
+            position.x - r < zone.minX
+            || position.x + r > zone.maxX
+        );
+    }
+
+    _getWorldBoundaryNormal(position, worldId = 0, radius = 0) {
+        if (!this._isDualWorldsActive()) return null;
+        const zone = this._getWorldBounds(worldId);
+        if (!zone) return null;
+        const r = Math.max(0, radius);
+        if (position.x - r < zone.minX) {
+            return this._tmpBoundaryNormal.set(1, 0, 0);
+        }
+        if (position.x + r > zone.maxX) {
+            return this._tmpBoundaryNormal.set(-1, 0, 0);
+        }
+        return null;
+    }
+
+    _constrainPlayerToWorld(player) {
+        if (!this._isDualWorldsActive() || !player) return;
+        const zone = this._getWorldBounds(this._getWorldIdForPlayer(player));
+        if (!zone) return;
+        const margin = CONFIG.PLAYER.HITBOX_RADIUS + 0.3;
+        player.position.x = Math.max(zone.minX + margin, Math.min(zone.maxX - margin, player.position.x));
+    }
+
+    _getSpectatorFocusForWorld(worldId) {
+        if (!this._isDualWorldsActive()) return null;
+        let fallback = null;
+        for (let i = 0; i < this.players.length; i++) {
+            const p = this.players[i];
+            if (this._getWorldIdForPlayer(p) !== worldId) continue;
+            if (!fallback) fallback = p;
+            if (p.alive) return p;
+        }
+        return fallback;
+    }
+
     spawnAll() {
         this._roundEnded = false;
+        this._buildWorldZones();
+        this._resetWorldRoundState();
         const isPlanar = !!CONFIG.GAMEPLAY.PLANAR_MODE;
         const planarSpawnLevel = isPlanar ? this._getPlanarSpawnLevel() : null;
 
         for (const player of this.players) {
-            const pos = this._findSpawnPosition(12, 12, planarSpawnLevel);
-            const dir = this._findSafeSpawnDirection(pos);
+            const worldId = this._getWorldIdForPlayer(player);
+            const usePlayerPlanar = !!(player?.isPlanarMode && player.isPlanarMode());
+            const selectedPlanarLevel = usePlayerPlanar ? this._getPlanarSpawnLevel() : planarSpawnLevel;
+            const pos = this._findSpawnPosition(12, 12, selectedPlanarLevel, worldId);
+            const dir = this._findSafeSpawnDirection(pos, worldId);
             player.spawn(pos, dir);
+            player.worldId = worldId;
             player.shootCooldown = 0;
             if (this.recorder) {
                 this.recorder.markPlayerSpawn(player);
-                this.recorder.logEvent('SPAWN', player.index, player.isBot ? 'bot=1' : 'bot=0');
+                this.recorder.logEvent('SPAWN', player.index, `bot=${player.isBot ? 1 : 0} world=${worldId}`);
             }
         }
     }
@@ -169,11 +523,16 @@ export class EntityManager {
         return best;
     }
 
-    _findSpawnPosition(minDistance = 12, margin = 12, planarLevel = null) {
+    _findSpawnPosition(minDistance = 12, margin = 12, planarLevel = null, worldId = 0) {
         const usePlanarLevel = Number.isFinite(planarLevel) && !!this.arena?.getRandomPositionOnLevel;
-        const randomSpawn = () => usePlanarLevel
-            ? this.arena.getRandomPositionOnLevel(planarLevel, margin)
-            : this.arena.getRandomPosition(margin);
+        const randomSpawn = () => {
+            if (this._isDualWorldsActive()) {
+                return this._getRandomPositionInWorld(worldId, margin, usePlanarLevel ? planarLevel : null);
+            }
+            return usePlanarLevel
+                ? this.arena.getRandomPositionOnLevel(planarLevel, margin)
+                : this.arena.getRandomPosition(margin);
+        };
 
         for (let attempts = 0; attempts < 100; attempts++) {
             const pos = randomSpawn();
@@ -181,6 +540,7 @@ export class EntityManager {
 
             for (const other of this.players) {
                 if (!other.alive) continue;
+                if (this._isDualWorldsActive() && this._getWorldIdForPlayer(other) !== worldId) continue;
                 if (other.position.distanceToSquared(pos) < minDistance * minDistance) {
                     tooClose = true;
                     break;
@@ -195,7 +555,7 @@ export class EntityManager {
         return randomSpawn();
     }
 
-    _findSafeSpawnDirection(position) {
+    _findSafeSpawnDirection(position, worldId = 0) {
         const sampleCount = 20;
         let bestDirection = new THREE.Vector3(0, 0, -1);
         let bestDistance = -1;
@@ -203,7 +563,7 @@ export class EntityManager {
         for (let i = 0; i < sampleCount; i++) {
             const angle = (Math.PI * 2 * i) / sampleCount;
             this._tmpDir.set(Math.sin(angle), 0, -Math.cos(angle));
-            const freeDistance = this._traceFreeDistance(position, this._tmpDir, 36, 2.2);
+            const freeDistance = this._traceFreeDistance(position, this._tmpDir, 36, 2.2, worldId);
             if (freeDistance > bestDistance) {
                 bestDistance = freeDistance;
                 bestDirection.copy(this._tmpDir);
@@ -213,7 +573,7 @@ export class EntityManager {
         return bestDirection;
     }
 
-    _traceFreeDistance(origin, direction, maxDistance, stepDistance) {
+    _traceFreeDistance(origin, direction, maxDistance, stepDistance, worldId = 0) {
         const step = Math.max(0.5, stepDistance);
         let traveled = 0;
         while (traveled < maxDistance) {
@@ -223,7 +583,10 @@ export class EntityManager {
                 origin.y + direction.y * traveled,
                 origin.z + direction.z * traveled
             );
-            if (this.arena.checkCollision(this._tmpVec, CONFIG.PLAYER.HITBOX_RADIUS)) {
+            if (
+                this.arena.checkCollision(this._tmpVec, CONFIG.PLAYER.HITBOX_RADIUS)
+                || this._isPositionOutOfWorldBounds(this._tmpVec, worldId, CONFIG.PLAYER.HITBOX_RADIUS)
+            ) {
                 return traveled - step;
             }
         }
@@ -245,7 +608,11 @@ export class EntityManager {
             if (player.isBot) {
                 const botAI = this.botByPlayer.get(player);
                 if (botAI) {
-                    input = botAI.update(dt, player, this.arena, this.players, this.projectiles);
+                    const worldId = this._getWorldIdForPlayer(player);
+                    const arenaView = this._isDualWorldsActive() ? this._getArenaViewForWorld(worldId) : this.arena;
+                    const scopedPlayers = this._isDualWorldsActive() ? this._getPlayersInWorld(worldId) : this.players;
+                    const scopedProjectiles = this._isDualWorldsActive() ? this._getProjectilesInWorld(worldId) : this.projectiles;
+                    input = botAI.update(dt, player, arenaView, scopedPlayers, scopedProjectiles);
                 }
             } else {
                 const includeSecondaryBindings = this.humanPlayers.length === 1 && player.index === 0;
@@ -285,17 +652,25 @@ export class EntityManager {
             }
 
             player.update(dt, input);
+            this._constrainPlayerToWorld(player);
 
             const spawnProtected = (player.spawnProtectionTimer || 0) > 0;
             if (!player.isGhost && !spawnProtected) {
-                if (this.arena.checkCollision(player.position, CONFIG.PLAYER.HITBOX_RADIUS)) {
+                const worldId = this._getWorldIdForPlayer(player);
+                const hitArenaWall = this.arena.checkCollision(player.position, CONFIG.PLAYER.HITBOX_RADIUS);
+                const hitWorldBoundary = this._isPositionOutOfWorldBounds(player.position, worldId, CONFIG.PLAYER.HITBOX_RADIUS);
+                if (hitArenaWall || hitWorldBoundary) {
                     if (player.hasShield) {
                         player.hasShield = false;
                         player.getDirection(this._tmpDir).multiplyScalar(2);
                         player.position.sub(this._tmpDir);
-                    } else if (player.isBot) {
+                        this._constrainPlayerToWorld(player);
+                    } else if (player.isBot && !this.mortalBots) {
                         // Bot: unsterblich – von Wand abprallen
-                        this._bounceBot(player, null, 'WALL');
+                        const boundaryNormal = (!hitArenaWall && hitWorldBoundary)
+                            ? this._getWorldBoundaryNormal(player.position, worldId, CONFIG.PLAYER.HITBOX_RADIUS)
+                            : null;
+                        this._bounceBot(player, boundaryNormal, 'WALL');
                     } else {
                         if (this.audio) this.audio.play('HIT');
                         if (this.particles) this.particles.spawnHit(player.position, player.color);
@@ -306,13 +681,14 @@ export class EntityManager {
 
                 for (const other of this.players) {
                     if (!other.alive) continue;
+                    if (!this._areInSameWorld(player, other)) continue;
                     const skipRecent = other === player ? 15 : 0;
                     const collision = other.trail.checkCollision(player.position, CONFIG.PLAYER.HITBOX_RADIUS, skipRecent);
 
                     if (collision && collision.hit) {
                         if (player.hasShield) {
                             player.hasShield = false;
-                        } else if (player.isBot) {
+                        } else if (player.isBot && !this.mortalBots) {
                             // Bot: unsterblich – von Trail abprallen
                             // Use the collision result we already have
                             if (collision && collision.hit) {
@@ -322,7 +698,9 @@ export class EntityManager {
                         } else {
                             if (this.audio) this.audio.play('HIT');
                             if (this.particles) this.particles.spawnHit(player.position, player.color);
-                            this._killPlayer(player, other === player ? 'TRAIL_SELF' : 'TRAIL_OTHER');
+                            const cause = other === player ? 'TRAIL_SELF' : 'TRAIL_OTHER';
+                            const killer = other !== player ? other : null;
+                            this._killPlayer(player, cause, killer);
                             break;
                         }
                     }
@@ -332,7 +710,9 @@ export class EntityManager {
             if (!player.alive) continue;
 
             // Portal-Check
-            const portalResult = this.arena.checkPortal(player.position, CONFIG.PLAYER.HITBOX_RADIUS, player.index);
+            const portalResult = this._isDualWorldsActive()
+                ? null
+                : this.arena.checkPortal(player.position, CONFIG.PLAYER.HITBOX_RADIUS, player.index);
             if (portalResult) {
                 player.position.copy(portalResult.target);
 
@@ -341,11 +721,12 @@ export class EntityManager {
                 player.position.add(this._tmpVec);
 
                 // Update Planar Level if in Planar Mode
-                if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+                if (player?.isPlanarMode && player.isPlanarMode()) {
                     player.currentPlanarY = portalResult.target.y;
                 }
 
                 player.trail.forceGap(0.5);
+                this._constrainPlayerToWorld(player);
             }
 
             const pickedUp = this.powerupManager.checkPickup(player.position, CONFIG.PLAYER.HITBOX_RADIUS);
@@ -371,6 +752,7 @@ export class EntityManager {
 
         let shouldEnd = false;
         let winner = null;
+        let handledWorldOutcomes = false;
 
         if (this.humanPlayers.length === 1) {
             // Singleplayer: Runde endet wenn der Spieler stirbt (Bot kann als Sieger gelten)
@@ -394,11 +776,78 @@ export class EntityManager {
                 winner = lastHumanAlive; // kann null sein wenn beide tot
             }
         } else {
-            // Nur Bots (kein Mensch) → Runde nie automatisch beenden
+            if (this.botOnlyRoundEnd) {
+                if (this._isDualWorldsActive()) {
+                    let allWorldsResolved = true;
+                    for (let worldId = 0; worldId < this.worldCount; worldId++) {
+                        const state = this._worldRoundState[worldId];
+                        if (!state || state.resolved) continue;
+
+                        let botsAlive = 0;
+                        let lastBotAlive = null;
+                        let worldBotCount = 0;
+                        for (let i = 0; i < this.bots.length; i++) {
+                            const botPlayer = this.bots[i]?.player;
+                            if (!botPlayer) continue;
+                            if (this._getWorldIdForPlayer(botPlayer) !== worldId) continue;
+                            worldBotCount++;
+                            if (botPlayer.alive) {
+                                botsAlive++;
+                                lastBotAlive = botPlayer;
+                            }
+                        }
+
+                        if (worldBotCount > 0 && botsAlive <= 1) {
+                            state.resolved = true;
+                            state.winner = lastBotAlive || null;
+                            for (let i = 0; i < this.bots.length; i++) {
+                                const bot = this.bots[i];
+                                if (!bot?.player?.alive || !bot?.ai?.onRoundEnd) continue;
+                                if (this._getWorldIdForPlayer(bot.player) !== worldId) continue;
+                                const outcome = state.winner
+                                    ? (bot.player === state.winner ? 'win' : 'loss')
+                                    : 'draw';
+                                bot.ai.onRoundEnd(outcome);
+                            }
+                        } else {
+                            allWorldsResolved = false;
+                        }
+                    }
+                    handledWorldOutcomes = true;
+                    if (allWorldsResolved) {
+                        shouldEnd = true;
+                        winner = this._worldRoundState[0]?.winner || this._worldRoundState[1]?.winner || null;
+                    }
+                } else {
+                    let botsAlive = 0;
+                    let lastBotAlive = null;
+                    for (let i = 0; i < this.bots.length; i++) {
+                        const botPlayer = this.bots[i]?.player;
+                        if (botPlayer?.alive) {
+                            botsAlive++;
+                            lastBotAlive = botPlayer;
+                        }
+                    }
+                    if (botsAlive <= 1 && this.bots.length > 0) {
+                        shouldEnd = true;
+                        winner = lastBotAlive;
+                    }
+                }
+            }
         }
 
         if (shouldEnd) {
             this._roundEnded = true;
+            if (!handledWorldOutcomes) {
+                for (let i = 0; i < this.bots.length; i++) {
+                    const bot = this.bots[i];
+                    if (!bot?.player?.alive || !bot?.ai?.onRoundEnd) continue;
+                    const outcome = winner
+                        ? (bot.player === winner ? 'win' : 'loss')
+                        : 'draw';
+                    bot.ai.onRoundEnd(outcome);
+                }
+            }
             if (this.onRoundEnd) {
                 this.onRoundEnd(winner);
             }
@@ -464,6 +913,7 @@ export class EntityManager {
             flame: rocketGroup.userData.flame || null,
             poolKey: type,
             owner: player,
+            worldId: this._getWorldIdForPlayer(player),
             type,
             position: this._tmpVec.clone(),
             velocity: this._tmpDir.clone().multiplyScalar(speed),
@@ -597,6 +1047,7 @@ export class EntityManager {
 
         for (const other of this.players) {
             if (other === player || !other.alive) continue;
+            if (!this._areInSameWorld(player, other)) continue;
 
             this._tmpVec.subVectors(other.position, player.position);
             const distSq = this._tmpVec.lengthSq();
@@ -646,7 +1097,9 @@ export class EntityManager {
             projectile.mesh.lookAt(this._tmpVec);
 
             // Portal-Check – numerische ID statt Template-String
-            const portalResult = this.arena.checkPortal(projectile.position, projectile.radius, 1000 + i);
+            const portalResult = this._isDualWorldsActive()
+                ? null
+                : this.arena.checkPortal(projectile.position, projectile.radius, 1000 + i);
             if (portalResult) {
                 projectile.position.copy(portalResult.target);
                 // Offset in Flugrichtung
@@ -680,7 +1133,8 @@ export class EntityManager {
             if (
                 projectile.ttl <= 0 ||
                 projectile.traveled >= CONFIG.PROJECTILE.MAX_DISTANCE ||
-                this.arena.checkCollision(projectile.position, projectile.radius)
+                this.arena.checkCollision(projectile.position, projectile.radius) ||
+                this._isPositionOutOfWorldBounds(projectile.position, Number.isInteger(projectile.worldId) ? projectile.worldId : 0, projectile.radius)
             ) {
                 // Wand/Arena Treffer
                 if (this.particles) this.particles.spawnHit(projectile.position, 0xffff00);
@@ -692,6 +1146,9 @@ export class EntityManager {
             let hit = false;
             for (const target of this.players) {
                 if (!target.alive || target === projectile.owner) {
+                    continue;
+                }
+                if (!this._areInSameWorld(projectile.owner, target)) {
                     continue;
                 }
 
@@ -743,13 +1200,28 @@ export class EntityManager {
         }
     }
 
-    _killPlayer(player, cause = 'UNKNOWN') {
+    _killPlayer(player, cause = 'UNKNOWN', killer = null) {
+        if (!player || !player.alive) return;
         player.kill();
         if (this.particles) this.particles.spawnExplosion(player.position, player.color);
         if (this.audio) this.audio.play('EXPLOSION');
+        if (player.isBot) {
+            const ai = this.botByPlayer.get(player);
+            if (ai?.onDeath) {
+                ai.onDeath(cause);
+            }
+        }
+        if (killer && killer.isBot) {
+            const killerAI = this.botByPlayer.get(killer);
+            if (killerAI?.onKill) {
+                killerAI.onKill(player, cause);
+            }
+        }
         if (this.recorder) {
             this.recorder.markPlayerDeath(player, cause);
-            this.recorder.logEvent('KILL', player.index, `cause=${cause}`);
+            const killerIndex = Number.isFinite(killer?.index) ? killer.index : -1;
+            const worldId = this._getWorldIdForPlayer(player);
+            this.recorder.logEvent('KILL', player.index, `cause=${cause} killer=${killerIndex} world=${worldId}`);
         }
         if (this.onPlayerDied) {
             this.onPlayerDied(player);
@@ -761,10 +1233,14 @@ export class EntityManager {
         if (this.arena.checkCollision(position, hitbox)) {
             return false;
         }
+        if (this._isPositionOutOfWorldBounds(position, this._getWorldIdForPlayer(player), hitbox)) {
+            return false;
+        }
 
         for (let i = 0; i < this.players.length; i++) {
             const other = this.players[i];
             if (!other || !other.alive) continue;
+            if (!this._areInSameWorld(player, other)) continue;
 
             const skipRecent = other === player ? 20 : 0;
             if (other.trail.checkCollisionFast) {
@@ -782,18 +1258,25 @@ export class EntityManager {
         return true;
     }
 
-    _clampBotPosition(vec) {
+    _clampBotPosition(vec, worldId = 0) {
         const b = this.arena.bounds;
         const m = CONFIG.PLAYER.HITBOX_RADIUS + 0.5;
         vec.x = Math.max(b.minX + m, Math.min(b.maxX - m, vec.x));
         vec.y = Math.max(b.minY + m, Math.min(b.maxY - m, vec.y));
         vec.z = Math.max(b.minZ + m, Math.min(b.maxZ - m, vec.z));
+        if (this._isDualWorldsActive()) {
+            const zone = this._getWorldBounds(worldId);
+            if (zone) {
+                vec.x = Math.max(zone.minX + m, Math.min(zone.maxX - m, vec.x));
+            }
+        }
     }
 
     _findSafeBouncePosition(player, baseDirection, normal = null) {
         const originX = player.position.x;
         const originY = player.position.y;
         const originZ = player.position.z;
+        const worldId = this._getWorldIdForPlayer(player);
         const distances = [2.5, 4, 6, 8];
 
         const variants = [
@@ -830,7 +1313,7 @@ export class EntityManager {
                     originY + vy * d,
                     originZ + vz * d
                 );
-                this._clampBotPosition(this._tmpVec);
+                this._clampBotPosition(this._tmpVec, worldId);
                 if (this._isBotPositionSafe(player, this._tmpVec)) {
                     player.position.copy(this._tmpVec);
                     return true;
@@ -839,7 +1322,7 @@ export class EntityManager {
         }
 
         this._tmpVec.set(originX + baseDirection.x * 2, originY + baseDirection.y * 2, originZ + baseDirection.z * 2);
-        this._clampBotPosition(this._tmpVec);
+        this._clampBotPosition(this._tmpVec, worldId);
         player.position.copy(this._tmpVec);
         return false;
     }
@@ -895,7 +1378,7 @@ export class EntityManager {
         this._tmpDir.x += (Math.random() - 0.5) * randomScale;
         this._tmpDir.y += (Math.random() - 0.5) * randomScale;
         this._tmpDir.z += (Math.random() - 0.5) * randomScale;
-        if (CONFIG.GAMEPLAY.PLANAR_MODE) {
+        if (player?.isPlanarMode && player.isPlanarMode()) {
             this._tmpDir.y = 0;
         }
         this._tmpDir.normalize();
@@ -924,6 +1407,7 @@ export class EntityManager {
 
 
     updateCameras(dt) {
+        let updatedAnyHumanCamera = false;
         for (const player of this.players) {
             if (!player.isBot && player.index < this.renderer.cameras.length) {
                 const pos = player.position;
@@ -941,6 +1425,84 @@ export class EntityManager {
                     firstPersonAnchor
                 );
                 player.cameraMode = this.renderer.cameraModes[player.index] || 0;
+                updatedAnyHumanCamera = true;
+            }
+        }
+
+        // Developer training mode: no human players -> use spectator cameras.
+        if (!updatedAnyHumanCamera && this.humanPlayers.length === 0 && this.renderer.cameras.length > 0) {
+            let primaryFocus = null;
+            let secondaryFocus = null;
+
+            if (this._isDualWorldsActive()) {
+                primaryFocus = this._getSpectatorFocusForWorld(0);
+                secondaryFocus = this._getSpectatorFocusForWorld(1);
+                if (!primaryFocus && this.players.length > 0) {
+                    primaryFocus = this.players[0];
+                }
+                if (!secondaryFocus) {
+                    secondaryFocus = primaryFocus;
+                }
+            } else {
+                for (let i = 0; i < this.players.length; i++) {
+                    const p = this.players[i];
+                    if (p?.alive) {
+                        if (!primaryFocus) {
+                            primaryFocus = p;
+                        } else if (!secondaryFocus && p !== primaryFocus) {
+                            secondaryFocus = p;
+                        }
+                    }
+                }
+                if (!primaryFocus && this.players.length > 0) {
+                    primaryFocus = this.players[0];
+                }
+                if (!secondaryFocus) {
+                    for (let i = 0; i < this.players.length; i++) {
+                        const candidate = this.players[i];
+                        if (candidate && candidate !== primaryFocus) {
+                            secondaryFocus = candidate;
+                            break;
+                        }
+                    }
+                }
+                if (!secondaryFocus) {
+                    secondaryFocus = primaryFocus;
+                }
+            }
+
+            if (primaryFocus) {
+                const pos = primaryFocus.position;
+                const dir = primaryFocus.alive ? primaryFocus.getDirection(this._tmpDir2) : this._tmpDir2.set(0, 0, -1);
+                const firstPersonAnchor = primaryFocus.getFirstPersonCameraAnchor(this._tmpCamAnchor);
+                this.renderer.updateCamera(
+                    0,
+                    pos,
+                    dir,
+                    dt,
+                    primaryFocus.quaternion,
+                    false,
+                    primaryFocus.isBoosting,
+                    this.arena,
+                    firstPersonAnchor
+                );
+            }
+
+            if (secondaryFocus && this.renderer.cameras.length > 1) {
+                const pos = secondaryFocus.position;
+                const dir = secondaryFocus.alive ? secondaryFocus.getDirection(this._tmpDir2) : this._tmpDir2.set(0, 0, -1);
+                const firstPersonAnchor = secondaryFocus.getFirstPersonCameraAnchor(this._tmpCamAnchor);
+                this.renderer.updateCamera(
+                    1,
+                    pos,
+                    dir,
+                    dt,
+                    secondaryFocus.quaternion,
+                    false,
+                    secondaryFocus.isBoosting,
+                    this.arena,
+                    firstPersonAnchor
+                );
             }
         }
     }
@@ -982,5 +1544,10 @@ export class EntityManager {
         this.botByPlayer.clear();
         this.projectiles = [];
         this._lockOnCache.clear();
+        this._worldZones = [];
+        this._worldRoundState = [];
+        this._arenaViewCache.clear();
+        this.dualWorlds = false;
+        this.worldCount = 1;
     }
 }

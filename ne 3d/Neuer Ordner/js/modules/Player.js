@@ -56,6 +56,8 @@ export class Player {
         this._tmpQuat = new THREE.Quaternion();
         this._tmpVec = new THREE.Vector3();
         this._tmpDir = new THREE.Vector3();
+        this._tmpAimRight = new THREE.Vector3();
+        this._tmpAimUp = new THREE.Vector3();
 
         // Boost
         this.boostTimer = 0;
@@ -73,6 +75,7 @@ export class Player {
         this.modelScale = CONFIG.PLAYER.MODEL_SCALE || 1;
         this.cockpitCamera = false;
         this.spawnProtectionTimer = 0;
+        this.planarAimOffset = 0;
 
         // Kamera-Modus
         this.cameraMode = 0;
@@ -122,6 +125,15 @@ export class Player {
         cockpit.rotation.x = -Math.PI / 2;
         cockpit.position.set(0, 0.2, -0.7);
         this.group.add(cockpit);
+
+        // Anchor fuer First-Person-Kamera (an der Flugzeugspitze)
+        this.firstPersonAnchor = new THREE.Object3D();
+        this.firstPersonAnchor.position.set(
+            CONFIG.PLAYER.NOSE_CAMERA_LOCAL_X || 0,
+            CONFIG.PLAYER.NOSE_CAMERA_LOCAL_Y || 0,
+            CONFIG.PLAYER.NOSE_CAMERA_LOCAL_Z || -1.95
+        );
+        this.group.add(this.firstPersonAnchor);
 
         // --- Delta-Flügel (shared Geometries) ---
         const wingL = new THREE.Mesh(SHARED_GEO.wingL, jetMatDark);
@@ -212,8 +224,11 @@ export class Player {
         this.isGhost = false;
         this.invertControls = false;
         this.spawnProtectionTimer = CONFIG.PLAYER.SPAWN_PROTECTION || 0;
-        // Planar Mode State
-        this.currentPlanarY = CONFIG.PLAYER.START_Y || 5;
+        this.planarAimOffset = 0;
+        // Planar Mode State: keep the spawn level chosen by the spawner.
+        const fallbackY = CONFIG.PLAYER.START_Y || 5;
+        const spawnY = Number.isFinite(position?.y) ? position.y : fallbackY;
+        this.currentPlanarY = CONFIG.GAMEPLAY.PLANAR_MODE ? spawnY : fallbackY;
         this.trail.clear();
         this.trail.resetWidth();
         this.group.visible = true;
@@ -530,6 +545,45 @@ export class Player {
             return out.set(0, 0, -1).applyQuaternion(this.quaternion);
         }
         return new THREE.Vector3(0, 0, -1).applyQuaternion(this.quaternion);
+    }
+
+    getFirstPersonCameraAnchor(out = null) {
+        const target = out || new THREE.Vector3();
+        if (this.firstPersonAnchor) {
+            this.firstPersonAnchor.getWorldPosition(target);
+            return target;
+        }
+
+        this.getDirection(this._tmpDir);
+        return target.copy(this.position).add(this._tmpDir);
+    }
+
+    getAimDirection(out = null) {
+        const target = out || new THREE.Vector3();
+        this.getDirection(target).normalize();
+
+        if (!CONFIG.GAMEPLAY.PLANAR_MODE) {
+            return target;
+        }
+
+        const aimOffset = Math.min(1, Math.max(-1, this.planarAimOffset || 0));
+        if (Math.abs(aimOffset) < 0.0001) {
+            return target;
+        }
+
+        this._tmpAimRight.crossVectors(this._tmpDir.set(0, 1, 0), target);
+        if (this._tmpAimRight.lengthSq() < 0.000001) {
+            this._tmpAimRight.set(1, 0, 0);
+        } else {
+            this._tmpAimRight.normalize();
+        }
+        this._tmpAimUp.crossVectors(target, this._tmpAimRight).normalize();
+
+        const angleRad = THREE.MathUtils.degToRad(CONFIG.PROJECTILE.PLANAR_AIM_MAX_ANGLE_DEG) * aimOffset;
+        const cosA = Math.cos(angleRad);
+        const sinA = Math.sin(angleRad);
+        target.multiplyScalar(cosA).addScaledVector(this._tmpAimUp, sinA).normalize();
+        return target;
     }
 
     dispose() {

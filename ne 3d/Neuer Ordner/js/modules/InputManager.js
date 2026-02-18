@@ -109,23 +109,40 @@ export class InputManager {
         inputObj.nextItem = false;
     }
 
-    getPlayerInput(playerIndex) {
+    _isActionDown(primaryCode, secondaryCode = '') {
+        if (this.isDown(primaryCode)) {
+            return true;
+        }
+        return !!secondaryCode && this.isDown(secondaryCode);
+    }
+
+    _wasActionPressed(primaryCode, secondaryCode = '') {
+        let pressed = this.wasPressed(primaryCode);
+        if (secondaryCode && secondaryCode !== primaryCode) {
+            pressed = this.wasPressed(secondaryCode) || pressed;
+        }
+        return pressed;
+    }
+
+    getPlayerInput(playerIndex, options = {}) {
+        const includeSecondaryBindings = !!options.includeSecondaryBindings && playerIndex === 0;
         const keyMap = playerIndex === 0 ? this.bindings.PLAYER_1 : this.bindings.PLAYER_2;
+        const altKeyMap = includeSecondaryBindings ? this.bindings.PLAYER_2 : null;
 
         // Reset reused object
         this._resetInput(this._reuseInput);
 
-        this._reuseInput.pitchUp = this.isDown(keyMap.UP);
-        this._reuseInput.pitchDown = this.isDown(keyMap.DOWN);
-        this._reuseInput.yawLeft = this.isDown(keyMap.LEFT);
-        this._reuseInput.yawRight = this.isDown(keyMap.RIGHT);
-        this._reuseInput.rollLeft = this.isDown(keyMap.ROLL_LEFT);
-        this._reuseInput.rollRight = this.isDown(keyMap.ROLL_RIGHT);
-        this._reuseInput.boost = this.isDown(keyMap.BOOST);
-        this._reuseInput.cameraSwitch = this.wasPressed(keyMap.CAMERA);
-        this._reuseInput.dropItem = this.wasPressed(keyMap.DROP);
-        this._reuseInput.shootItem = this.wasPressed(keyMap.SHOOT);
-        this._reuseInput.nextItem = this.wasPressed(keyMap.NEXT_ITEM);
+        this._reuseInput.pitchUp = this._isActionDown(keyMap.UP, altKeyMap?.UP || '');
+        this._reuseInput.pitchDown = this._isActionDown(keyMap.DOWN, altKeyMap?.DOWN || '');
+        this._reuseInput.yawLeft = this._isActionDown(keyMap.LEFT, altKeyMap?.LEFT || '');
+        this._reuseInput.yawRight = this._isActionDown(keyMap.RIGHT, altKeyMap?.RIGHT || '');
+        this._reuseInput.rollLeft = this._isActionDown(keyMap.ROLL_LEFT, altKeyMap?.ROLL_LEFT || '');
+        this._reuseInput.rollRight = this._isActionDown(keyMap.ROLL_RIGHT, altKeyMap?.ROLL_RIGHT || '');
+        this._reuseInput.boost = this._isActionDown(keyMap.BOOST, altKeyMap?.BOOST || '');
+        this._reuseInput.cameraSwitch = this._wasActionPressed(keyMap.CAMERA, altKeyMap?.CAMERA || '');
+        this._reuseInput.dropItem = this._wasActionPressed(keyMap.DROP, altKeyMap?.DROP || '');
+        this._reuseInput.shootItem = this._wasActionPressed(keyMap.SHOOT, altKeyMap?.SHOOT || '');
+        this._reuseInput.nextItem = this._wasActionPressed(keyMap.NEXT_ITEM, altKeyMap?.NEXT_ITEM || '');
 
         return this._reuseInput;
     }

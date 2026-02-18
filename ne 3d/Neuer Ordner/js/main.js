@@ -2,6 +2,7 @@
 // main.js - entry point and game controller
 // ============================================
 
+import * as THREE from 'three';
 import { CONFIG } from './modules/Config.js';
 import { Renderer } from './modules/Renderer.js';
 import { GameLoop } from './modules/GameLoop.js';
@@ -14,7 +15,15 @@ import { AudioManager } from './modules/Audio.js';
 import { HUD } from './modules/HUD.js';
 import { RoundRecorder } from './modules/RoundRecorder.js';
 
-const SETTINGS_STORAGE_KEY = 'mini-curve-fever-3d.settings.v3';
+const SETTINGS_STORAGE_KEY = 'mini-curve-fever-3d.settings.v4';
+const SETTINGS_STORAGE_LEGACY_KEYS = ['mini-curve-fever-3d.settings.v3'];
+const SETTINGS_PROFILES_STORAGE_KEY = 'mini-curve-fever-3d.settings-profiles.v1';
+
+/* global __APP_VERSION__, __BUILD_TIME__, __BUILD_ID__ */
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
+const BUILD_TIME = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : new Date().toISOString();
+const BUILD_ID = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev';
+
 
 function clamp(val, min, max) {
     return Math.min(Math.max(val, min), max);
@@ -41,6 +50,22 @@ const KEY_BIND_ACTIONS = [
 export class Game {
     constructor() {
         this.settings = this._loadSettings();
+        this.settingsProfiles = this._loadProfiles();
+        this.activeProfileName = '';
+        this.settingsDirty = false;
+
+        this.state = 'MENU';
+        this.roundPause = 0;
+        this._hudTimer = 0;
+        this._adaptiveTimer = 0;
+        this._statsTimer = 0;
+        this.keyCapture = null;
+        this.isLowQuality = false;
+
+        this._tmpAimVec = new THREE.Vector3();
+        this._tmpAimDir = new THREE.Vector3();
+        this._tmpRollEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
         const canvas = document.getElementById('game-canvas');
         this.renderer = new Renderer(canvas);
         this.input = new InputManager();
@@ -79,6 +104,10 @@ export class Game {
             messageSub: document.getElementById('message-sub'),
             statusToast: document.getElementById('status-toast'),
             keybindWarning: document.getElementById('keybind-warning'),
+            menuContext: document.getElementById('menu-context'),
+            buildInfo: document.getElementById('build-info'),
+            buildInfoDetail: document.getElementById('build-info-detail'),
+            copyBuildButton: document.getElementById('btn-copy-build'),
 
             modeButtons: Array.from(document.querySelectorAll('.mode-btn')),
             mapSelect: document.getElementById('map-select'),
@@ -93,7 +122,6 @@ export class Game {
             cockpitCamP1: document.getElementById('cockpit-cam-p1'),
             cockpitCamP2: document.getElementById('cockpit-cam-p2'),
             portalsToggle: document.getElementById('portals-toggle'),
-            portalBeamsToggle: document.getElementById('portal-beams-toggle'),
 
             speedSlider: document.getElementById('speed-slider'),
             speedLabel: document.getElementById('speed-label'),
@@ -120,21 +148,24 @@ export class Game {
             keybindP2: document.getElementById('keybind-p2'),
             resetKeysButton: document.getElementById('btn-reset-keys'),
             saveKeysButton: document.getElementById('btn-save-keys'),
+            profileNameInput: document.getElementById('profile-name'),
+            profileSelect: document.getElementById('profile-select'),
+            profileSaveButton: document.getElementById('btn-profile-save'),
+            profileLoadButton: document.getElementById('btn-profile-load'),
+            profileDeleteButton: document.getElementById('btn-profile-delete'),
             startButton: document.getElementById('btn-start'),
         };
 
-        this._setupMenuListeners();
-        this._syncMenuControls();
+        this._navButtons = [];
+        this._menuButtonByPanel = new Map();
+        this._lastMenuTrigger = null;
+        this._buildInfoClipboardText = '';
 
-        // Portal Beams Toggle Listener (Added Manually here as _setupMenuListeners might be long)
-        // Actually best to put it in _setupMenuListeners.
-        // Let's add it here for now to ensure it works without viewing specific line in huge method.
-        if (this.ui.portalBeamsToggle) {
-            this.ui.portalBeamsToggle.addEventListener('change', (e) => {
-                this.settings.gameplay.portalBeams = e.target.checked;
-                this._onSettingsChanged();
-            });
-        }
+        this._setupMenuListeners();
+        this._setupMenuNavigation();
+        this._syncMenuControls();
+        this._markSettingsDirty(false);
+        this._renderBuildInfo();
 
         this.gameLoop.start();
 
@@ -174,6 +205,90 @@ export class Game {
 
     // update() ist weiter unten definiert (einzelne Methode für alles)
 
+    _formatBuildTime() {
+        if (BUILD_TIME === 'dev') {
+            return {
+                short: 'dev',
+                iso: 'dev',
+                local: 'dev',
+            };
+        }
+
+        const parsed = new Date(BUILD_TIME);
+        const iso = Number.isNaN(parsed.getTime()) ? BUILD_TIME : parsed.toISOString();
+        const local = Number.isNaN(parsed.getTime())
+            ? BUILD_TIME
+            : parsed.toLocaleString('de-DE', { hour12: false });
+        const short = iso.slice(0, 16).replace('T', ' ');
+
+        return { short, iso, local };
+    }
+
+    _renderBuildInfo() {
+        const buildTime = this._formatBuildTime();
+        const shortInfo = `v${APP_VERSION} · Build ${BUILD_ID} · ${buildTime.short}`;
+        const detailInfo = [
+            `Version: v${APP_VERSION}`,
+            `Build-ID: ${BUILD_ID}`,
+            `Zeit (UTC): ${buildTime.iso}`,
+            `Zeit (lokal): ${buildTime.local}`,
+        ].join('\n');
+
+        if (this.ui.buildInfo) {
+            this.ui.buildInfo.textContent = shortInfo;
+        }
+        if (this.ui.buildInfoDetail) {
+            this.ui.buildInfoDetail.textContent = detailInfo;
+        }
+        this._buildInfoClipboardText = detailInfo;
+    }
+
+    _copyBuildInfoToClipboard() {
+        const payload = this._buildInfoClipboardText || `v${APP_VERSION} · Build ${BUILD_ID}`;
+        const fallbackCopy = () => {
+            const helper = document.createElement('textarea');
+            helper.value = payload;
+            helper.setAttribute('readonly', 'readonly');
+            helper.style.position = 'fixed';
+            helper.style.top = '-9999px';
+            document.body.appendChild(helper);
+            helper.select();
+            const copied = document.execCommand('copy');
+            document.body.removeChild(helper);
+            this._showStatusToast(copied ? 'Build-Info kopiert' : 'Kopieren nicht moeglich', 1400, copied ? 'success' : 'error');
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(payload)
+                .then(() => this._showStatusToast('Build-Info kopiert', 1400, 'success'))
+                .catch(() => fallbackCopy());
+            return;
+        }
+
+        fallbackCopy();
+    }
+
+    _getMenuSectionLabel(panelId) {
+        if (!panelId) return 'Hauptmenue';
+
+        const linkedButton = this._menuButtonByPanel.get(panelId);
+        if (linkedButton) {
+            return (linkedButton.textContent || '').replace(/\s+/g, ' ').trim();
+        }
+
+        const panelTitle = document.querySelector(`#${panelId} .submenu-title`);
+        return (panelTitle?.textContent || 'Untermenue').replace(/\s+/g, ' ').trim();
+    }
+
+    _updateMenuContext() {
+        if (!this.ui.menuContext) return;
+
+        const section = this._getMenuSectionLabel(this._activeSubmenu);
+        const activeProfile = this.activeProfileName || this._normalizeProfileName(this.ui.profileNameInput?.value || '') || 'kein Profil';
+        const dirtyState = this.settingsDirty ? 'ungespeicherte Aenderungen' : 'alles gespeichert';
+        this.ui.menuContext.textContent = `${section} · Profil: ${activeProfile} · ${dirtyState}`;
+    }
+
     _createDefaultSettings() {
         return {
             mode: '1p',
@@ -203,7 +318,8 @@ export class Game {
                 lockOnAngle: 15,
                 planarMode: false,
                 portalCount: 0,
-                portalBeams: true,
+                planarLevelCount: 5,
+                portalBeams: false,
             },
             controls: this._cloneDefaultControls(),
         };
@@ -236,65 +352,127 @@ export class Game {
         return out;
     }
 
-    _loadSettings() {
+    _sanitizeSettings(saved) {
         const defaults = this._createDefaultSettings();
+        const src = saved && typeof saved === 'object' ? saved : {};
+        const merged = deepClone(defaults);
 
+        merged.mode = src.mode === '2p' ? '2p' : '1p';
+        merged.mapKey = CONFIG.MAPS[src.mapKey] ? src.mapKey : defaults.mapKey;
+        merged.numBots = clamp(parseInt(src.numBots ?? defaults.numBots, 10), 0, 8);
+        merged.botDifficulty = ['EASY', 'NORMAL', 'HARD'].includes(src.botDifficulty)
+            ? src.botDifficulty
+            : defaults.botDifficulty;
+        merged.winsNeeded = clamp(parseInt(src.winsNeeded ?? defaults.winsNeeded, 10), 1, 15);
+        merged.autoRoll = typeof src.autoRoll === 'boolean' ? src.autoRoll : defaults.autoRoll;
+
+        merged.invertPitch.PLAYER_1 = !!src?.invertPitch?.PLAYER_1;
+        merged.invertPitch.PLAYER_2 = !!src?.invertPitch?.PLAYER_2;
+        merged.cockpitCamera.PLAYER_1 = !!src?.cockpitCamera?.PLAYER_1;
+        merged.cockpitCamera.PLAYER_2 = !!src?.cockpitCamera?.PLAYER_2;
+        merged.portalsEnabled = src?.portalsEnabled !== undefined ? !!src.portalsEnabled : defaults.portalsEnabled;
+
+        merged.gameplay.speed = clamp(parseFloat(src?.gameplay?.speed ?? defaults.gameplay.speed), 8, 40);
+        merged.gameplay.turnSensitivity = clamp(parseFloat(src?.gameplay?.turnSensitivity ?? defaults.gameplay.turnSensitivity), 0.8, 5);
+        merged.gameplay.planeScale = clamp(parseFloat(src?.gameplay?.planeScale ?? defaults.gameplay.planeScale), 0.6, 2.0);
+        merged.gameplay.trailWidth = clamp(parseFloat(src?.gameplay?.trailWidth ?? defaults.gameplay.trailWidth), 0.2, 2.5);
+        merged.gameplay.gapSize = clamp(parseFloat(src?.gameplay?.gapSize ?? defaults.gameplay.gapSize), 0.05, 1.5);
+        merged.gameplay.gapFrequency = clamp(parseFloat(src?.gameplay?.gapFrequency ?? defaults.gameplay.gapFrequency), 0, 0.25);
+        merged.gameplay.itemAmount = clamp(parseInt(src?.gameplay?.itemAmount ?? defaults.gameplay.itemAmount, 10), 1, 20);
+        merged.gameplay.fireRate = clamp(parseFloat(src?.gameplay?.fireRate ?? defaults.gameplay.fireRate), 0.1, 2.0);
+        merged.gameplay.lockOnAngle = clamp(parseInt(src?.gameplay?.lockOnAngle ?? defaults.gameplay.lockOnAngle, 10), 5, 45);
+        merged.gameplay.planarMode = !!(src?.gameplay?.planarMode ?? defaults.gameplay.planarMode);
+        merged.gameplay.portalCount = clamp(parseInt(src?.gameplay?.portalCount ?? defaults.gameplay.portalCount, 10), 0, 20);
+        merged.gameplay.planarLevelCount = clamp(parseInt(src?.gameplay?.planarLevelCount ?? defaults.gameplay.planarLevelCount, 10), 2, 10);
+        merged.gameplay.portalBeams = false;
+
+        merged.controls.PLAYER_1 = this._normalizePlayerControls(src?.controls?.PLAYER_1, defaults.controls.PLAYER_1);
+        merged.controls.PLAYER_2 = this._normalizePlayerControls(src?.controls?.PLAYER_2, defaults.controls.PLAYER_2);
+
+        return merged;
+    }
+
+    _loadSettings() {
         try {
-            const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-            if (!raw) {
-                return defaults;
+            const keys = [SETTINGS_STORAGE_KEY, ...SETTINGS_STORAGE_LEGACY_KEYS];
+            for (const key of keys) {
+                const raw = localStorage.getItem(key);
+                if (!raw) continue;
+                const saved = JSON.parse(raw);
+                return this._sanitizeSettings(saved);
             }
-            const saved = JSON.parse(raw);
-
-            const merged = deepClone(defaults);
-
-            merged.mode = saved.mode === '2p' ? '2p' : '1p';
-            merged.mapKey = CONFIG.MAPS[saved.mapKey] ? saved.mapKey : defaults.mapKey;
-            merged.numBots = clamp(parseInt(saved.numBots ?? defaults.numBots, 10), 0, 8);
-            merged.botDifficulty = ['EASY', 'NORMAL', 'HARD'].includes(saved.botDifficulty)
-                ? saved.botDifficulty
-                : defaults.botDifficulty;
-            merged.winsNeeded = clamp(parseInt(saved.winsNeeded ?? defaults.winsNeeded, 10), 1, 15);
-            merged.autoRoll = typeof saved.autoRoll === 'boolean' ? saved.autoRoll : defaults.autoRoll;
-
-            merged.invertPitch.PLAYER_1 = !!saved?.invertPitch?.PLAYER_1;
-            merged.invertPitch.PLAYER_2 = !!saved?.invertPitch?.PLAYER_2;
-
-            merged.cockpitCamera.PLAYER_1 = !!saved?.cockpitCamera?.PLAYER_1;
-            merged.cockpitCamera.PLAYER_2 = !!saved?.cockpitCamera?.PLAYER_2;
-
-            merged.portalsEnabled = saved?.portalsEnabled !== undefined ? !!saved.portalsEnabled : defaults.portalsEnabled;
-
-            merged.gameplay.speed = clamp(parseFloat(saved?.gameplay?.speed ?? defaults.gameplay.speed), 8, 40);
-            merged.gameplay.turnSensitivity = clamp(parseFloat(saved?.gameplay?.turnSensitivity ?? defaults.gameplay.turnSensitivity), 0.8, 5);
-            merged.gameplay.planeScale = clamp(parseFloat(saved?.gameplay?.planeScale ?? defaults.gameplay.planeScale), 0.6, 2.0);
-            merged.gameplay.trailWidth = clamp(parseFloat(saved?.gameplay?.trailWidth ?? defaults.gameplay.trailWidth), 0.2, 2.5);
-            merged.gameplay.gapSize = clamp(parseFloat(saved?.gameplay?.gapSize ?? defaults.gameplay.gapSize), 0.05, 1.5);
-            merged.gameplay.gapFrequency = clamp(parseFloat(saved?.gameplay?.gapFrequency ?? defaults.gameplay.gapFrequency), 0, 0.25);
-            merged.gameplay.itemAmount = clamp(parseInt(saved?.gameplay?.itemAmount ?? defaults.gameplay.itemAmount, 10), 1, 20);
-            merged.gameplay.fireRate = clamp(parseFloat(saved?.gameplay?.fireRate ?? defaults.gameplay.fireRate), 0.1, 2.0);
-            merged.gameplay.lockOnAngle = clamp(parseInt(saved?.gameplay?.lockOnAngle ?? defaults.gameplay.lockOnAngle, 10), 5, 45);
-            merged.gameplay.planarMode = !!(saved?.gameplay?.planarMode ?? defaults.gameplay.planarMode);
-            merged.gameplay.portalCount = clamp(parseInt(saved?.gameplay?.portalCount ?? defaults.gameplay.portalCount, 10), 0, 20);
-            merged.gameplay.portalBeams = saved?.gameplay?.portalBeams !== undefined
-                ? !!saved.gameplay.portalBeams
-                : defaults.gameplay.portalBeams;
-
-            merged.controls.PLAYER_1 = this._normalizePlayerControls(saved?.controls?.PLAYER_1, defaults.controls.PLAYER_1);
-            merged.controls.PLAYER_2 = this._normalizePlayerControls(saved?.controls?.PLAYER_2, defaults.controls.PLAYER_2);
-
-            return merged;
         } catch {
-            return defaults;
+            // Ignore malformed storage and fall back to defaults.
         }
+        return this._createDefaultSettings();
     }
 
     _saveSettings() {
         try {
             localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(this.settings));
+            this._markSettingsDirty(false);
         } catch {
             // Ignore persistence errors (private mode, quotas, etc.)
         }
+    }
+
+    _loadProfiles() {
+        try {
+            const raw = localStorage.getItem(SETTINGS_PROFILES_STORAGE_KEY);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+
+            const out = [];
+            const used = new Set();
+            for (const entry of parsed) {
+                const name = this._normalizeProfileName(entry?.name || '');
+                const key = this._getProfileNameKey(name);
+                if (!name || used.has(key)) continue;
+                used.add(key);
+                out.push({
+                    name,
+                    updatedAt: Number(entry?.updatedAt || Date.now()),
+                    settings: this._sanitizeSettings(entry?.settings || {}),
+                });
+            }
+            out.sort((a, b) => b.updatedAt - a.updatedAt);
+            return out;
+        } catch {
+            return [];
+        }
+    }
+
+    _saveProfiles() {
+        try {
+            localStorage.setItem(SETTINGS_PROFILES_STORAGE_KEY, JSON.stringify(this.settingsProfiles));
+            return true;
+        } catch {
+            // Ignore persistence errors.
+            return false;
+        }
+    }
+
+    _normalizeProfileName(rawName) {
+        return String(rawName || '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .slice(0, 32);
+    }
+
+    _getProfileNameKey(rawName) {
+        return this._normalizeProfileName(rawName).toLocaleLowerCase();
+    }
+
+    _findProfileIndexByName(profileName) {
+        const key = this._getProfileNameKey(profileName);
+        if (!key) return -1;
+        return this.settingsProfiles.findIndex((profile) => this._getProfileNameKey(profile.name) === key);
+    }
+
+    _findProfileByName(profileName) {
+        const index = this._findProfileIndexByName(profileName);
+        return index >= 0 ? this.settingsProfiles[index] : null;
     }
 
     _applySettingsToRuntime() {
@@ -312,6 +490,7 @@ export class Game {
         if (this.settings.gameplay) {
             CONFIG.GAMEPLAY.PLANAR_MODE = !!this.settings.gameplay.planarMode;
             CONFIG.GAMEPLAY.PORTAL_COUNT = this.settings.gameplay.portalCount || 0;
+            CONFIG.GAMEPLAY.PLANAR_LEVEL_COUNT = clamp(parseInt(this.settings.gameplay.planarLevelCount ?? 5, 10), 2, 10);
         }
 
         CONFIG.TRAIL.WIDTH = this.settings.gameplay.trailWidth;
@@ -322,7 +501,7 @@ export class Game {
         CONFIG.PROJECTILE.COOLDOWN = this.settings.gameplay.fireRate;
 
         if (this.settings.gameplay) {
-            CONFIG.GAMEPLAY.PORTAL_BEAMS = this.settings.gameplay.portalBeams !== undefined ? !!this.settings.gameplay.portalBeams : true;
+            CONFIG.GAMEPLAY.PORTAL_BEAMS = false;
         }
 
         CONFIG.BOT.ACTIVE_DIFFICULTY = this.settings.botDifficulty || CONFIG.BOT.DEFAULT_DIFFICULTY;
@@ -482,12 +661,59 @@ export class Game {
 
         this.ui.saveKeysButton.addEventListener('click', () => {
             this._saveSettings();
-            this._showStatusToast('💾 Alle Einstellungen gespeichert!');
+            this._showStatusToast('Einstellungen gespeichert');
         });
 
         this.ui.startButton.addEventListener('click', () => {
             this.startMatch();
         });
+
+        if (this.ui.profileSaveButton) {
+            this.ui.profileSaveButton.addEventListener('click', () => {
+                this._saveProfile(this.ui.profileNameInput?.value || '');
+            });
+        }
+        if (this.ui.profileLoadButton) {
+            this.ui.profileLoadButton.addEventListener('click', () => {
+                const selected = this._normalizeProfileName(this.ui.profileSelect?.value || '');
+                if (!selected) {
+                    this._showStatusToast('Profil auswaehlen', 1400, 'error');
+                    return;
+                }
+                this._loadProfile(selected);
+            });
+        }
+        if (this.ui.profileDeleteButton) {
+            this.ui.profileDeleteButton.addEventListener('click', () => {
+                const selected = this._normalizeProfileName(this.ui.profileSelect?.value || '');
+                if (!selected) {
+                    this._showStatusToast('Profil auswaehlen', 1400, 'error');
+                    return;
+                }
+                this._deleteProfile(selected);
+            });
+        }
+        if (this.ui.profileSelect) {
+            this.ui.profileSelect.addEventListener('change', () => {
+                const selected = this._normalizeProfileName(this.ui.profileSelect.value || '');
+                const selectedProfile = this._findProfileByName(selected);
+                this.activeProfileName = selectedProfile ? selectedProfile.name : '';
+                if (this.ui.profileNameInput) {
+                    this.ui.profileNameInput.value = this.activeProfileName;
+                }
+                this._syncProfileActionState();
+            });
+        }
+        if (this.ui.profileNameInput) {
+            this.ui.profileNameInput.addEventListener('input', () => {
+                this._syncProfileActionState();
+            });
+            this.ui.profileNameInput.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                this._saveProfile(this.ui.profileNameInput.value || '');
+            });
+        }
 
         const portalCountSlider = document.getElementById('portal-count-slider');
         const portalCountLabel = document.getElementById('portal-count-label');
@@ -500,11 +726,163 @@ export class Game {
                 this._onSettingsChanged();
             });
         }
+
+        const planarLevelCountSlider = document.getElementById('planar-level-count-slider');
+        const planarLevelCountLabel = document.getElementById('planar-level-count-label');
+        if (planarLevelCountSlider && planarLevelCountLabel) {
+            planarLevelCountSlider.addEventListener('input', (e) => {
+                const val = clamp(parseInt(e.target.value, 10), 2, 10);
+                planarLevelCountLabel.textContent = val;
+                if (!this.settings.gameplay) this.settings.gameplay = {};
+                this.settings.gameplay.planarLevelCount = val;
+                this._onSettingsChanged();
+            });
+        }
+
+        if (this.ui.copyBuildButton) {
+            this.ui.copyBuildButton.addEventListener('click', () => {
+                this._copyBuildInfoToClipboard();
+            });
+        }
+    }
+
+    _setupMenuNavigation() {
+        this._menuNav = document.getElementById('menu-nav');
+        this._submenuPanels = Array.from(document.querySelectorAll('.submenu-panel'));
+        this._activeSubmenu = null;
+        this._navButtons = Array.from(document.querySelectorAll('.nav-btn[data-submenu]'));
+        this._menuButtonByPanel.clear();
+
+        for (const panel of this._submenuPanels) {
+            panel.setAttribute('aria-hidden', panel.classList.contains('hidden') ? 'true' : 'false');
+        }
+
+        // Nav-Buttons → Untermenü öffnen
+        for (const btn of this._navButtons) {
+            const panelId = btn.dataset.submenu;
+            if (panelId) {
+                this._menuButtonByPanel.set(panelId, btn);
+            }
+            btn.setAttribute('aria-expanded', 'false');
+            btn.addEventListener('click', () => {
+                this._lastMenuTrigger = btn;
+                this._showSubmenu(panelId);
+            });
+        }
+
+        if (this._menuNav) {
+            this._menuNav.addEventListener('keydown', (e) => {
+                const navKeys = ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'];
+                if (!navKeys.includes(e.key)) return;
+
+                const currentIndex = this._navButtons.indexOf(document.activeElement);
+                if (currentIndex < 0) return;
+
+                e.preventDefault();
+                if (e.key === 'Home') {
+                    this._navButtons[0]?.focus();
+                    return;
+                }
+                if (e.key === 'End') {
+                    this._navButtons[this._navButtons.length - 1]?.focus();
+                    return;
+                }
+
+                const step = (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 1;
+                this._focusNextNavButton(currentIndex, step);
+            });
+        }
+
+        // Zurück-Buttons → Hauptnavigation
+        const backBtns = document.querySelectorAll('.back-btn[data-back]');
+        for (const btn of backBtns) {
+            btn.addEventListener('click', () => {
+                this._showMainNav();
+            });
+        }
+
+        // ESC im Menü → Zurück zur Hauptnavigation
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Escape' && this.state === 'MENU' && this._activeSubmenu) {
+                e.preventDefault();
+                this._showMainNav();
+            }
+        });
+
+        this._updateMenuNavState();
+        this._updateMenuContext();
+    }
+
+    _focusNextNavButton(currentIndex, step) {
+        if (!this._navButtons.length) return;
+        const length = this._navButtons.length;
+        const nextIndex = (currentIndex + step + length) % length;
+        this._navButtons[nextIndex]?.focus();
+    }
+
+    _updateMenuNavState() {
+        for (const btn of this._navButtons) {
+            const panelId = btn.dataset.submenu;
+            const isActive = !!this._activeSubmenu && panelId === this._activeSubmenu;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+        }
+    }
+
+    _focusFirstInSubmenu(panel) {
+        if (!panel) return;
+        const focusTarget = panel.querySelector(
+            'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusTarget) {
+            focusTarget.focus();
+        }
+    }
+
+    _showSubmenu(panelId) {
+        if (!panelId) return;
+
+        if (this._menuNav) {
+            this._menuNav.classList.add('hidden');
+            this._menuNav.setAttribute('aria-hidden', 'true');
+        }
+        for (const panel of this._submenuPanels) {
+            panel.classList.add('hidden');
+            panel.setAttribute('aria-hidden', 'true');
+        }
+        const target = document.getElementById(panelId);
+        if (target) {
+            target.classList.remove('hidden');
+            target.setAttribute('aria-hidden', 'false');
+            this._activeSubmenu = panelId;
+            this._updateMenuNavState();
+            this._focusFirstInSubmenu(target);
+            this._updateMenuContext();
+        }
+    }
+
+    _showMainNav() {
+        for (const panel of this._submenuPanels) {
+            panel.classList.add('hidden');
+            panel.setAttribute('aria-hidden', 'true');
+        }
+        if (this._menuNav) {
+            this._menuNav.classList.remove('hidden');
+            this._menuNav.setAttribute('aria-hidden', 'false');
+        }
+        this._activeSubmenu = null;
+        this._updateMenuNavState();
+        this._updateMenuContext();
+
+        const focusTarget = this._lastMenuTrigger || this._navButtons[0];
+        if (focusTarget && this.state === 'MENU') {
+            focusTarget.focus();
+        }
     }
 
     _onSettingsChanged() {
         this._applySettingsToRuntime();
-        this._saveSettings();
+        this._markSettingsDirty(true);
         this._syncMenuControls();
     }
 
@@ -536,9 +914,6 @@ export class Game {
         }
 
         this.ui.portalsToggle.checked = this.settings.portalsEnabled;
-        if (this.ui.portalBeamsToggle) {
-            this.ui.portalBeamsToggle.checked = this.settings.gameplay.portalBeams !== false;
-        }
 
         const portalCountSlider = document.getElementById('portal-count-slider');
         const portalCountLabel = document.getElementById('portal-count-label');
@@ -546,6 +921,14 @@ export class Game {
             const val = this.settings.gameplay?.portalCount || 0;
             portalCountSlider.value = val;
             portalCountLabel.textContent = val;
+        }
+
+        const planarLevelCountSlider = document.getElementById('planar-level-count-slider');
+        const planarLevelCountLabel = document.getElementById('planar-level-count-label');
+        if (planarLevelCountSlider && planarLevelCountLabel) {
+            const val = clamp(parseInt(this.settings.gameplay?.planarLevelCount ?? 5, 10), 2, 10);
+            planarLevelCountSlider.value = val;
+            planarLevelCountLabel.textContent = val;
         }
 
         this.ui.speedSlider.value = String(this.settings.gameplay.speed);
@@ -577,6 +960,165 @@ export class Game {
 
         this._renderKeybindEditor();
         this._syncP2HudVisibility();
+        this._syncProfileControls();
+        this._updateSaveButtonState();
+    }
+
+    _markSettingsDirty(isDirty) {
+        this.settingsDirty = !!isDirty;
+        this._updateSaveButtonState();
+    }
+
+    _updateSaveButtonState() {
+        if (!this.ui?.saveKeysButton) return;
+        this.ui.saveKeysButton.classList.toggle('unsaved', this.settingsDirty);
+        this.ui.saveKeysButton.textContent = this.settingsDirty
+            ? '💾 Einstellungen explizit speichern *'
+            : '💾 Einstellungen explizit speichern';
+        this._updateMenuContext();
+    }
+
+    _syncProfileControls() {
+        if (!this.ui.profileSelect) return;
+
+        const selectedName = this._normalizeProfileName(this.activeProfileName || this.ui.profileSelect.value || '');
+        const sortedProfiles = [...this.settingsProfiles].sort((a, b) => b.updatedAt - a.updatedAt);
+        this.ui.profileSelect.innerHTML = '';
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Kein Profil gewaehlt';
+        this.ui.profileSelect.appendChild(placeholder);
+
+        for (const profile of sortedProfiles) {
+            const opt = document.createElement('option');
+            opt.value = profile.name;
+            opt.textContent = profile.name;
+            this.ui.profileSelect.appendChild(opt);
+        }
+
+        const validSelectedProfile = this._findProfileByName(selectedName);
+        const validSelected = validSelectedProfile ? validSelectedProfile.name : '';
+        this.activeProfileName = validSelected;
+        this.ui.profileSelect.value = validSelected;
+
+        if (this.ui.profileNameInput && !document.activeElement?.isSameNode(this.ui.profileNameInput)) {
+            this.ui.profileNameInput.value = validSelected;
+        }
+        this._syncProfileActionState();
+    }
+
+    _syncProfileActionState() {
+        const selectedProfile = this._findProfileByName(this.ui.profileSelect?.value || this.activeProfileName || '');
+        const typedName = this._normalizeProfileName(this.ui.profileNameInput?.value || '');
+        const typedProfileIdx = this._findProfileIndexByName(typedName);
+        const activeProfileIdx = this._findProfileIndexByName(this.activeProfileName);
+        const canUpdateActive = typedName && typedProfileIdx >= 0 && typedProfileIdx === activeProfileIdx;
+
+        if (this.ui.profileLoadButton) {
+            this.ui.profileLoadButton.disabled = !selectedProfile;
+        }
+        if (this.ui.profileDeleteButton) {
+            this.ui.profileDeleteButton.disabled = !selectedProfile;
+        }
+        if (this.ui.profileSaveButton) {
+            this.ui.profileSaveButton.disabled = !typedName;
+            if (!typedName) {
+                this.ui.profileSaveButton.textContent = 'Profil unter Namen speichern';
+            } else if (canUpdateActive) {
+                this.ui.profileSaveButton.textContent = 'Aktives Profil aktualisieren';
+            } else if (typedProfileIdx >= 0) {
+                this.ui.profileSaveButton.textContent = 'Name bereits vergeben';
+            } else {
+                this.ui.profileSaveButton.textContent = 'Neues Profil speichern';
+            }
+        }
+        this._updateMenuContext();
+    }
+
+    _saveProfile(profileName) {
+        const name = this._normalizeProfileName(profileName);
+        if (!name) {
+            this._showStatusToast('Profilname fehlt', 1400, 'error');
+            return false;
+        }
+
+        const idx = this._findProfileIndexByName(name);
+        const activeIdx = this._findProfileIndexByName(this.activeProfileName);
+        const canOverwrite = idx >= 0 && idx === activeIdx;
+        if (idx >= 0 && !canOverwrite) {
+            this._showStatusToast('Name existiert bereits', 1500, 'error');
+            return false;
+        }
+
+        const isUpdate = idx >= 0;
+        const entry = {
+            name,
+            updatedAt: Date.now(),
+            settings: deepClone(this.settings),
+        };
+
+        if (idx >= 0) {
+            this.settingsProfiles[idx] = entry;
+        } else {
+            this.settingsProfiles.push(entry);
+        }
+
+        this.activeProfileName = name;
+        const persisted = this._saveProfiles();
+        this._syncProfileControls();
+        if (!persisted) {
+            this._showStatusToast('Profil konnte nicht gespeichert werden', 1700, 'error');
+            return false;
+        }
+
+        this._showStatusToast(
+            isUpdate ? `Profil aktualisiert: ${name}` : `Profil gespeichert: ${name}`,
+            1500,
+            'success'
+        );
+        return true;
+    }
+
+    _loadProfile(profileName) {
+        const name = this._normalizeProfileName(profileName);
+        const profile = this._findProfileByName(name);
+        if (!profile) {
+            this._showStatusToast('Profil nicht gefunden', 1500, 'error');
+            return false;
+        }
+
+        this.settings = this._sanitizeSettings(profile.settings);
+        this.activeProfileName = profile.name;
+        this._onSettingsChanged();
+        this._markSettingsDirty(false);
+        this._showStatusToast(`Profil geladen: ${profile.name}`, 1400, 'success');
+        return true;
+    }
+
+    _deleteProfile(profileName) {
+        const name = this._normalizeProfileName(profileName);
+        const index = this._findProfileIndexByName(name);
+        if (index < 0) {
+            this._showStatusToast('Profil nicht gefunden', 1500, 'error');
+            return false;
+        }
+
+        const removedName = this.settingsProfiles[index].name;
+        this.settingsProfiles.splice(index, 1);
+
+        if (this._findProfileIndexByName(this.activeProfileName) < 0) {
+            this.activeProfileName = '';
+        }
+        const persisted = this._saveProfiles();
+        this._syncProfileControls();
+        if (!persisted) {
+            this._showStatusToast('Profil konnte nicht geloescht werden', 1700, 'error');
+            return false;
+        }
+
+        this._showStatusToast(`Profil geloescht: ${removedName}`, 1400, 'success');
+        return true;
     }
 
     _renderKeybindEditor() {
@@ -714,11 +1256,13 @@ export class Game {
         return code;
     }
 
-    _showStatusToast(message, durationMs = 1200) {
+    _showStatusToast(message, durationMs = 1200, tone = 'info') {
         if (!this.ui.statusToast) return;
 
+        const normalizedTone = tone === 'success' || tone === 'error' ? tone : 'info';
         this.ui.statusToast.textContent = message;
-        this.ui.statusToast.classList.remove('hidden', 'show');
+        this.ui.statusToast.classList.remove('hidden', 'show', 'toast-info', 'toast-success', 'toast-error');
+        this.ui.statusToast.classList.add(`toast-${normalizedTone}`);
         // Restart animation on repeated calls.
         void this.ui.statusToast.offsetWidth;
         this.ui.statusToast.classList.add('show');
@@ -727,6 +1271,7 @@ export class Game {
             clearTimeout(this.toastTimeout);
         }
         this.toastTimeout = setTimeout(() => {
+            this.ui.statusToast.classList.remove('show');
             this.ui.statusToast.classList.add('hidden');
         }, durationMs);
     }
@@ -808,24 +1353,16 @@ export class Game {
 
     _startRound() {
         this.state = 'PLAYING';
+        this._hudTimer = 0;
 
-        // Fadenkreuz anzeigen und positionieren
+        // Crosshair initial reset (visibility is updated dynamically per mode)
         if (this.ui.crosshairP1) {
-            this.ui.crosshairP1.style.display = 'block';
-            this.ui.crosshairP1.classList.remove('p1-split');
+            this.ui.crosshairP1.style.display = 'none';
         }
         if (this.ui.crosshairP2) {
             this.ui.crosshairP2.style.display = 'none';
-            this.ui.crosshairP2.classList.remove('p2-split');
         }
 
-        if (this.numHumans === 2) {
-            if (this.ui.crosshairP1) this.ui.crosshairP1.classList.add('p1-split');
-            if (this.ui.crosshairP2) {
-                this.ui.crosshairP2.style.display = 'block';
-                this.ui.crosshairP2.classList.add('p2-split');
-            }
-        }
         this.roundPause = 0;
 
         for (const p of this.entityManager.players) {
@@ -837,6 +1374,9 @@ export class Game {
         this.recorder.startRound(this.entityManager.players);
 
         this.entityManager.spawnAll();
+        for (const player of this.entityManager.getHumanPlayers()) {
+            player.planarAimOffset = 0;
+        }
 
         this.gameLoop.setTimeScale(1.0);
         this.ui.messageOverlay.classList.add('hidden');
@@ -953,6 +1493,116 @@ export class Game {
         }
     }
 
+    _getPlanarAimAxis(playerIndex) {
+        const controls = this.settings.controls;
+        const p1 = controls.PLAYER_1;
+        const p2 = controls.PLAYER_2;
+
+        let up = false;
+        let down = false;
+
+        if (this.numHumans === 1 && playerIndex === 0) {
+            up = this.input.isDown(p1.UP) || this.input.isDown(p2.UP);
+            down = this.input.isDown(p1.DOWN) || this.input.isDown(p2.DOWN);
+        } else {
+            const map = playerIndex === 0 ? p1 : p2;
+            up = this.input.isDown(map.UP);
+            down = this.input.isDown(map.DOWN);
+        }
+
+        return (down ? 1 : 0) - (up ? 1 : 0);
+    }
+
+    _updatePlanarAimAssist(dt) {
+        if (!this.entityManager) return;
+
+        const inputSpeed = CONFIG.GAMEPLAY.PLANAR_AIM_INPUT_SPEED || 1.5;
+        const returnSpeed = CONFIG.GAMEPLAY.PLANAR_AIM_RETURN_SPEED || 0.6;
+        const isPlanar = !!CONFIG.GAMEPLAY.PLANAR_MODE;
+
+        for (const player of this.entityManager.getHumanPlayers()) {
+            const axis = isPlanar ? this._getPlanarAimAxis(player.index) : 0;
+            let offset = player.planarAimOffset || 0;
+
+            if (axis !== 0) {
+                offset += axis * inputSpeed * dt;
+            } else {
+                const recover = 1 - Math.exp(-returnSpeed * dt);
+                offset += (0 - offset) * recover;
+            }
+
+            player.planarAimOffset = clamp(offset, -1, 1);
+        }
+    }
+
+    _updateCrosshairPosition(player, crosshairElement) {
+        if (!player || !player.alive || !crosshairElement) {
+            if (crosshairElement) crosshairElement.style.display = 'none';
+            return;
+        }
+
+        const camera = this.renderer.cameras[player.index];
+        if (!camera) {
+            crosshairElement.style.display = 'none';
+            return;
+        }
+        crosshairElement.style.display = 'block';
+
+        const screenW = window.innerWidth;
+        const screenH = window.innerHeight;
+        const split = this.numHumans === 2;
+        const viewportW = split ? screenW * 0.5 : screenW;
+        const viewportX = split ? (player.index === 0 ? 0 : viewportW) : 0;
+
+        player.getAimDirection(this._tmpAimDir);
+        this._tmpAimVec.copy(player.position).addScaledVector(this._tmpAimDir, 80).project(camera);
+
+        const ndcX = clamp(this._tmpAimVec.x, -1.05, 1.05);
+        const ndcY = clamp(this._tmpAimVec.y, -1.05, 1.05);
+        const x = viewportX + (ndcX * 0.5 + 0.5) * viewportW;
+        const y = (-(ndcY * 0.5) + 0.5) * screenH;
+
+        this._tmpRollEuler.setFromQuaternion(player.quaternion, 'YXZ');
+        const rollDeg = THREE.MathUtils.radToDeg(this._tmpRollEuler.z);
+
+        crosshairElement.style.left = `${x}px`;
+        crosshairElement.style.top = `${y}px`;
+        crosshairElement.style.transform = `translate(-50%, -50%) rotate(${rollDeg.toFixed(2)}deg)`;
+    }
+
+    _updateCrosshairs() {
+        if (!this.entityManager) return;
+
+        const p1 = this.entityManager.players[0];
+        const p2 = this.entityManager.players[1];
+        const planarMode = !!CONFIG.GAMEPLAY.PLANAR_MODE;
+        const shouldShowScreenCrosshair = (player) => {
+            if (!player) return false;
+            if (planarMode) return true;
+            const camMode = CONFIG.CAMERA.MODES[player.cameraMode] || 'THIRD_PERSON';
+            return camMode !== 'FIRST_PERSON';
+        };
+
+        if (this.ui.crosshairP1) {
+            if (shouldShowScreenCrosshair(p1)) {
+                this._updateCrosshairPosition(p1, this.ui.crosshairP1);
+            } else {
+                this.ui.crosshairP1.style.display = 'none';
+            }
+        }
+        if (this.ui.crosshairP2) {
+            if (this.numHumans === 2) {
+                if (shouldShowScreenCrosshair(p2)) {
+                    this._updateCrosshairPosition(p2, this.ui.crosshairP2);
+                } else {
+                    this.ui.crosshairP2.style.display = 'none';
+                }
+            } else {
+                this.ui.crosshairP2.style.display = 'none';
+            }
+        }
+    }
+
     update(dt) {
         // FPS-Tracker (immer aktiv, kein Performance-Overhead)
         this._fpsTracker.update(dt);
@@ -1003,11 +1653,13 @@ export class Game {
                 return;
             }
 
+            this._updatePlanarAimAssist(dt);
             this.entityManager.update(dt, this.input);
             this.powerupManager.update(dt);
             this.particles.update(dt);
             this.arena.update(dt);
             this.entityManager.updateCameras(dt);
+            this._updateCrosshairs();
 
             // HUD nur alle ~200ms aktualisieren (reicht für UI)
             this._hudTimer += dt;
@@ -1102,12 +1754,23 @@ export class Game {
         this.entityManager = null;
         this.powerupManager = null;
         this.ui.mainMenu.classList.remove('hidden');
+        this._showMainNav(); // Reset to main navigation
         this.ui.hud.classList.add('hidden');
         this.ui.messageOverlay.classList.add('hidden');
         this.ui.statusToast.classList.add('hidden');
         // Fadenkreuz verstecken
-        if (this.ui.crosshairP1) this.ui.crosshairP1.style.display = 'none';
-        if (this.ui.crosshairP2) this.ui.crosshairP2.style.display = 'none';
+        if (this.ui.crosshairP1) {
+            this.ui.crosshairP1.style.display = 'none';
+            this.ui.crosshairP1.style.left = '50%';
+            this.ui.crosshairP1.style.top = '50%';
+            this.ui.crosshairP1.style.transform = 'translate(-50%, -50%) rotate(0deg)';
+        }
+        if (this.ui.crosshairP2) {
+            this.ui.crosshairP2.style.display = 'none';
+            this.ui.crosshairP2.style.left = '50%';
+            this.ui.crosshairP2.style.top = '50%';
+            this.ui.crosshairP2.style.transform = 'translate(-50%, -50%) rotate(0deg)';
+        }
         this._syncMenuControls();
     }
     _showDebugLog(recorderDump) {

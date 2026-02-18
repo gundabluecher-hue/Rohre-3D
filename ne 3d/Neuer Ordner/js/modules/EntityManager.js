@@ -66,6 +66,7 @@ export class EntityManager {
         this._tmpVec2 = new THREE.Vector3();
         this._tmpDir = new THREE.Vector3();
         this._tmpDir2 = new THREE.Vector3();
+        this._tmpCamAnchor = new THREE.Vector3();
 
         // Lock-On Cache (einmal pro Frame berechnen)
         this._lockOnCache = new Map();
@@ -118,8 +119,11 @@ export class EntityManager {
 
     spawnAll() {
         this._roundEnded = false;
+        const isPlanar = !!CONFIG.GAMEPLAY.PLANAR_MODE;
+        const planarSpawnLevel = isPlanar ? this._getPlanarSpawnLevel() : null;
+
         for (const player of this.players) {
-            const pos = this._findSpawnPosition(12, 12);
+            const pos = this._findSpawnPosition(12, 12, planarSpawnLevel);
             const dir = this._findSafeSpawnDirection(pos);
             player.spawn(pos, dir);
             player.shootCooldown = 0;
@@ -130,9 +134,49 @@ export class EntityManager {
         }
     }
 
-    _findSpawnPosition(minDistance = 12, margin = 12) {
+    _getPlanarSpawnLevel() {
+        const bounds = this.arena?.bounds || null;
+        const fallback = bounds
+            ? (bounds.minY + bounds.maxY) * 0.5
+            : (CONFIG.PLAYER.START_Y || 5);
+
+        // User rule: with 0 portals, everyone starts on the arena middle level.
+        const hasPortals = Array.isArray(this.arena?.portals) && this.arena.portals.length > 0;
+        if (!hasPortals) {
+            return fallback;
+        }
+
+        if (!this.arena?.getPortalLevels) {
+            return fallback;
+        }
+
+        const levels = this.arena.getPortalLevels();
+        if (!Array.isArray(levels) || levels.length === 0) {
+            return fallback;
+        }
+
+        let best = fallback;
+        let bestDist = Infinity;
+        for (let i = 0; i < levels.length; i++) {
+            const value = levels[i];
+            if (!Number.isFinite(value)) continue;
+            const dist = Math.abs(value - fallback);
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = value;
+            }
+        }
+        return best;
+    }
+
+    _findSpawnPosition(minDistance = 12, margin = 12, planarLevel = null) {
+        const usePlanarLevel = Number.isFinite(planarLevel) && !!this.arena?.getRandomPositionOnLevel;
+        const randomSpawn = () => usePlanarLevel
+            ? this.arena.getRandomPositionOnLevel(planarLevel, margin)
+            : this.arena.getRandomPosition(margin);
+
         for (let attempts = 0; attempts < 100; attempts++) {
-            const pos = this.arena.getRandomPosition(margin);
+            const pos = randomSpawn();
             let tooClose = false;
 
             for (const other of this.players) {
@@ -148,7 +192,7 @@ export class EntityManager {
             }
         }
 
-        return this.arena.getRandomPosition(margin);
+        return randomSpawn();
     }
 
     _findSafeSpawnDirection(position) {
@@ -201,12 +245,14 @@ export class EntityManager {
             if (player.isBot) {
                 const botAI = this.botByPlayer.get(player);
                 if (botAI) {
-                    input = botAI.update(dt, player, this.arena, this.players);
+                    input = botAI.update(dt, player, this.arena, this.players, this.projectiles);
                 }
             } else {
-                input = inputManager.getPlayerInput(player.index);
+                const includeSecondaryBindings = this.humanPlayers.length === 1 && player.index === 0;
+                input = inputManager.getPlayerInput(player.index, { includeSecondaryBindings });
                 if (input.cameraSwitch) {
                     this.renderer.cycleCamera(player.index);
+                    player.cameraMode = this.renderer.cameraModes[player.index] || 0;
                 }
             }
 
@@ -289,6 +335,10 @@ export class EntityManager {
             const portalResult = this.arena.checkPortal(player.position, CONFIG.PLAYER.HITBOX_RADIUS, player.index);
             if (portalResult) {
                 player.position.copy(portalResult.target);
+
+                // Offset in Blickrichtung, um Loop zu vermeiden
+                player.getDirection(this._tmpVec).normalize().multiplyScalar(2.0);
+                player.position.add(this._tmpVec);
 
                 // Update Planar Level if in Planar Mode
                 if (CONFIG.GAMEPLAY.PLANAR_MODE) {
@@ -400,7 +450,7 @@ export class EntityManager {
             return { ok: false, reason: 'Item ungueltig' };
         }
 
-        player.getDirection(this._tmpDir).normalize();
+        player.getAimDirection(this._tmpDir).normalize();
         this._tmpVec.copy(player.position).addScaledVector(this._tmpDir, 2.2);
         const speed = CONFIG.PROJECTILE.SPEED;
         const radius = CONFIG.PROJECTILE.RADIUS;
@@ -599,6 +649,9 @@ export class EntityManager {
             const portalResult = this.arena.checkPortal(projectile.position, projectile.radius, 1000 + i);
             if (portalResult) {
                 projectile.position.copy(portalResult.target);
+                // Offset in Flugrichtung
+                this._tmpVec.copy(projectile.velocity).normalize().multiplyScalar(1.5);
+                projectile.position.add(this._tmpVec);
                 projectile.mesh.position.copy(projectile.position);
             }
 
@@ -875,7 +928,19 @@ export class EntityManager {
             if (!player.isBot && player.index < this.renderer.cameras.length) {
                 const pos = player.position;
                 const dir = player.alive ? player.getDirection(this._tmpDir2) : this._tmpDir2.set(0, 0, -1);
-                this.renderer.updateCamera(player.index, pos, dir, dt, player.quaternion, player.cockpitCamera);
+                const firstPersonAnchor = player.getFirstPersonCameraAnchor(this._tmpCamAnchor);
+                this.renderer.updateCamera(
+                    player.index,
+                    pos,
+                    dir,
+                    dt,
+                    player.quaternion,
+                    player.cockpitCamera,
+                    player.isBoosting,
+                    this.arena,
+                    firstPersonAnchor
+                );
+                player.cameraMode = this.renderer.cameraModes[player.index] || 0;
             }
         }
     }

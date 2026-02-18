@@ -12,6 +12,9 @@ export class HUD {
         // Elements
         this.horizon = this.container.querySelector('.hud-horizon');
         this.pitchLadder = this.container.querySelector('.hud-pitch-ladder');
+        this.centerCrosshair = this.container.querySelector('.hud-center-crosshair');
+        this.bankLine = this.container.querySelector('.hud-bank-line');
+        this.bankAngle = this.container.querySelector('.hud-bank-angle');
         this.speedValue = this.container.querySelector('#' + (playerIndex === 0 ? 'p1' : 'p2') + '-hud-speed');
         this.altValue = this.container.querySelector('#' + (playerIndex === 0 ? 'p1' : 'p2') + '-hud-alt');
         this.headingValue = this.container.querySelector('#' + (playerIndex === 0 ? 'p1' : 'p2') + '-hud-heading');
@@ -126,20 +129,36 @@ export class HUD {
 
         this.setVisibility(true);
 
-        // 1. Attitude (Roll & Pitch)
+        // 1. Attitude (Pitch + Heading)
+        // Horizon stays stabilized instead of rolling with camera.
         // Three.js Euler Order YXZ means: Y=Yaw, X=Pitch, Z=Roll
         const euler = new THREE.Euler().setFromQuaternion(player.quaternion, 'YXZ');
         const pitchDeg = THREE.MathUtils.radToDeg(euler.x);
-        const rollDeg = THREE.MathUtils.radToDeg(euler.z);
         const yawDeg = THREE.MathUtils.radToDeg(euler.y); // Heading
+        const rollDeg = THREE.MathUtils.radToDeg(euler.z);
+        const planarMode = !!CONFIG.GAMEPLAY.PLANAR_MODE;
 
-        // Rotate Horizon
-        this.horizon.style.transform = `translate(-50%, -50%) rotate(${-rollDeg}deg)`;
+        // Stabilized horizon: no roll rotation
+        this.horizon.style.transform = 'translate(-50%, -50%)';
 
         // Move Pitch Ladder
-        // 8px per degree pitch
-        // Also rotate the ladder to stay aligned with horizon logic
-        this.pitchLadder.style.transform = `translate(-50%, -50%) rotate(${-rollDeg}deg) translateY(${pitchDeg * 8}px)`;
+        // 8px per degree pitch, without roll coupling
+        this.pitchLadder.style.transform = `translate(-50%, -50%) translateY(${pitchDeg * 8}px)`;
+
+        // Bank indicator: rotating line + angle in center
+        if (this.bankLine) {
+            this.bankLine.style.transform = `translate(-50%, -50%) rotate(${rollDeg}deg)`;
+        }
+        if (this.bankAngle) {
+            const rollInt = Math.round(rollDeg);
+            const sign = rollInt > 0 ? '+' : '';
+            this.bankAngle.textContent = `${sign}${rollInt}°`;
+        }
+
+        // In non-planar mode the HUD crosshair replaces the DOM crosshair.
+        if (this.centerCrosshair) {
+            this.centerCrosshair.classList.toggle('hidden', planarMode);
+        }
 
         // 2. Speed & Alt
         const speed = Math.round(player.speed * 10); // Scale up a bit

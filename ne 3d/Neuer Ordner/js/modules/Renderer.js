@@ -36,6 +36,7 @@ export class Renderer {
         this.cameras = [];
         this.cameraTargets = []; // Smoothing-Ziele
         this.cameraModes = [];
+        this.cameraBoostBlend = [];
 
         this.splitScreen = false;
 
@@ -45,6 +46,8 @@ export class Renderer {
         this._tmpVec = new THREE.Vector3();
         this._tmpVec2 = new THREE.Vector3();
         this._tmpLookAt = new THREE.Vector3();
+        this._tmpCamDir = new THREE.Vector3();
+        this._tmpCamProbe = new THREE.Vector3();
     }
 
     _setupLights() {
@@ -87,6 +90,7 @@ export class Renderer {
             lookAt: new THREE.Vector3(),
         });
         this.cameraModes.push(0); // THIRD_PERSON
+        this.cameraBoostBlend.push(0);
         return cam;
     }
 
@@ -106,63 +110,107 @@ export class Renderer {
     }
 
     /** Aktualisiert die Kameraposition für einen Spieler */
-    updateCamera(playerIndex, playerPosition, playerDirection, dt, playerQuaternion = null, cockpitCamera = false) {
+    updateCamera(
+        playerIndex,
+        playerPosition,
+        playerDirection,
+        dt,
+        playerQuaternion = null,
+        cockpitCamera = false,
+        isBoosting = false,
+        arena = null,
+        firstPersonAnchor = null
+    ) {
         if (playerIndex >= this.cameras.length) return;
 
         const cam = this.cameras[playerIndex];
         const target = this.cameraTargets[playerIndex];
         const mode = this.getCameraMode(playerIndex);
         const smooth = CONFIG.CAMERA.SMOOTHING;
+        const lockToNose = mode === 'FIRST_PERSON' && !!CONFIG.CAMERA.FIRST_PERSON_LOCK_TO_NOSE && !!firstPersonAnchor;
+        const noseClearance = CONFIG.CAMERA.FIRST_PERSON_NOSE_CLEARANCE || 0;
+        const firstPersonHardLock = lockToNose && mode === 'FIRST_PERSON';
+        const boostTarget = mode === 'FIRST_PERSON' && isBoosting ? 1 : 0;
+        const boostBlendSpeed = Math.max(0.001, CONFIG.CAMERA.FIRST_PERSON_BOOST_BLEND_SPEED || 8.5);
+        const boostAlpha = 1 - Math.exp(-boostBlendSpeed * Math.max(0, dt));
+        const previousBoostBlend = this.cameraBoostBlend[playerIndex] || 0;
+        const boostBlend = THREE.MathUtils.clamp(
+            THREE.MathUtils.lerp(previousBoostBlend, boostTarget, boostAlpha),
+            0,
+            1
+        );
+        this.cameraBoostBlend[playerIndex] = boostBlend;
+        const firstPersonOffset = THREE.MathUtils.lerp(
+            CONFIG.CAMERA.FIRST_PERSON_OFFSET,
+            CONFIG.CAMERA.FIRST_PERSON_BOOST_OFFSET || CONFIG.CAMERA.FIRST_PERSON_OFFSET,
+            boostBlend
+        );
 
         if (cockpitCamera && playerQuaternion) {
-            // --- Cockpit-Modus: Horizont dreht mit dem Flugzeug ---
             if (mode === 'THIRD_PERSON') {
-                // Offset (hinter + über dem Spieler) rotiert mit
                 this._tmpVec.set(0, CONFIG.CAMERA.FOLLOW_HEIGHT, CONFIG.CAMERA.FOLLOW_DISTANCE);
                 this._tmpVec.applyQuaternion(playerQuaternion);
                 target.position.copy(playerPosition).add(this._tmpVec);
             } else if (mode === 'FIRST_PERSON') {
-                // Kamera vor dem Flugzeug platzieren
-                this._tmpVec.set(0, 0, -CONFIG.CAMERA.FIRST_PERSON_OFFSET);
-                this._tmpVec.applyQuaternion(playerQuaternion);
-                target.position.copy(playerPosition).add(this._tmpVec);
+                if (lockToNose) {
+                    target.position.copy(firstPersonAnchor);
+                    if (noseClearance !== 0) {
+                        target.position.addScaledVector(playerDirection, noseClearance);
+                    }
+                } else {
+                    this._tmpVec.set(0, 0, -firstPersonOffset);
+                    this._tmpVec.applyQuaternion(playerQuaternion);
+                    target.position.copy(playerPosition).add(this._tmpVec);
+                    this._resolveCameraCollision(playerPosition, target.position, arena);
+                }
             } else if (mode === 'TOP_DOWN') {
                 this._tmpVec.set(0, 40, 5);
                 this._tmpVec.applyQuaternion(playerQuaternion);
                 target.position.copy(playerPosition).add(this._tmpVec);
             }
 
-            // Smooth Position (dt-basierte Dämpfung)
-            const smoothFactor = 1 - Math.pow(1 - smooth, dt * 60);
+            const smoothFactor = firstPersonHardLock ? 1 : (1 - Math.pow(1 - smooth, dt * 60));
             cam.position.lerp(target.position, smoothFactor);
-
-            // Kamera-Rotation = Spieler-Rotation (Horizont kippt mit)
-            cam.quaternion.slerp(playerQuaternion, smoothFactor);
+            if (firstPersonHardLock) {
+                cam.quaternion.copy(playerQuaternion);
+            } else {
+                cam.quaternion.slerp(playerQuaternion, smoothFactor);
+            }
         } else {
-            // --- Standard-Modus: Horizont bleibt waagerecht ---
             if (mode === 'THIRD_PERSON') {
-                // behind = playerDirection * -dist
                 this._tmpVec.copy(playerDirection).multiplyScalar(-CONFIG.CAMERA.FOLLOW_DISTANCE);
-                // up
                 this._tmpVec.y += CONFIG.CAMERA.FOLLOW_HEIGHT;
                 target.position.copy(playerPosition).add(this._tmpVec);
 
-                // LookAt
                 this._tmpVec2.copy(playerDirection).multiplyScalar(CONFIG.CAMERA.LOOK_AHEAD);
                 target.lookAt.copy(playerPosition).add(this._tmpVec2);
             } else if (mode === 'FIRST_PERSON') {
-                // Kamera vor dem Flugzeug (in Blickrichtung)
-                this._tmpVec.copy(playerDirection).multiplyScalar(CONFIG.CAMERA.FIRST_PERSON_OFFSET);
-                target.position.copy(playerPosition).add(this._tmpVec);
+                if (lockToNose) {
+                    target.position.copy(firstPersonAnchor);
+                    if (noseClearance !== 0) {
+                        target.position.addScaledVector(playerDirection, noseClearance);
+                    }
+                    this._tmpVec2.copy(playerDirection).multiplyScalar(20);
+                    target.lookAt.copy(target.position).add(this._tmpVec2);
+                } else {
+                    this._tmpVec.copy(playerDirection).multiplyScalar(firstPersonOffset);
+                    target.position.copy(playerPosition).add(this._tmpVec);
+                    this._resolveCameraCollision(playerPosition, target.position, arena);
 
-                this._tmpVec2.copy(playerDirection).multiplyScalar(20);
-                target.lookAt.copy(playerPosition).add(this._tmpVec2);
+                    this._tmpVec2.copy(playerDirection).multiplyScalar(20);
+                    target.lookAt.copy(playerPosition).add(this._tmpVec2);
+                }
             } else if (mode === 'TOP_DOWN') {
                 target.position.set(playerPosition.x, playerPosition.y + 40, playerPosition.z + 5);
                 target.lookAt.copy(playerPosition);
             }
 
-            // Smooth interpolation (dt-basierte Dämpfung)
+            if (firstPersonHardLock) {
+                cam.position.copy(target.position);
+                cam.lookAt(target.lookAt);
+                return;
+            }
+
             const smoothFactor = 1 - Math.pow(1 - smooth, dt * 60);
             cam.position.lerp(target.position, smoothFactor);
 
@@ -171,6 +219,35 @@ export class Renderer {
             this._tmpLookAt.lerp(target.lookAt, smoothFactor);
             cam.lookAt(this._tmpLookAt);
         }
+    }
+
+    _resolveCameraCollision(origin, desiredPosition, arena) {
+        if (!arena || typeof arena.checkCollision !== 'function') return;
+
+        const radius = Math.max(0.05, CONFIG.CAMERA.COLLISION_RADIUS || 0.45);
+        if (!arena.checkCollision(desiredPosition, radius)) return;
+
+        this._tmpCamDir.copy(desiredPosition).sub(origin);
+        if (this._tmpCamDir.lengthSq() < 0.000001) return;
+
+        let min = 0;
+        let max = 1;
+        let safe = 0;
+        const steps = Math.max(4, Math.floor(CONFIG.CAMERA.COLLISION_STEPS || 8));
+        for (let i = 0; i < steps; i++) {
+            const t = (min + max) * 0.5;
+            this._tmpCamProbe.copy(origin).addScaledVector(this._tmpCamDir, t);
+            if (arena.checkCollision(this._tmpCamProbe, radius)) {
+                max = t;
+            } else {
+                safe = t;
+                min = t;
+            }
+        }
+
+        const backoff = Math.max(0, CONFIG.CAMERA.COLLISION_BACKOFF || 0.04);
+        const finalT = Math.max(0, safe - backoff);
+        desiredPosition.copy(origin).addScaledVector(this._tmpCamDir, finalT);
     }
 
     /** Rendert die Szene */
@@ -252,6 +329,7 @@ export class Renderer {
         this.cameras = [];
         this.cameraTargets = [];
         this.cameraModes = [];
+        this.cameraBoostBlend = [];
     }
 
     setQuality(quality) {
@@ -274,3 +352,4 @@ export class Renderer {
         });
     }
 }
+

@@ -33,6 +33,9 @@ export const CONFIG = {
         SPAWN_PROTECTION: 1.0,
         HITBOX_RADIUS: 0.8,
         MODEL_SCALE: 1.0,
+        NOSE_CAMERA_LOCAL_X: 0,
+        NOSE_CAMERA_LOCAL_Y: 0.05,
+        NOSE_CAMERA_LOCAL_Z: -1.95,
         START_Y: 10,
         AUTO_ROLL: true,
         AUTO_ROLL_SPEED: 1.5,
@@ -42,7 +45,10 @@ export const CONFIG = {
     GAMEPLAY: {
         PLANAR_MODE: false,
         PORTAL_COUNT: 0,
-        PORTAL_BEAMS: true,
+        PLANAR_LEVEL_COUNT: 5,
+        PORTAL_BEAMS: false,
+        PLANAR_AIM_INPUT_SPEED: 1.5,
+        PLANAR_AIM_RETURN_SPEED: 0.6,
     },
 
     // ---- Trail (Schweifspur) ----
@@ -115,6 +121,15 @@ export const CONFIG = {
                 portalIntentThreshold: 0.25,
                 portalIntentDuration: 0.9,
                 boostChance: 0.0025,
+                // Neue Parameter
+                probeCount: 7,
+                projectileAwareness: 0,
+                pursuitEnabled: false,
+                pursuitRadius: 0,
+                pursuitAimTolerance: 0.95,
+                heightBias: 0,
+                spacingWeight: 0,
+                itemContextWeight: 0.2,
             },
             NORMAL: {
                 reactionTime: 0.14,
@@ -139,6 +154,15 @@ export const CONFIG = {
                 portalIntentThreshold: 0.2,
                 portalIntentDuration: 1.15,
                 boostChance: 0.0045,
+                // Neue Parameter
+                probeCount: 10,
+                projectileAwareness: 0.6,
+                pursuitEnabled: true,
+                pursuitRadius: 35,
+                pursuitAimTolerance: 0.85,
+                heightBias: 0.15,
+                spacingWeight: 0.3,
+                itemContextWeight: 0.7,
             },
             HARD: {
                 reactionTime: 0.08,
@@ -163,6 +187,15 @@ export const CONFIG = {
                 portalIntentThreshold: 0.14,
                 portalIntentDuration: 1.35,
                 boostChance: 0.0065,
+                // Neue Parameter
+                probeCount: 12,
+                projectileAwareness: 0.95,
+                pursuitEnabled: true,
+                pursuitRadius: 50,
+                pursuitAimTolerance: 0.75,
+                heightBias: 0.25,
+                spacingWeight: 0.5,
+                itemContextWeight: 1.0,
             },
         },
     },
@@ -174,6 +207,7 @@ export const CONFIG = {
         LIFE_TIME: 3.0,
         MAX_DISTANCE: 140,
         COOLDOWN: 0.45,
+        PLANAR_AIM_MAX_ANGLE_DEG: 18,
     },
 
     // ---- Portale ----
@@ -182,6 +216,8 @@ export const CONFIG = {
         COOLDOWN: 1.2,
         RING_SIZE: 4.0,
         ROTATION_SPEED: 2.0,
+        MIN_PAIR_DISTANCE: 15,
+        MIN_PAIR_DISTANCE_PLANAR: 4,
     },
 
     // ---- Homing (Zielsuchend) ----
@@ -211,7 +247,14 @@ export const CONFIG = {
         LOOK_AHEAD: 5,
         SMOOTHING: 0.08,
         MODES: ['THIRD_PERSON', 'FIRST_PERSON', 'TOP_DOWN'],
+        FIRST_PERSON_LOCK_TO_NOSE: true,
+        FIRST_PERSON_NOSE_CLEARANCE: 0.3,
         FIRST_PERSON_OFFSET: 4.0, // Kamera vor dem Flugzeug
+        FIRST_PERSON_BOOST_OFFSET: 1.45, // waehrend Boost naeher an die Nase
+        FIRST_PERSON_BOOST_BLEND_SPEED: 8.5,
+        COLLISION_RADIUS: 0.45,
+        COLLISION_BACKOFF: 0.04,
+        COLLISION_STEPS: 8,
     },
 
     // ---- Maps ----

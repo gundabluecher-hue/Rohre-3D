@@ -49,7 +49,17 @@ export class PowerupManager {
     _spawnRandom() {
         const type = this.typeKeys[Math.floor(Math.random() * this.typeKeys.length)];
         const config = CONFIG.POWERUP.TYPES[type];
-        const pos = this.arena.getRandomPosition(8);
+        let pos = null;
+        if (CONFIG.GAMEPLAY.PLANAR_MODE && this.arena?.getPortalLevels) {
+            const levels = this.arena.getPortalLevels();
+            if (levels.length > 0) {
+                const level = levels[Math.floor(Math.random() * levels.length)];
+                pos = this.arena.getRandomPositionOnLevel(level, 8);
+            }
+        }
+        if (!pos) {
+            pos = this.arena.getRandomPosition(8);
+        }
 
         // Würfel-Mesh
         const geo = this._sharedGeo;

@@ -6,104 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mini Curve Fever 3D</title>
     <link rel="stylesheet" href="style.css">
-    <style>
-        /* Fadenkreuz */
-        .crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 40px;
-            height: 40px;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            z-index: 50;
-            transition: all 0.15s ease;
-        }
-
-        .crosshair::before,
-        .crosshair::after {
-            content: '';
-            position: absolute;
-            background: rgba(255, 255, 255, 0.8);
-        }
-
-        .crosshair::before {
-            top: 50%;
-            left: 0;
-            right: 0;
-            height: 2px;
-            transform: translateY(-50%);
-        }
-
-        .crosshair::after {
-            left: 50%;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            transform: translateX(-50%);
-        }
-
-        .crosshair .circle {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 28px;
-            height: 28px;
-            border: 2px solid rgba(255, 255, 255, 0.6);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-        }
-
-        .crosshair .dot {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 4px;
-            height: 4px;
-            background: white;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-        }
-
-        .crosshair.locked {
-            filter: drop-shadow(0 0 6px red);
-        }
-
-        .crosshair.locked::before,
-        .crosshair.locked::after {
-            background: rgba(255, 50, 50, 1);
-        }
-
-        .crosshair.locked .circle {
-            border-color: rgba(255, 50, 50, 1);
-            animation: crosshair-pulse 0.5s infinite;
-        }
-
-        .crosshair.locked .dot {
-            background: #ff3333;
-        }
-
-        @keyframes crosshair-pulse {
-
-            0%,
-            100% {
-                transform: translate(-50%, -50%) scale(1);
-            }
-
-            50% {
-                transform: translate(-50%, -50%) scale(1.2);
-            }
-        }
-
-        /* Splitscreen Positionen */
-        .crosshair.p1-split {
-            left: 25%;
-        }
-
-        .crosshair.p2-split {
-            left: 75%;
-        }
-    </style>
     <script type="importmap">
     {
         "imports": {
@@ -116,13 +18,13 @@
 
 <body>
     <div id="game-container">
-        <canvas id="game-canvas"></canvas>
-        <div id="crosshair-container">
-            <div id="crosshair-p1" class="crosshair" style="display: none;">
+        <canvas id="game-canvas" aria-label="3D Spielansicht"></canvas>
+        <div id="crosshair-container" aria-hidden="true">
+            <div id="crosshair-p1" class="crosshair">
                 <div class="circle"></div>
                 <div class="dot"></div>
             </div>
-            <div id="crosshair-p2" class="crosshair" style="display: none;">
+            <div id="crosshair-p2" class="crosshair">
                 <div class="circle"></div>
                 <div class="dot"></div>
             </div>
@@ -130,16 +32,53 @@
     </div>
 
     <div id="ui-layer">
-        <div id="main-menu">
-            <div class="menu-content">
-                <h1>Mini Curve Fever 3D</h1>
+        <div id="main-menu" role="dialog" aria-modal="true" aria-labelledby="main-menu-title">
+            <div class="menu-content" role="document">
+                <h1 id="main-menu-title">Mini Curve Fever 3D</h1>
                 <p class="subtitle">Multiplayer Luftkampf Arena</p>
-                <div id="keybind-warning" class="keybind-warning hidden"></div>
+                <div id="build-info" class="build-info"></div>
+                <p id="menu-context" class="menu-context" role="status" aria-live="polite" aria-atomic="true">
+                    Hauptmenue · Profil: kein Profil · alles gespeichert
+                </p>
+                <div id="keybind-warning" class="keybind-warning hidden" role="status" aria-live="polite"
+                    aria-atomic="true"></div>
 
-                <div class="menu-layout">
-                    <div class="menu-column">
+                <!-- ======= HAUPTNAVIGATION ======= -->
+                <div id="menu-nav" class="menu-nav-grid" role="navigation" aria-label="Hauptmenue">
+                    <button type="button" class="nav-btn" data-submenu="submenu-game" aria-controls="submenu-game"
+                        aria-expanded="false">🎮 Spiel starten</button>
+                    <button type="button" class="nav-btn" data-submenu="submenu-settings"
+                        aria-controls="submenu-settings" aria-expanded="false">⚙️ Einstellungen</button>
+                    <button type="button" class="nav-btn" data-submenu="submenu-controls"
+                        aria-controls="submenu-controls" aria-expanded="false">🎯 Steuerung</button>
+                    <button type="button" class="nav-btn" data-submenu="submenu-profiles"
+                        aria-controls="submenu-profiles" aria-expanded="false">👤 Profile</button>
+                    <button type="button" class="nav-btn" data-submenu="submenu-portals" aria-controls="submenu-portals"
+                        aria-expanded="false">🌀 Portale / Map</button>
+                    <button type="button" class="nav-btn" data-submenu="submenu-debug" aria-controls="submenu-debug"
+                        aria-expanded="false">ℹ️ Debug / Info</button>
+                    <div class="nav-help-card" role="note">
+                        <div class="nav-help-title">Schnellstart</div>
+                        <div class="nav-help-content">
+                            <span><kbd>ESC</kbd> Zurueck ins Menue</span>
+                            <span><kbd>F</kbd> FPS Overlay</span>
+                            <span><kbd>P</kbd> Grafik umschalten</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: SPIEL STARTEN ======= -->
+                <div id="submenu-game" class="submenu-panel hidden" role="region" aria-labelledby="submenu-game-title"
+                    aria-hidden="true">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-game-title" class="submenu-title">🎮 Spiel starten</h2>
+                    </div>
+
+                    <div class="submenu-body">
                         <div class="menu-section">
-                            <label>Spielmodus</label>
+                            <h2 class="section-title">Spielmodus</h2>
                             <div class="btn-group">
                                 <button id="btn-1p" class="mode-btn active" data-mode="1p">1 Spieler</button>
                                 <button id="btn-2p" class="mode-btn" data-mode="2p">2 Spieler</button>
@@ -155,67 +94,6 @@
                                 <option value="complex">Komplex</option>
                                 <option value="pyramid">Pyramide</option>
                             </select>
-                        </div>
-
-                        <div class="menu-section">
-                            <label for="auto-roll-toggle">Auto-Roll</label>
-                            <label class="toggle-row">
-                                <input type="checkbox" id="auto-roll-toggle" checked>
-                                <span>Stabilisierung aktiv</span>
-                            </label>
-                        </div>
-
-                        <div class="menu-section">
-                            <label for="planar-mode-toggle">Ebene erzwingen</label>
-                            <label class="toggle-row">
-                                <input type="checkbox" id="planar-mode-toggle">
-                                <span>Planar Modus (Kein Pitch)</span>
-                            </label>
-                        </div>
-
-                        <div class="menu-section">
-                            <label>Invert Pitch (hoch/runter)</label>
-                            <div class="toggle-grid">
-                                <label class="toggle-row">
-                                    <input type="checkbox" id="invert-p1">
-                                    <span>Spieler 1</span>
-                                </label>
-                                <label class="toggle-row">
-                                    <input type="checkbox" id="invert-p2">
-                                    <span>Spieler 2</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="menu-section">
-                            <label>Cockpit-Kamera (Horizont dreht mit)</label>
-                            <div class="toggle-grid">
-                                <label class="toggle-row">
-                                    <input type="checkbox" id="cockpit-cam-p1">
-                                    <span>Spieler 1</span>
-                                </label>
-                                <label class="toggle-row">
-                                    <input type="checkbox" id="cockpit-cam-p2">
-                                    <span>Spieler 2</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="menu-section">
-                            <label class="toggle-row">
-                                <input type="checkbox" id="portals-toggle" checked>
-                                <span>Portale aktiviert</span>
-                            </label>
-                            <label class="toggle-row">
-                                <input type="checkbox" id="portal-beams-toggle" checked>
-                                <span>Portal-Strahlen</span>
-                            </label>
-                        </div>
-
-                        <div class="menu-section">
-                            <label for="portal-count-slider">Anzahl Portale: <span
-                                    id="portal-count-label">0</span></label>
-                            <input type="range" id="portal-count-slider" min="0" max="20" step="2" value="0">
                         </div>
 
                         <div class="menu-section">
@@ -237,6 +115,20 @@
                             <input type="range" id="win-count" min="1" max="15" value="5">
                         </div>
 
+                        <button type="button" id="btn-start" class="start-btn">Spiel starten</button>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: EINSTELLUNGEN ======= -->
+                <div id="submenu-settings" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-settings-title" aria-hidden="true">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-settings-title" class="submenu-title">⚙️ Einstellungen</h2>
+                    </div>
+
+                    <div class="submenu-body">
                         <div class="menu-section">
                             <label for="speed-slider">Geschwindigkeit: <span id="speed-label">18.0</span></label>
                             <input type="range" id="speed-slider" min="8" max="40" step="0.5" value="18">
@@ -245,11 +137,6 @@
                         <div class="menu-section">
                             <label for="turn-slider">Lenk-Empfindlichkeit: <span id="turn-label">2.2</span></label>
                             <input type="range" id="turn-slider" min="0.8" max="5.0" step="0.1" value="2.2">
-                        </div>
-
-                        <div class="menu-section">
-                            <label for="lockon-slider">Lock-On Radius: <span id="lockon-label">15</span>°</label>
-                            <input type="range" id="lockon-slider" min="5" max="45" step="1" value="15">
                         </div>
 
                         <div class="menu-section">
@@ -286,27 +173,180 @@
                             <input type="range" id="fire-rate-slider" min="0.1" max="2.0" step="0.05" value="0.45">
                         </div>
 
-                        <button id="btn-start" class="start-btn">Spiel starten</button>
-                    </div>
-
-                    <div class="menu-column">
                         <div class="menu-section">
-                            <label>Tasten Spieler 1</label>
-                            <div id="keybind-p1" class="keybind-grid"></div>
+                            <label for="lockon-slider">Lock-On Radius: <span id="lockon-label">15</span>°</label>
+                            <input type="range" id="lockon-slider" min="5" max="45" step="1" value="15">
                         </div>
 
                         <div class="menu-section">
-                            <label>Tasten Spieler 2</label>
-                            <div id="keybind-p2" class="keybind-grid"></div>
-                        </div>
-
-                        <div class="menu-section">
-                            <button id="btn-reset-keys" class="secondary-btn">Standard-Tasten wiederherstellen</button>
-                            <button id="btn-save-keys" class="secondary-btn" style="margin-top: 6px;">💾 Einstellungen
-                                speichern</button>
+                            <button type="button" id="btn-save-keys" class="secondary-btn secondary-btn-spaced">💾
+                                Einstellungen explizit speichern</button>
                         </div>
                     </div>
                 </div>
+
+                <!-- ======= SUBMENU: STEUERUNG ======= -->
+                <div id="submenu-controls" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-controls-title" aria-hidden="true">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-controls-title" class="submenu-title">🎯 Steuerung</h2>
+                    </div>
+
+                    <div class="submenu-body">
+                        <div class="submenu-columns">
+                            <div>
+                                <div class="menu-section">
+                                    <h2 class="section-title">Tasten Spieler 1</h2>
+                                    <div id="keybind-p1" class="keybind-grid"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="menu-section">
+                                    <h2 class="section-title">Tasten Spieler 2</h2>
+                                    <div id="keybind-p2" class="keybind-grid"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="auto-roll-toggle">Auto-Roll</label>
+                            <label class="toggle-row">
+                                <input type="checkbox" id="auto-roll-toggle" checked>
+                                <span>Stabilisierung aktiv</span>
+                            </label>
+                        </div>
+
+                        <div class="menu-section">
+                            <h2 class="section-title">Invert Pitch (hoch/runter)</h2>
+                            <div class="toggle-grid">
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="invert-p1">
+                                    <span>Spieler 1</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="invert-p2">
+                                    <span>Spieler 2</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="menu-section">
+                            <h2 class="section-title">Cockpit-Kamera (Horizont dreht mit)</h2>
+                            <div class="toggle-grid">
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="cockpit-cam-p1">
+                                    <span>Spieler 1</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="cockpit-cam-p2">
+                                    <span>Spieler 2</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="menu-section">
+                            <button type="button" id="btn-reset-keys" class="secondary-btn">Standard-Tasten
+                                wiederherstellen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: PROFILE ======= -->
+                <div id="submenu-profiles" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-profiles-title" aria-hidden="true">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-profiles-title" class="submenu-title">👤 Profile</h2>
+                    </div>
+
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <h2 class="section-title">Preset-Profile</h2>
+                            <label for="profile-name">Profilname</label>
+                            <input type="text" id="profile-name" maxlength="32" placeholder="z. B. Turnier">
+                            <button type="button" id="btn-profile-save" class="secondary-btn secondary-btn-spaced">
+                                Profil unter Namen speichern</button>
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="profile-select">Gespeicherte Profile</label>
+                            <select id="profile-select">
+                                <option value="">Kein Profil gewaehlt</option>
+                            </select>
+                            <button type="button" id="btn-profile-load" class="secondary-btn secondary-btn-spaced">
+                                Profil laden</button>
+                            <button type="button" id="btn-profile-delete" class="secondary-btn secondary-btn-spaced">
+                                Profil loeschen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: PORTALE / MAP ======= -->
+                <div id="submenu-portals" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-portals-title" aria-hidden="true">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-portals-title" class="submenu-title">🌀 Portale / Map</h2>
+                    </div>
+
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <label class="toggle-row">
+                                <input type="checkbox" id="portals-toggle" checked>
+                                <span>Portale aktiviert</span>
+                            </label>
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="portal-count-slider">Anzahl Portale: <span
+                                    id="portal-count-label">0</span></label>
+                            <input type="range" id="portal-count-slider" min="0" max="20" step="2" value="0">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="planar-level-count-slider">Anzahl Ebenen: <span
+                                    id="planar-level-count-label">5</span></label>
+                            <input type="range" id="planar-level-count-slider" min="2" max="10" step="1" value="5">
+                        </div>
+
+                        <div class="menu-section">
+                            <label for="planar-mode-toggle">Ebene erzwingen</label>
+                            <label class="toggle-row">
+                                <input type="checkbox" id="planar-mode-toggle">
+                                <span>Planar Modus (Kein Pitch)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: DEBUG / INFO ======= -->
+                <div id="submenu-debug" class="submenu-panel hidden" role="region" aria-labelledby="submenu-debug-title"
+                    aria-hidden="true">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-debug-title" class="submenu-title">ℹ️ Debug / Info</h2>
+                    </div>
+
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <h2 class="section-title">Build-Information</h2>
+                            <div id="build-info-detail" class="build-info-detail"></div>
+                            <button type="button" id="btn-copy-build" class="secondary-btn secondary-btn-spaced">
+                                Build-Info kopieren
+                            </button>
+                        </div>
+                        <div class="menu-section">
+                            <p class="debug-hint">Drücke <kbd>F</kbd> im Spiel für FPS-Overlay</p>
+                            <p class="debug-hint">Drücke <kbd>P</kbd> im Spiel für Grafik-Toggle</p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -314,6 +354,8 @@
             <!-- P1 Fighter HUD -->
             <div id="p1-fighter-hud" class="fighter-hud hidden">
                 <div class="hud-center-crosshair">+</div>
+                <div class="hud-bank-line"></div>
+                <div class="hud-bank-angle">0°</div>
                 <div class="hud-horizon">
                     <div class="horizon-line"></div>
                 </div>
@@ -346,6 +388,8 @@
             <!-- P2 Fighter HUD -->
             <div id="p2-fighter-hud" class="fighter-hud p2 hidden">
                 <div class="hud-center-crosshair">+</div>
+                <div class="hud-bank-line"></div>
+                <div class="hud-bank-angle">0°</div>
                 <div class="hud-horizon">
                     <div class="horizon-line"></div>
                 </div>
@@ -383,19 +427,15 @@
                 <div class="player-score">0</div>
                 <div id="p2-items" class="item-bar"></div>
             </div>
-            <div id="message-overlay" class="hidden">
+            <div id="message-overlay" class="hidden" role="alert" aria-live="assertive" aria-atomic="true">
                 <div id="message-text"></div>
                 <div id="message-sub"></div>
             </div>
-            <div id="status-toast" class="hidden"></div>
+            <div id="status-toast" class="hidden" role="status" aria-live="polite" aria-atomic="true"></div>
         </div>
     </div>
 
-    <div id="ui-layer">
-        <!-- ... existing content ... -->
-    </div>
-
-    <script type="module" src="js/main.js?v=debug_v3"></script>
+    <script type="module" src="js/main.js"></script>
 </body>
 
 </html>

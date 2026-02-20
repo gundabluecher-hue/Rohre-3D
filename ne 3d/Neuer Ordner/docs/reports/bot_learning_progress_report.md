@@ -8,5 +8,5 @@
 - reward: -414.845 -> -7837.112 (delta -7422.268)
 
 Generated files:
-- Neuer Ordner/bot_learning_curve.csv
-- Neuer Ordner/bot_learning_curve.svg
+- data/learning/bot_learning_curve.csv
+- data/learning/bot_learning_curve.svg

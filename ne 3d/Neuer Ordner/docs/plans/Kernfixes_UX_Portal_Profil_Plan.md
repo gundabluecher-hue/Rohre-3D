@@ -67,9 +67,9 @@ Ziel: Profilname muss sicher editierbar sein.
 
 Betroffene Bereiche:
 
-1. `Neuer Ordner/index.html`
-2. `Neuer Ordner/style.css`
-3. `Neuer Ordner/js/main.js`
+1. `index.html`
+2. `style.css`
+3. `js/main.js`
 
 Aufgaben:
 
@@ -101,9 +101,9 @@ Ziel: Jede Testperson erkennt eindeutig, welchen Build sie nutzt.
 
 Betroffene Bereiche:
 
-1. `Neuer Ordner/package.json`
-2. `Neuer Ordner/js/main.js`
-3. `Neuer Ordner/index.html`
+1. `package.json`
+2. `js/main.js`
+3. `index.html`
 4. Optional: Build-Script/Env-Injektion in Vite-Konfiguration
 
 Aufgaben:
@@ -144,10 +144,10 @@ Zielstruktur (Vorschlag):
 
 Betroffene Bereiche:
 
-1. `Neuer Ordner/index.html`
-2. `Neuer Ordner/style.css`
-3. `Neuer Ordner/js/main.js`
-4. Optional: neue UI-Module unter `Neuer Ordner/js/modules/`
+1. `index.html`
+2. `style.css`
+3. `js/main.js`
+4. Optional: neue UI-Module unter `js/modules/`
 
 Aufgaben:
 
@@ -173,10 +173,10 @@ Ziel: Portale sind pro Map sauber auf Ebenen ausgerichtet, Teleport-Verhalten is
 
 Betroffene Bereiche:
 
-1. `Neuer Ordner/js/modules/Arena.js`
-2. `Neuer Ordner/js/modules/EntityManager.js`
-3. `Neuer Ordner/js/modules/Powerup.js` (falls Ebenenkopplung fuer Items mit betroffen)
-4. `Neuer Ordner/js/modules/Config.js`
+1. `js/modules/Arena.js`
+2. `js/modules/EntityManager.js`
+3. `js/modules/Powerup.js` (falls Ebenenkopplung fuer Items mit betroffen)
+4. `js/modules/Config.js`
 
 Aufgaben:
 
@@ -207,9 +207,9 @@ Ziel: Mehrprofil ist keine Nebenfunktion, sondern Standard-Workflow.
 
 Betroffene Bereiche:
 
-1. `Neuer Ordner/js/main.js`
-2. `Neuer Ordner/index.html`
-3. `Neuer Ordner/style.css`
+1. `js/main.js`
+2. `index.html`
+3. `style.css`
 
 Aufgaben:
 
@@ -267,10 +267,10 @@ Ziel: Im First-Person-Modus liegt die Kamera waehrend Boost an der Flugzeugspitz
 
 Betroffene Bereiche:
 
-1. `Neuer Ordner/js/modules/Renderer.js`
-2. `Neuer Ordner/js/modules/Player.js`
-3. `Neuer Ordner/js/main.js`
-4. `Neuer Ordner/js/modules/Config.js`
+1. `js/modules/Renderer.js`
+2. `js/modules/Player.js`
+3. `js/main.js`
+4. `js/modules/Config.js`
 
 Aufgaben:
 

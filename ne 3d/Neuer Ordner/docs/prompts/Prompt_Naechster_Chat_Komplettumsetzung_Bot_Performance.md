@@ -6,7 +6,7 @@ Projektpfad:
 `c:\Users\gunda\Desktop\3d\ne 3d\Neuer Ordner`
 
 Verbindliche Planquelle:
-`Neuer Ordner/Bot_Performance_Debug_Plan_KI_Autonom.md`
+`docs/plans/Bot_Performance_Debug_Plan_KI_Autonom.md`
 
 Aufgabe:
 Implementiere den gesamten Performance-Debug- und Optimierungsprozess fuer Bot/Kernsysteme end-to-end inklusive Instrumentierung, Baseline, iterativen Optimierungen, Validierung und Abschlussreport.
@@ -42,4 +42,3 @@ Guardrails:
 Output-Format im Chat:
 1. Kurze Statusupdates waehrend der Umsetzung.
 2. Am Ende: geaenderte Dateien, wichtigste Metrikverbesserungen, offene Risiken, naechste sinnvolle Schritte.
-

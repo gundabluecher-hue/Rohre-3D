@@ -71,4 +71,4 @@ Im First-Person-Modus soll die Kamera bei Boost weich zur Nase wandern und nicht
 3. `js/modules/Config.js`
 4. `js/modules/Renderer.js`
 5. `js/modules/EntityManager.js`
-6. `walkthrough.md`
+6. `docs/guides/walkthrough.md`

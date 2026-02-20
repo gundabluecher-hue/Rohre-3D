@@ -9,11 +9,11 @@ Ziel ist eine reproduzierbare, KI-autonome Vorgehensweise zum Debuggen und Verbe
 
 ### In Scope
 
-1. `Neuer Ordner/js/modules/Bot.js`
-2. `Neuer Ordner/js/modules/Arena.js`
-3. `Neuer Ordner/js/modules/EntityManager.js`
-4. `Neuer Ordner/js/modules/Renderer.js`
-5. `Neuer Ordner/js/modules/Config.js`
+1. `js/modules/Bot.js`
+2. `js/modules/Arena.js`
+3. `js/modules/EntityManager.js`
+4. `js/modules/Renderer.js`
+5. `js/modules/Config.js`
 
 ### Out of Scope
 

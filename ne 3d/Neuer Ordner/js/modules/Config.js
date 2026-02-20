@@ -111,6 +111,7 @@ export const CONFIG = {
             STORAGE_KEY: 'mini-curve-fever-3d.bot-learning.v1',
             STORAGE_KEY_3D: 'mini-curve-fever-3d.bot-learning.v1.3d',
             STORAGE_KEY_PLANAR: 'mini-curve-fever-3d.bot-learning.v1.planar',
+            MAX_TRAINING_TIME_SCALE: 1000,
             ALPHA: 0.16,
             GAMMA: 0.92,
             EPSILON_START: 0.35,
@@ -128,6 +129,9 @@ export const CONFIG = {
                 ROUND_WIN: 1.4,
                 ROUND_LOSS: -0.8,
                 ROUND_DRAW: -0.25,
+                KILL_HUMAN_BONUS: 0.85,
+                DEATH_BY_HUMAN: -0.95,
+                HUMAN_ENGAGEMENT_PER_SEC: 0.018,
             },
         },
         DIFFICULTY_PROFILES: {

@@ -74,16 +74,43 @@ export class RoundRecorder {
         this.playerDeathTime = new Float32Array(MAX_TRACKED_PLAYERS);
         this.playerIsBot = new Uint8Array(MAX_TRACKED_PLAYERS);
         this.playerSeen = new Uint8Array(MAX_TRACKED_PLAYERS);
+        this._botSurvivalSumByIndex = new Float64Array(MAX_TRACKED_PLAYERS);
+        this._botSurvivalRoundsByIndex = new Uint32Array(MAX_TRACKED_PLAYERS);
 
         this._frameCounter = 0;
         this._snapshotInterval = 10;
         this.roundStartTime = 0;
+        this._elapsedSimSec = 0;
         this._enabled = true;
 
         this._aggregate = createAggregateSummary();
         this._baselines = new Map();
         this._lastRoundSummary = null;
 
+        this._resetRoundState();
+    }
+
+    resetAll() {
+        this.eventIndex = 0;
+        this.eventCount = 0;
+        this.snapshotIndex = 0;
+        this.snapshotCount = 0;
+        this.roundSummaryIndex = 0;
+        this.roundSummaryCount = 0;
+        this._roundIdCounter = 0;
+        this.roundStartTime = 0;
+        this._elapsedSimSec = 0;
+        this._frameCounter = 0;
+
+        for (let i = 0; i < MAX_ROUNDS; i++) {
+            this.roundSummaries[i] = createRoundSummary();
+        }
+
+        this._aggregate = createAggregateSummary();
+        this._baselines.clear();
+        this._lastRoundSummary = null;
+        this._botSurvivalSumByIndex.fill(0);
+        this._botSurvivalRoundsByIndex.fill(0);
         this._resetRoundState();
     }
 
@@ -105,7 +132,14 @@ export class RoundRecorder {
     }
 
     _elapsedSeconds() {
-        return this.roundStartTime > 0 ? (performance.now() - this.roundStartTime) / 1000 : 0;
+        return Math.max(0, this._elapsedSimSec || 0);
+    }
+
+    tick(dt) {
+        if (!this._enabled) return;
+        const safeDt = Number.isFinite(dt) ? dt : 0;
+        if (safeDt <= 0) return;
+        this._elapsedSimSec += safeDt;
     }
 
     _trackPlayer(player, resetForSpawn = false) {
@@ -128,6 +162,7 @@ export class RoundRecorder {
         this.snapshotCount = 0;
         this._frameCounter = 0;
         this.roundStartTime = performance.now();
+        this._elapsedSimSec = 0;
         this._resetRoundState();
         this._lastRoundSummary = null;
 
@@ -219,6 +254,8 @@ export class RoundRecorder {
                 if (p.isBot) {
                     botCount++;
                     botSurvivalSum += survival;
+                    this._botSurvivalSumByIndex[idx] += survival;
+                    this._botSurvivalRoundsByIndex[idx] += 1;
                 } else {
                     humanCount++;
                 }
@@ -288,6 +325,62 @@ export class RoundRecorder {
         return this._lastRoundSummary ? { ...this._lastRoundSummary } : null;
     }
 
+    getRoundSummaries(limit = MAX_ROUNDS) {
+        const safeLimit = Math.max(0, Math.floor(limit));
+        const available = this.roundSummaryCount;
+        if (safeLimit === 0 || available === 0) return [];
+
+        const take = Math.min(available, safeLimit);
+        const startIdx = available >= MAX_ROUNDS ? this.roundSummaryIndex : 0;
+        const offset = Math.max(0, available - take);
+        const out = [];
+
+        for (let i = 0; i < take; i++) {
+            const idx = (startIdx + offset + i) % MAX_ROUNDS;
+            const round = this.roundSummaries[idx];
+            out.push({
+                roundId: round.roundId,
+                duration: round.duration,
+                winnerIndex: round.winnerIndex,
+                winnerIsBot: round.winnerIsBot,
+                botCount: round.botCount,
+                humanCount: round.humanCount,
+                botSurvivalAverage: round.botSurvivalAverage,
+                selfCollisions: round.selfCollisions,
+                stuckEvents: round.stuckEvents,
+                bounceWallEvents: round.bounceWallEvents,
+                bounceTrailEvents: round.bounceTrailEvents,
+                itemUseEvents: round.itemUseEvents,
+                stuckPerMinute: round.stuckPerMinute,
+                learningUpdates: round.learningUpdates,
+                learningRewardSum: round.learningRewardSum,
+                learningTdAbsSum: round.learningTdAbsSum,
+            });
+        }
+        return out;
+    }
+
+    getBotSurvivalAverages(limit = MAX_TRACKED_PLAYERS) {
+        const safeLimit = Math.max(0, Math.floor(limit));
+        if (safeLimit <= 0) return [];
+
+        const out = [];
+        for (let idx = 0; idx < MAX_TRACKED_PLAYERS; idx++) {
+            const rounds = this._botSurvivalRoundsByIndex[idx];
+            if (!rounds) continue;
+            const total = this._botSurvivalSumByIndex[idx];
+            out.push({
+                botIndex: idx,
+                botNumber: idx + 1,
+                rounds,
+                totalSurvivalSec: total,
+                averageSurvivalSec: rounds > 0 ? total / rounds : 0,
+            });
+        }
+        out.sort((a, b) => a.botIndex - b.botIndex);
+        return out.slice(0, safeLimit);
+    }
+
     getAggregateMetrics() {
         const rounds = this._aggregate.rounds;
         const totalDuration = this._aggregate.totalDuration;
@@ -307,6 +400,77 @@ export class RoundRecorder {
             learningTdAbsMean: this._aggregate.totalLearningUpdates > 0
                 ? this._aggregate.totalLearningTdAbs / this._aggregate.totalLearningUpdates
                 : 0,
+        };
+    }
+
+    getLearningAnalysis(windowSize = 12) {
+        const safeWindow = Math.max(2, Math.floor(windowSize));
+        const rounds = this.getRoundSummaries(safeWindow * 2);
+        if (rounds.length === 0) {
+            return {
+                status: 'NO_DATA',
+                samplesRecent: 0,
+                samplesPrevious: 0,
+                recentUpdatesPerRound: 0,
+                recentRewardPerRound: 0,
+                recentTdAbsMean: 0,
+                prevUpdatesPerRound: 0,
+                prevRewardPerRound: 0,
+                prevTdAbsMean: 0,
+                updateTrendPerRound: 0,
+                rewardTrendPerRound: 0,
+                tdAbsTrend: 0,
+            };
+        }
+
+        const recent = rounds.slice(-safeWindow);
+        const previous = rounds.slice(-(safeWindow * 2), -safeWindow);
+
+        const sum = (collection, mapper) => collection.reduce((acc, item) => acc + mapper(item), 0);
+        const avg = (collection, mapper) => collection.length > 0 ? sum(collection, mapper) / collection.length : 0;
+        const tdAbsMean = (collection) => {
+            const updates = sum(collection, (item) => item.learningUpdates || 0);
+            if (updates <= 0) return 0;
+            const tdAbs = sum(collection, (item) => item.learningTdAbsSum || 0);
+            return tdAbs / updates;
+        };
+
+        const recentUpdatesPerRound = avg(recent, (item) => item.learningUpdates || 0);
+        const recentRewardPerRound = avg(recent, (item) => item.learningRewardSum || 0);
+        const recentTdAbsMean = tdAbsMean(recent);
+
+        const prevUpdatesPerRound = avg(previous, (item) => item.learningUpdates || 0);
+        const prevRewardPerRound = avg(previous, (item) => item.learningRewardSum || 0);
+        const prevTdAbsMean = tdAbsMean(previous);
+
+        const updateTrendPerRound = recentUpdatesPerRound - prevUpdatesPerRound;
+        const rewardTrendPerRound = recentRewardPerRound - prevRewardPerRound;
+        const tdAbsTrend = recentTdAbsMean - prevTdAbsMean;
+
+        let status = 'NO_DATA';
+        if (recentUpdatesPerRound <= 0.001) {
+            status = 'NO_LEARNING';
+        } else if (Math.abs(rewardTrendPerRound) < 0.02 && Math.abs(updateTrendPerRound) < 0.1) {
+            status = 'PLATEAU';
+        } else if (rewardTrendPerRound >= 0) {
+            status = tdAbsTrend <= 0 ? 'IMPROVING' : 'UNSTABLE';
+        } else {
+            status = 'UNSTABLE';
+        }
+
+        return {
+            status,
+            samplesRecent: recent.length,
+            samplesPrevious: previous.length,
+            recentUpdatesPerRound,
+            recentRewardPerRound,
+            recentTdAbsMean,
+            prevUpdatesPerRound,
+            prevRewardPerRound,
+            prevTdAbsMean,
+            updateTrendPerRound,
+            rewardTrendPerRound,
+            tdAbsTrend,
         };
     }
 

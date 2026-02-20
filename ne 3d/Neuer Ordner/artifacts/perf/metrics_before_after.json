@@ -1,0 +1,201 @@
+{
+  "timestamp": "2026-02-18T07:04:42.378Z",
+  "beforePath": "C:\\Users\\gunda\\Desktop\\3d\\ne 3d\\Neuer Ordner\\artifacts\\perf\\baseline.json",
+  "afterPath": "C:\\Users\\gunda\\Desktop\\3d\\ne 3d\\Neuer Ordner\\artifacts\\perf\\optimized.json",
+  "overall": {
+    "bot_update_ms_p95_avg_before": 0.4500000001862645,
+    "bot_update_ms_p95_avg_after": 0.5000000018626451,
+    "bot_update_ms_p95_avg_delta_pct": 11.111111479041016,
+    "frame_ms_p95_avg_before": 6.650000000372529,
+    "frame_ms_p95_avg_after": 6.825000001117587,
+    "frame_ms_p95_avg_delta_pct": 2.6315789584248823,
+    "frame_ms_max_peak_before": 22.800000000745058,
+    "frame_ms_max_peak_after": 31.600000001490116,
+    "frame_ms_max_peak_delta_pct": 38.596491230076715
+  },
+  "scenarios": [
+    {
+      "id": "S1",
+      "before": {
+        "bot_update_ms_avg": 0.09269859812387796,
+        "bot_update_ms_p95": 0.5,
+        "bot_update_ms_max": 14.899999998509884,
+        "bot_update_ms_stddev": 0.46226707474058343,
+        "frame_ms_avg": 2.4212885154645982,
+        "frame_ms_p95": 5.300000000745058,
+        "frame_ms_max": 22.800000000745058,
+        "frame_ms_stddev": 1.775161812298926,
+        "heap_delta_mb": 3.3902950286865234,
+        "stuck_events_per_min": 0,
+        "self_collisions_per_round": 0,
+        "winrate_distribution": {
+          "player_0": 0.95,
+          "player_1": 0.05
+        }
+      },
+      "after": {
+        "bot_update_ms_avg": 0.0818803418841627,
+        "bot_update_ms_p95": 0.5,
+        "bot_update_ms_max": 2.100000001490116,
+        "bot_update_ms_stddev": 0.2729847630112454,
+        "frame_ms_avg": 3.020604395512287,
+        "frame_ms_p95": 6.599999997764826,
+        "frame_ms_max": 31.600000001490116,
+        "frame_ms_stddev": 2.3632229500708815,
+        "heap_delta_mb": 3.634092330932617,
+        "stuck_events_per_min": 0,
+        "self_collisions_per_round": 0,
+        "winrate_distribution": {
+          "player_0": 1
+        }
+      },
+      "delta": {
+        "bot_update_ms_p95_pct": 0,
+        "frame_ms_p95_pct": 24.52830182711354,
+        "stuck_events_per_min_pct": null,
+        "self_collisions_per_round_pct": null,
+        "winrate_distribution_max_abs": 0.050000000000000044
+      }
+    },
+    {
+      "id": "S2",
+      "before": {
+        "bot_update_ms_avg": 0.08286622362746837,
+        "bot_update_ms_p95": 0.5,
+        "bot_update_ms_max": 3.099999997764826,
+        "bot_update_ms_stddev": 0.2911255876390515,
+        "frame_ms_avg": 2.881793478179885,
+        "frame_ms_p95": 6.900000002235174,
+        "frame_ms_max": 12.800000000745058,
+        "frame_ms_stddev": 1.8495798704365625,
+        "heap_delta_mb": -0.8002853393554688,
+        "stuck_events_per_min": 0,
+        "self_collisions_per_round": 0,
+        "winrate_distribution": {
+          "player_0": 0.85,
+          "player_2": 0.05,
+          "player_1": 0.1
+        }
+      },
+      "after": {
+        "bot_update_ms_avg": 0.09023403639403839,
+        "bot_update_ms_p95": 0.6000000014901161,
+        "bot_update_ms_max": 4,
+        "bot_update_ms_stddev": 0.2979026708440923,
+        "frame_ms_avg": 3.0623306231850855,
+        "frame_ms_p95": 6.900000002235174,
+        "frame_ms_max": 11,
+        "frame_ms_stddev": 1.9252046635361666,
+        "heap_delta_mb": -0.21425247192382812,
+        "stuck_events_per_min": 0,
+        "self_collisions_per_round": 0,
+        "winrate_distribution": {
+          "player_0": 0.9,
+          "player_2": 0.05,
+          "player_1": 0.05
+        }
+      },
+      "delta": {
+        "bot_update_ms_p95_pct": 20.000000298023224,
+        "frame_ms_p95_pct": 0,
+        "stuck_events_per_min_pct": null,
+        "self_collisions_per_round_pct": null,
+        "winrate_distribution_max_abs": 0.050000000000000044
+      }
+    },
+    {
+      "id": "S3",
+      "before": {
+        "bot_update_ms_avg": 0.052583862197393735,
+        "bot_update_ms_p95": 0.30000000074505806,
+        "bot_update_ms_max": 1.800000000745058,
+        "bot_update_ms_stddev": 0.16841070691801432,
+        "frame_ms_avg": 2.518130311642169,
+        "frame_ms_p95": 6.199999999254942,
+        "frame_ms_max": 8.199999999254942,
+        "frame_ms_stddev": 1.5933679529230813,
+        "heap_delta_mb": -2.949337959289551,
+        "stuck_events_per_min": 0,
+        "self_collisions_per_round": 0,
+        "winrate_distribution": {
+          "player_0": 0.9,
+          "player_1": 0.1
+        }
+      },
+      "after": {
+        "bot_update_ms_avg": 0.0499683544405182,
+        "bot_update_ms_p95": 0.30000000447034836,
+        "bot_update_ms_max": 1.5,
+        "bot_update_ms_stddev": 0.16063560148966413,
+        "frame_ms_avg": 2.7240469207948954,
+        "frame_ms_p95": 6.200000002980232,
+        "frame_ms_max": 8.899999998509884,
+        "frame_ms_stddev": 1.6260550964041764,
+        "heap_delta_mb": -3.4100236892700195,
+        "stuck_events_per_min": 0,
+        "self_collisions_per_round": 0,
+        "winrate_distribution": {
+          "player_0": 0.75,
+          "player_1": 0.2
+        }
+      },
+      "delta": {
+        "bot_update_ms_p95_pct": 0.0000012417634297366852,
+        "frame_ms_p95_pct": 6.008532740176749e-8,
+        "stuck_events_per_min_pct": null,
+        "self_collisions_per_round_pct": null,
+        "winrate_distribution_max_abs": 0.15000000000000002
+      }
+    },
+    {
+      "id": "S4",
+      "before": {
+        "bot_update_ms_avg": 0.08341404357722106,
+        "bot_update_ms_p95": 0.5,
+        "bot_update_ms_max": 4.199999999254942,
+        "bot_update_ms_stddev": 0.2982551607141141,
+        "frame_ms_avg": 3.2064245810742653,
+        "frame_ms_p95": 8.199999999254942,
+        "frame_ms_max": 14.100000001490116,
+        "frame_ms_stddev": 2.2080700283133146,
+        "heap_delta_mb": -2.094402313232422,
+        "stuck_events_per_min": 0,
+        "self_collisions_per_round": 0,
+        "winrate_distribution": {
+          "player_0": 0.75,
+          "player_1": 0.2,
+          "player_2": 0.05
+        }
+      },
+      "after": {
+        "bot_update_ms_avg": 0.09122089362457686,
+        "bot_update_ms_p95": 0.6000000014901161,
+        "bot_update_ms_max": 2.899999998509884,
+        "bot_update_ms_stddev": 0.31295957410571773,
+        "frame_ms_avg": 3.2826589593351576,
+        "frame_ms_p95": 7.600000001490116,
+        "frame_ms_max": 10.899999998509884,
+        "frame_ms_stddev": 2.052459369085237,
+        "heap_delta_mb": 2.351715087890625,
+        "stuck_events_per_min": 0,
+        "self_collisions_per_round": 0,
+        "winrate_distribution": {
+          "player_0": 0.85,
+          "player_1": 0.15
+        }
+      },
+      "delta": {
+        "bot_update_ms_p95_pct": 20.000000298023224,
+        "frame_ms_p95_pct": -7.31707314413832,
+        "stuck_events_per_min_pct": null,
+        "self_collisions_per_round_pct": null,
+        "winrate_distribution_max_abs": 0.09999999999999998
+      }
+    }
+  ],
+  "guardrails": {
+    "noCriticalRuntimeErrors": true,
+    "stuckEventsWithinTolerance": true,
+    "winrateDistributionStable": true
+  }
+}

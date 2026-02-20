@@ -4,7 +4,6 @@
 
 import * as THREE from 'three';
 import { CONFIG } from './Config.js';
-import { BotLearningEngine } from './BotLearning.js';
 import { perfStart, perfEnd } from './PerfDebug.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
@@ -45,6 +44,17 @@ const LEARN_ACTION_INDEX = Object.freeze({
     SHOOT_ITEM: 7,
 });
 
+function isLearningEngineLike(candidate) {
+    return !!(
+        candidate
+        && typeof candidate.encodeState === 'function'
+        && typeof candidate.selectAction === 'function'
+        && typeof candidate.updateTransition === 'function'
+        && typeof candidate.getActionName === 'function'
+        && typeof candidate.getActionCount === 'function'
+    );
+}
+
 function createProbe(name, yaw, pitch, weight = 0) {
     return {
         name,
@@ -63,7 +73,7 @@ function createProbe(name, yaw, pitch, weight = 0) {
 export class BotAI {
     constructor(options = {}) {
         this.recorder = options.recorder || null;
-        this.learningEngine = options.learning instanceof BotLearningEngine ? options.learning : null;
+        this.learningEngine = isLearningEngineLike(options.learning) ? options.learning : null;
         this.botId = options.botId || `bot-${Math.random().toString(36).slice(2, 8)}`;
         this.learningEnabled = !!options.learningEnabled;
         this.learningTraining = !!options.learningTraining;
@@ -77,6 +87,9 @@ export class BotAI {
             roundWin: CONFIG.BOT.LEARNING?.REWARD?.ROUND_WIN ?? 1.4,
             roundLoss: CONFIG.BOT.LEARNING?.REWARD?.ROUND_LOSS ?? -0.8,
             roundDraw: CONFIG.BOT.LEARNING?.REWARD?.ROUND_DRAW ?? -0.25,
+            killHumanBonus: CONFIG.BOT.LEARNING?.REWARD?.KILL_HUMAN_BONUS ?? 0.85,
+            deathByHuman: CONFIG.BOT.LEARNING?.REWARD?.DEATH_BY_HUMAN ?? -0.95,
+            humanEngagementPerSec: CONFIG.BOT.LEARNING?.REWARD?.HUMAN_ENGAGEMENT_PER_SEC ?? 0.018,
         };
         this._learning = {
             lastStateKey: '',
@@ -164,6 +177,10 @@ export class BotAI {
             pursuitYaw: 0,
             pursuitPitch: 0,
             pursuitAimDot: 0,
+            humanAliveCount: 0,
+            nearestHumanDistanceSq: Infinity,
+            humanThreat: 0,
+            humanTargetInFront: false,
         };
 
         this._checkStuckTimer = 0;
@@ -249,7 +266,7 @@ export class BotAI {
 
     setLearningOptions(options = {}) {
         if (Object.prototype.hasOwnProperty.call(options, 'learningEngine')) {
-            this.learningEngine = options.learningEngine instanceof BotLearningEngine ? options.learningEngine : this.learningEngine;
+            this.learningEngine = isLearningEngineLike(options.learningEngine) ? options.learningEngine : this.learningEngine;
         }
         if (Object.prototype.hasOwnProperty.call(options, 'enabled')) {
             this.learningEnabled = !!options.enabled;
@@ -280,15 +297,22 @@ export class BotAI {
     onKill(targetPlayer = null, cause = 'UNKNOWN') {
         if (!this._isLearningActive()) return;
         this._addLearningReward(this._learningReward.kill);
+        if (targetPlayer && !targetPlayer.isBot) {
+            this._addLearningReward(this._learningReward.killHumanBonus);
+        }
         if (this.recorder?.logEvent) {
             const victim = targetPlayer ? `victim=${targetPlayer.index}` : 'victim=-1';
-            this.recorder.logEvent('LEARN_KILL', Number.isFinite(targetPlayer?.index) ? targetPlayer.index : -1, `killer=${this.botId} cause=${cause} ${victim}`);
+            const victimHuman = targetPlayer && !targetPlayer.isBot ? 1 : 0;
+            this.recorder.logEvent('LEARN_KILL', Number.isFinite(targetPlayer?.index) ? targetPlayer.index : -1, `killer=${this.botId} cause=${cause} ${victim} human=${victimHuman}`);
         }
     }
 
-    onDeath(cause = 'UNKNOWN') {
+    onDeath(cause = 'UNKNOWN', killerPlayer = null) {
         if (!this._isLearningActive()) return;
         this._addLearningReward(this._learningReward.death);
+        if (killerPlayer && !killerPlayer.isBot) {
+            this._addLearningReward(this._learningReward.deathByHuman);
+        }
         this._finalizeLearningTransition(true, `death:${cause}`);
     }
 
@@ -665,7 +689,8 @@ export class BotAI {
             this._tmpVec3.subVectors(player.position, other.position).normalize();
             const threatAlignment = this._tmpVec2.dot(this._tmpVec3);
 
-            const score = invDist * 0.9 + toward * 0.55 + threatAlignment * 0.35;
+            const humanPriority = other.isBot ? 0 : 0.08;
+            const score = invDist * 0.9 + toward * 0.55 + threatAlignment * 0.35 + humanPriority;
             if (score > bestScore) {
                 bestScore = score;
                 bestTarget = other;
@@ -860,6 +885,69 @@ export class BotAI {
         }
     }
 
+    _senseHumanPlayers(player, allPlayers) {
+        this.sense.humanAliveCount = 0;
+        this.sense.nearestHumanDistanceSq = Infinity;
+        this.sense.humanThreat = 0;
+        this.sense.humanTargetInFront = false;
+
+        if (!allPlayers || allPlayers.length === 0) return;
+
+        let nearestHuman = null;
+        let nearestDistSq = Infinity;
+        let accumulatedThreat = 0;
+        let threatSamples = 0;
+
+        for (let i = 0; i < allPlayers.length; i++) {
+            const other = allPlayers[i];
+            if (!other || other === player || !other.alive || other.isBot) continue;
+
+            this.sense.humanAliveCount++;
+            const distSq = other.position.distanceToSquared(player.position);
+            if (distSq < nearestDistSq) {
+                nearestDistSq = distSq;
+                nearestHuman = other;
+            }
+
+            other.getDirection(this._tmpVec2).normalize();
+            this._tmpVec3.subVectors(player.position, other.position);
+            const lenSq = this._tmpVec3.lengthSq();
+            if (lenSq > 0.0001) {
+                this._tmpVec3.multiplyScalar(1 / Math.sqrt(lenSq));
+                const alignment = this._tmpVec2.dot(this._tmpVec3);
+                accumulatedThreat += Math.max(0, alignment);
+                threatSamples++;
+            }
+        }
+
+        this.sense.nearestHumanDistanceSq = nearestDistSq;
+        if (threatSamples > 0) {
+            this.sense.humanThreat = accumulatedThreat / threatSamples;
+        }
+
+        if (nearestHuman) {
+            this._tmpVec.subVectors(nearestHuman.position, player.position).normalize();
+            this.sense.humanTargetInFront = this._tmpVec.dot(this._tmpForward) > 0.45;
+        }
+    }
+
+    _addPlayerDataReward(dt) {
+        if (!this._isLearningActive()) return;
+        if (!Number.isFinite(dt) || dt <= 0) return;
+        if (this.sense.humanAliveCount <= 0) return;
+        if (!Number.isFinite(this.sense.nearestHumanDistanceSq)) return;
+
+        const engagementPerSec = this._learningReward.humanEngagementPerSec || 0;
+        if (engagementPerSec === 0) return;
+
+        const distance = Math.sqrt(Math.max(0, this.sense.nearestHumanDistanceSq));
+        const proximity = Math.max(0, 1 - distance / 50);
+        const frontFactor = this.sense.humanTargetInFront ? 1.1 : 0.85;
+        const threatPenalty = 1 - Math.min(0.8, Math.max(0, this.sense.humanThreat) * 0.35);
+        const reward = engagementPerSec * proximity * frontFactor * threatPenalty * dt;
+        this._addLearningReward(reward);
+    }
+
     // ================================================================
     // Phase 4: Pursuit-Mode — aktives Verfolgen
     // ================================================================
@@ -1050,6 +1138,9 @@ export class BotAI {
         // Phase 6: Bot-Spacing
         this._senseBotSpacing(player, allPlayers);
 
+        // Human player telemetry for learning state/reward shaping.
+        this._senseHumanPlayers(player, allPlayers);
+
         this._evaluatePortalIntent(player, arena, allPlayers);
     }
 
@@ -1224,7 +1315,7 @@ export class BotAI {
     }
 
     _isLearningActive() {
-        return !!(this.learningEnabled && this.learningEngine && this.learningEngine.enabled !== false);
+        return !!(this.learningEnabled && isLearningEngineLike(this.learningEngine) && this.learningEngine.enabled !== false);
     }
 
     _isPlanarMode() {
@@ -1405,6 +1496,7 @@ export class BotAI {
 
         this._resetDecision();
         this._senseEnvironment(player, arena, allPlayers, projectiles);
+        this._addPlayerDataReward(dt);
         const learningStateKey = this._getLearningStateKey(player, arena);
         this._flushLearningTransition(learningStateKey);
 

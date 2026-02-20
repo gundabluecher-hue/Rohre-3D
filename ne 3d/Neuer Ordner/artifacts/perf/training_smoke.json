@@ -1,0 +1,168 @@
+{
+  "timestamp": "2026-02-20T02:47:51.453Z",
+  "roundsTarget": 1,
+  "roundsPlayed": 1,
+  "config": {
+    "port": 4254,
+    "timeScale": 1000,
+    "maxRoundDurationSec": 6,
+    "timeoutMs": 120000
+  },
+  "trainingSetup": {
+    "enabled": true,
+    "botOnly": true,
+    "dualWorlds": true,
+    "enabledAfterRun": true,
+    "botOnlyAfterRun": true,
+    "dualWorldsAfterRun": true
+  },
+  "learning": {
+    "before": {
+      "stats3D": {
+        "loaded": true,
+        "enabled": true,
+        "trainingEnabled": true,
+        "states": 4,
+        "maxStates": 2500,
+        "epsilon": 0.3475579465968752,
+        "epsilonStart": 0.35,
+        "epsilonMin": 0.04,
+        "totalUpdates": 14,
+        "totalReward": -2.536999999999998,
+        "storageKey": "mini-curve-fever-3d.bot-learning.v1.3d",
+        "backupStorageKey": "mini-curve-fever-3d.bot-learning.v1.3d.lastgood",
+        "lastSaveAt": 1771555660385,
+        "lastLoadedAt": 1771555660442,
+        "updatesSinceSave": 12,
+        "saveEveryUpdates": 200,
+        "minSaveIntervalMs": 4000
+      },
+      "statsPlanar": {
+        "loaded": true,
+        "enabled": true,
+        "trainingEnabled": true,
+        "states": 6,
+        "maxStates": 2500,
+        "epsilon": 0.3475579465968752,
+        "epsilonStart": 0.35,
+        "epsilonMin": 0.04,
+        "totalUpdates": 14,
+        "totalReward": -2.536999999999998,
+        "storageKey": "mini-curve-fever-3d.bot-learning.v1.planar",
+        "backupStorageKey": "mini-curve-fever-3d.bot-learning.v1.planar.lastgood",
+        "lastSaveAt": 1771555660386,
+        "lastLoadedAt": 1771555660443,
+        "updatesSinceSave": 12,
+        "saveEveryUpdates": 200,
+        "minSaveIntervalMs": 4000
+      }
+    },
+    "after": {
+      "stats3D": {
+        "loaded": true,
+        "enabled": true,
+        "trainingEnabled": true,
+        "states": 22,
+        "maxStates": 2500,
+        "epsilon": 0.3299425008943573,
+        "epsilonStart": 0.35,
+        "epsilonMin": 0.04,
+        "totalUpdates": 118,
+        "totalReward": -4.874499999999982,
+        "storageKey": "mini-curve-fever-3d.bot-learning.v1.3d",
+        "backupStorageKey": "mini-curve-fever-3d.bot-learning.v1.3d.lastgood",
+        "lastSaveAt": 1771555666318,
+        "lastLoadedAt": 1771555666657,
+        "updatesSinceSave": 74,
+        "saveEveryUpdates": 200,
+        "minSaveIntervalMs": 4000
+      },
+      "statsPlanar": {
+        "loaded": true,
+        "enabled": true,
+        "trainingEnabled": true,
+        "states": 18,
+        "maxStates": 2500,
+        "epsilon": 0.3344280554908887,
+        "epsilonStart": 0.35,
+        "epsilonMin": 0.04,
+        "totalUpdates": 91,
+        "totalReward": -6.389499999999986,
+        "storageKey": "mini-curve-fever-3d.bot-learning.v1.planar",
+        "backupStorageKey": "mini-curve-fever-3d.bot-learning.v1.planar.lastgood",
+        "lastSaveAt": 1771555666319,
+        "lastLoadedAt": 1771555666658,
+        "updatesSinceSave": 49,
+        "saveEveryUpdates": 200,
+        "minSaveIntervalMs": 4000
+      }
+    },
+    "delta": {
+      "updates3d": 104,
+      "updatesPlanar": 77,
+      "updatesTotal": 181,
+      "states3d": 18,
+      "statesPlanar": 12,
+      "statesTotal": 30,
+      "reward3d": -2.3374999999999835,
+      "rewardPlanar": -3.8524999999999876,
+      "rewardTotal": -6.189999999999971
+    }
+  },
+  "recorderAggregate": {
+    "rounds": 1,
+    "botWinRate": 1,
+    "averageBotSurvival": 4.987500041723251,
+    "selfCollisionsPerRound": 0,
+    "stuckEventsPerMinute": 0,
+    "bounceWallPerRound": 0,
+    "bounceTrailPerRound": 0,
+    "itemUsePerRound": 0,
+    "learningUpdatesPerRound": 136,
+    "learningRewardPerRound": -5.001500000000004,
+    "learningTdAbsMean": 0.09109194978346849
+  },
+  "recentRounds": [
+    {
+      "roundId": 1,
+      "duration": 6.049999999999984,
+      "winnerIndex": 0,
+      "winnerIsBot": true,
+      "botCount": 4,
+      "humanCount": 0,
+      "botSurvivalAverage": 4.987500041723251,
+      "selfCollisions": 0,
+      "stuckEvents": 0,
+      "bounceWallEvents": 0,
+      "bounceTrailEvents": 0,
+      "itemUseEvents": 0,
+      "stuckPerMinute": 0,
+      "learningUpdates": 136,
+      "learningRewardSum": -5.001500000000004,
+      "learningTdAbsSum": 12.388505170551715
+    }
+  ],
+  "persistence": {
+    "before": {
+      "updates3d": 128,
+      "updatesPlanar": 111,
+      "updatesTotal": 239
+    },
+    "after": {
+      "updates3d": 183,
+      "updatesPlanar": 166,
+      "updatesTotal": 349,
+      "states3d": 42,
+      "statesPlanar": 22,
+      "statesTotal": 64
+    }
+  },
+  "checks": {
+    "rounds_progressed": true,
+    "training_enabled": true,
+    "learning_updates_present": true,
+    "learning_progressed": true,
+    "persistence_restore": true
+  },
+  "passed": true
+}

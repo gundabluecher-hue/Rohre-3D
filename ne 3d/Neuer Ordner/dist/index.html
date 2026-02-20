@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mini Curve Fever 3D</title>
+    <title>Mini Curve Fever 3D</title>
 
     <script type="importmap">
     {
@@ -14,8 +14,8 @@
         }
     }
     </script>
-  <script type="module" crossorigin src="/assets/index-NAURtMtf.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CpKtZ-lK.css">
+  <script type="module" crossorigin src="/assets/index-C15XG2zT.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DekZQTJz.css">
 </head>
 
 <body>
@@ -369,8 +369,8 @@
                                 <span>2 Welten: je 2 Bots (Welt 2 im Ebenen-Modus)</span>
                             </label>
 
-                            <label for="training-time-scale-slider">Training-Speed: <span id="training-time-scale-label">1.0</span>x</label>
-                            <input type="range" id="training-time-scale-slider" min="0.5" max="8.0" step="0.1" value="1.0">
+                            <label for="training-time-scale-slider">Training-Speed: <span id="training-time-scale-label">1000.0</span>x</label>
+                            <input type="range" id="training-time-scale-slider" min="0.5" max="1000.0" step="0.5" value="1000.0">
 
                             <label for="training-autosave-rounds-slider">Autosave alle <span id="training-autosave-rounds-label">5</span> Runden</label>
                             <input type="range" id="training-autosave-rounds-slider" min="1" max="50" step="1" value="5">
@@ -477,10 +477,20 @@
                 <div id="message-text"></div>
                 <div id="message-sub"></div>
             </div>
+            <div id="training-overlay" class="training-overlay hidden" role="status" aria-live="polite" aria-atomic="true">
+                <div class="training-overlay-header">
+                    <span class="training-overlay-title">TRAINING PROGRESS</span>
+                    <span id="training-overlay-progress-label" class="training-overlay-progress-label">0%</span>
+                </div>
+                <div id="training-overlay-lines" class="training-overlay-lines"></div>
+                <div class="training-overlay-bar">
+                    <div id="training-overlay-progress-fill" class="training-overlay-progress-fill"></div>
+                </div>
+            </div>
             <div id="status-toast" class="hidden" role="status" aria-live="polite" aria-atomic="true"></div>
         </div>
     </div>
-
+
 </body>
 
 </html>

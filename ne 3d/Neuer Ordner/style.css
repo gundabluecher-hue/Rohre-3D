@@ -1030,6 +1030,95 @@ input[type="range"]::-webkit-slider-thumb {
     animation: toastFade 1.15s ease;
 }
 
+.training-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+    width: min(920px, 92vw);
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(130, 210, 255, 0.42);
+    background: rgba(5, 14, 26, 0.8);
+    color: #e8f2ff;
+    font: 13px/1.5 'Inter', sans-serif;
+    pointer-events: none;
+    z-index: 22;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(4px);
+}
+
+.training-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    gap: 10px;
+}
+
+.training-overlay-title {
+    font-family: 'Orbitron', monospace;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: #8dd4ff;
+}
+
+.training-overlay-progress-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    color: #d5ecff;
+}
+
+.training-overlay-lines {
+    white-space: pre-line;
+    color: #d8e6f5;
+}
+
+.training-overlay-bar {
+    margin-top: 8px;
+    width: 100%;
+    height: 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(145, 220, 255, 0.4);
+    background: rgba(12, 28, 48, 0.72);
+    overflow: hidden;
+}
+
+.training-overlay-progress-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #3ec6ff 0%, #53f09b 100%);
+    transition: width 0.18s ease;
+}
+
+.training-overlay.status-improving {
+    border-color: rgba(95, 227, 160, 0.5);
+}
+
+.training-overlay.status-improving .training-overlay-progress-fill {
+    background: linear-gradient(90deg, #3dcd78 0%, #9af07b 100%);
+}
+
+.training-overlay.status-plateau {
+    border-color: rgba(248, 199, 95, 0.5);
+}
+
+.training-overlay.status-plateau .training-overlay-progress-fill {
+    background: linear-gradient(90deg, #e1b741 0%, #f2df86 100%);
+}
+
+.training-overlay.status-unstable,
+.training-overlay.status-no_learning {
+    border-color: rgba(247, 124, 124, 0.55);
+}
+
+.training-overlay.status-unstable .training-overlay-progress-fill,
+.training-overlay.status-no_learning .training-overlay-progress-fill {
+    background: linear-gradient(90deg, #d75b5b 0%, #f59a9a 100%);
+}
+
 @keyframes toastFade {
     0% {
         opacity: 0;
@@ -1072,6 +1161,15 @@ input[type="range"]::-webkit-slider-thumb {
 
     .nav-help-content {
         justify-content: flex-start;
+    }
+
+    .training-overlay {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        transform: none;
+        font-size: 11px;
     }
 }
 

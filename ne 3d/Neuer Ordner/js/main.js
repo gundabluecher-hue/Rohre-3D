@@ -15,10 +15,16 @@ import { AudioManager } from './modules/Audio.js';
 import { HUD } from './modules/HUD.js';
 import { RoundRecorder } from './modules/RoundRecorder.js';
 import { BotLearningEngine } from './modules/BotLearning.js';
+import { BotLearningProxy } from './modules/BotLearningProxy.js';
 
 const SETTINGS_STORAGE_KEY = 'mini-curve-fever-3d.settings.v4';
 const SETTINGS_STORAGE_LEGACY_KEYS = ['mini-curve-fever-3d.settings.v3'];
 const SETTINGS_PROFILES_STORAGE_KEY = 'mini-curve-fever-3d.settings-profiles.v1';
+const LEARNING_IMPORT_STATE_KEY = 'mini-curve-fever-3d.bot-learning.legacy-import.v1';
+const LEGACY_LEARNING_BASE_PATHS = Object.freeze([
+    './bot-learning-data.json',
+]);
+const LEGACY_LEARNING_SUMMARY_PATH = './learning_history_compact_summary.json';
 
 /* global __APP_VERSION__, __BUILD_TIME__, __BUILD_ID__ */
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
@@ -32,6 +38,17 @@ function clamp(val, min, max) {
 
 function deepClone(obj) {
     return JSON.parse(JSON.stringify(obj));
+}
+
+function createLearningEngine(options = {}) {
+    if (typeof Worker !== 'undefined') {
+        try {
+            return new BotLearningProxy(options);
+        } catch (error) {
+            console.warn('[Learning] Worker proxy unavailable, falling back to main-thread engine.', error);
+        }
+    }
+    return new BotLearningEngine(options);
 }
 
 const KEY_BIND_ACTIONS = [
@@ -60,6 +77,10 @@ export class Game {
         this._hudTimer = 0;
         this._adaptiveTimer = 0;
         this._statsTimer = 0;
+        this._trainingOverlayTimer = 0;
+        this._lastLearningAutoSaveAt = Date.now();
+        this._legacyLearningImportPromise = null;
+        this._legacyLearningImportDone = false;
         this.keyCapture = null;
         this.isLowQuality = false;
 
@@ -94,10 +115,10 @@ export class Game {
                 // Ignore storage migration errors.
             }
         }
-        this.botLearning3D = new BotLearningEngine({
+        this.botLearning3D = createLearningEngine({
             storageKey: storageKey3D,
         });
-        this.botLearningPlanar = new BotLearningEngine({
+        this.botLearningPlanar = createLearningEngine({
             storageKey: storageKeyPlanar,
         });
         // Legacy alias for places that still reference a single engine.
@@ -112,7 +133,7 @@ export class Game {
         this.particles = new ParticleSystem(this.renderer);
 
         this.gameLoop = new GameLoop(
-            (dt) => this.update(dt),
+            (dt, loopMeta) => this.update(dt, loopMeta),
             () => this.render()
         );
 
@@ -195,6 +216,10 @@ export class Game {
             trainingSaveButton: document.getElementById('btn-training-save'),
             trainingResetButton: document.getElementById('btn-training-reset'),
             trainingStatus: document.getElementById('training-status'),
+            trainingOverlay: document.getElementById('training-overlay'),
+            trainingOverlayLines: document.getElementById('training-overlay-lines'),
+            trainingOverlayProgressFill: document.getElementById('training-overlay-progress-fill'),
+            trainingOverlayProgressLabel: document.getElementById('training-overlay-progress-label'),
         };
 
         this._navButtons = [];
@@ -207,6 +232,7 @@ export class Game {
         this._syncMenuControls();
         this._markSettingsDirty(false);
         this._renderBuildInfo();
+        this._kickoffLegacyLearningImport();
 
         this.gameLoop.start();
 
@@ -243,8 +269,15 @@ export class Game {
             }
         });
 
-        window.addEventListener('beforeunload', () => {
+        const flushLearningData = () => {
             this._saveLearningData(false, true);
+        };
+        window.addEventListener('beforeunload', flushLearningData);
+        window.addEventListener('pagehide', flushLearningData);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                flushLearningData();
+            }
         });
     }
 
@@ -373,7 +406,7 @@ export class Game {
                 autoRestart: true,
                 spectatorSplit: false,
                 dualWorlds: false,
-                timeScale: 1.0,
+                timeScale: 1000.0,
                 autoSaveRounds: 5,
             },
             controls: this._cloneDefaultControls(),
@@ -450,10 +483,11 @@ export class Game {
         merged.training.spectatorSplit = !!(src?.training?.spectatorSplit ?? defaults.training.spectatorSplit);
         merged.training.dualWorlds = !!(src?.training?.dualWorlds ?? defaults.training.dualWorlds);
         const parsedTrainingScale = parseFloat(src?.training?.timeScale ?? defaults.training.timeScale);
+        const trainingScaleBounds = this._getTrainingTimeScaleBounds();
         merged.training.timeScale = clamp(
             Number.isFinite(parsedTrainingScale) ? parsedTrainingScale : defaults.training.timeScale,
-            0.5,
-            8.0
+            trainingScaleBounds.min,
+            trainingScaleBounds.max
         );
         const parsedAutoSaveRounds = parseInt(src?.training?.autoSaveRounds ?? defaults.training.autoSaveRounds, 10);
         merged.training.autoSaveRounds = clamp(
@@ -570,7 +604,8 @@ export class Game {
         CONFIG.PLAYER.AUTO_ROLL = this.settings.autoRoll;
 
         if (this.settings.gameplay) {
-            CONFIG.GAMEPLAY.PLANAR_MODE = !!this.settings.gameplay.planarMode;
+            const requestedPlanarMode = !!this.settings.gameplay.planarMode;
+            CONFIG.GAMEPLAY.PLANAR_MODE = trainingDualWorlds ? false : requestedPlanarMode;
             CONFIG.GAMEPLAY.PORTAL_COUNT = this.settings.gameplay.portalCount || 0;
             CONFIG.GAMEPLAY.PLANAR_LEVEL_COUNT = clamp(parseInt(this.settings.gameplay.planarLevelCount ?? 5, 10), 2, 10);
         }
@@ -603,9 +638,7 @@ export class Game {
         this.input.setBindings(this.settings.controls);
 
         CONFIG.HOMING.LOCK_ON_ANGLE = this.settings.gameplay.lockOnAngle;
-        if (this.gameLoop) {
-            this.gameLoop.setTimeScale(this._getTrainingBaseTimeScale());
-        }
+        this._applyLoopTiming(1.0);
     }
 
     _setupMenuListeners() {
@@ -884,7 +917,9 @@ export class Game {
         }
         if (this.ui.trainingTimeScaleSlider) {
             this.ui.trainingTimeScaleSlider.addEventListener('input', () => {
-                this.settings.training.timeScale = clamp(parseFloat(this.ui.trainingTimeScaleSlider.value), 0.5, 8.0);
+                const bounds = this._getTrainingTimeScaleBounds();
+                const parsed = parseFloat(this.ui.trainingTimeScaleSlider.value);
+                this.settings.training.timeScale = clamp(Number.isFinite(parsed) ? parsed : 1, bounds.min, bounds.max);
                 this._onSettingsChanged();
             });
         }
@@ -1142,7 +1177,9 @@ export class Game {
             this.ui.trainingDualWorldsToggle.checked = !!this.settings.training?.dualWorlds;
         }
         if (this.ui.trainingTimeScaleSlider && this.ui.trainingTimeScaleLabel) {
-            const scale = clamp(parseFloat(this.settings.training?.timeScale ?? 1), 0.5, 8.0);
+            const bounds = this._getTrainingTimeScaleBounds();
+            const scale = clamp(parseFloat(this.settings.training?.timeScale ?? 1), bounds.min, bounds.max);
+            this.ui.trainingTimeScaleSlider.max = String(bounds.max);
             this.ui.trainingTimeScaleSlider.value = scale.toFixed(1);
             this.ui.trainingTimeScaleLabel.textContent = scale.toFixed(1);
         }
@@ -1486,11 +1523,52 @@ export class Game {
         }
     }
 
+    _getTrainingTimeScaleBounds() {
+        const configuredMax = Number(CONFIG.BOT?.LEARNING?.MAX_TRAINING_TIME_SCALE);
+        const max = Number.isFinite(configuredMax) ? Math.max(1, configuredMax) : 1000;
+        return {
+            min: 0.5,
+            max,
+        };
+    }
+
     _getTrainingBaseTimeScale() {
         const enabled = !!this.settings?.training?.enabled;
         if (!enabled) return 1.0;
         const parsed = parseFloat(this.settings.training.timeScale ?? 1.0);
-        return clamp(Number.isFinite(parsed) ? parsed : 1.0, 0.5, 8.0);
+        const bounds = this._getTrainingTimeScaleBounds();
+        return clamp(Number.isFinite(parsed) ? parsed : 1.0, bounds.min, bounds.max);
+    }
+
+    _applyLoopTiming(slowFactor = 1.0) {
+        if (!this.gameLoop) return;
+
+        const bounds = this._getTrainingTimeScaleBounds();
+        const runtimeBoostAllowed = this.state === 'PLAYING' || this.state === 'ROUND_END';
+        const baseScale = runtimeBoostAllowed ? this._getTrainingBaseTimeScale() : 1.0;
+        const safeSlowFactor = Number.isFinite(slowFactor) && slowFactor > 0 ? slowFactor : 1.0;
+        const targetScale = clamp(baseScale * safeSlowFactor, 0.05, bounds.max);
+        this.gameLoop.setTimeScale(targetScale);
+
+        const defaultBudget = Math.max(1, Math.floor(CONFIG.MAX_UPDATES_PER_FRAME || 5));
+        const turboTraining = runtimeBoostAllowed && this._isTrainingBotOnlyMode() && targetScale > 8;
+        let maxUpdatesPerFrame = defaultBudget;
+        let maxUpdateCpuMs = 8;
+        let dropAccumulatorOnBudgetExhaust = false;
+
+        if (turboTraining) {
+            maxUpdatesPerFrame = clamp(Math.ceil(targetScale), defaultBudget, 1200);
+            maxUpdateCpuMs = clamp(6 + Math.log10(targetScale + 1) * 4, 6, 16);
+            dropAccumulatorOnBudgetExhaust = true;
+        }
+
+        if (typeof this.gameLoop.configureUpdateBudget === 'function') {
+            this.gameLoop.configureUpdateBudget({
+                maxUpdatesPerFrame,
+                maxUpdateCpuMs,
+                dropAccumulatorOnBudgetExhaust,
+            });
+        }
     }
 
     _isTrainingBotOnlyMode() {
@@ -1541,29 +1619,664 @@ export class Game {
         }
     }
 
-    _updateTrainingStatus() {
-        if (!this.ui.trainingStatus) return;
+    _kickoffLegacyLearningImport() {
+        if (this._legacyLearningImportDone || this._legacyLearningImportPromise) return;
+        this._legacyLearningImportPromise = (async () => {
+            const legacyResult = await this._importLegacyLearningDataIfAvailable();
+            const canMutateNow = this.state === 'MENU';
+            const upgradedEngines = canMutateNow ? this._upgradeActiveLearningSchemas() : 0;
+            if (upgradedEngines > 0) {
+                this._saveLearningData(false, true);
+                this._updateTrainingStatus();
+                if ((legacyResult?.integratedSources || 0) <= 0) {
+                    this._showStatusToast(`Lernschema aktualisiert (${upgradedEngines} Engine${upgradedEngines > 1 ? 's' : ''})`, 2200, 'success');
+                }
+            }
+            const deferred = !!legacyResult?.deferred || !canMutateNow;
+            if (!deferred) {
+                this._legacyLearningImportDone = true;
+            }
+        })().catch((error) => {
+            console.warn('[Learning] Legacy import failed.', error);
+        }).finally(() => {
+            this._legacyLearningImportPromise = null;
+        });
+    }
+
+    async _importLegacyLearningDataIfAvailable() {
+        const engines = this._getLearningEngines();
+        if (engines.length === 0) return;
+
+        const importState = this._loadLearningImportState();
+        const importedIds = new Set(importState.importedSourceIds || []);
+        const storageSources = this._collectLegacyLearningStorageSources();
+        const fileSources = await this._loadLegacyLearningFileSources();
+        const candidateSources = [...storageSources, ...fileSources];
+
+        let integratedSources = 0;
+        let integratedStates3D = 0;
+        let integratedStatesPlanar = 0;
+        let deferred = false;
+
+        for (let i = 0; i < candidateSources.length; i++) {
+            if (this.state !== 'MENU') {
+                deferred = true;
+                break;
+            }
+            const source = candidateSources[i];
+            const sourceIdCore = this._buildLegacySourceId(source.payload);
+            if (!sourceIdCore) continue;
+            const sourceId = `${sourceIdCore}|mode:${source.hintMode || 'both'}`;
+            if (importedIds.has(sourceId)) continue;
+
+            const dump3D = this._toLegacyEngineDump(source.payload, '3d', source.hintMode);
+            const dumpPlanar = this._toLegacyEngineDump(source.payload, 'planar', source.hintMode);
+
+            let importedCurrentSource = false;
+            if (dump3D && this.botLearning3D) {
+                if (typeof this.botLearning3D.mergeDumpAndSave === 'function') {
+                    importedCurrentSource = !!this.botLearning3D.mergeDumpAndSave(dump3D) || importedCurrentSource;
+                } else if (typeof this.botLearning3D.importDumpAndSave === 'function') {
+                    this.botLearning3D.importDumpAndSave(dump3D);
+                    importedCurrentSource = true;
+                }
+                if (importedCurrentSource) {
+                    integratedStates3D += dump3D.states.length;
+                }
+            }
+
+            if (dumpPlanar && this.botLearningPlanar && this.botLearningPlanar !== this.botLearning3D) {
+                let importedPlanar = false;
+                if (typeof this.botLearningPlanar.mergeDumpAndSave === 'function') {
+                    importedPlanar = !!this.botLearningPlanar.mergeDumpAndSave(dumpPlanar);
+                } else if (typeof this.botLearningPlanar.importDumpAndSave === 'function') {
+                    this.botLearningPlanar.importDumpAndSave(dumpPlanar);
+                    importedPlanar = true;
+                }
+                importedCurrentSource = importedCurrentSource || importedPlanar;
+                if (importedPlanar) {
+                    integratedStatesPlanar += dumpPlanar.states.length;
+                }
+            }
+
+            if (importedCurrentSource) {
+                importedIds.add(sourceId);
+                integratedSources++;
+            }
+        }
+
+        if (integratedSources > 0) {
+            this._saveLearningImportState({
+                importedSourceIds: Array.from(importedIds),
+            });
+            this._saveLearningData(false, true);
+            this._updateTrainingStatus();
+            this._showStatusToast(
+                `Legacy-Lerndaten integriert (${integratedSources} Quellen, ${integratedStates3D}/${integratedStatesPlanar} States 3D/Planar)`,
+                2600,
+                'success'
+            );
+        }
+
+        return {
+            integratedSources,
+            integratedStates3D,
+            integratedStatesPlanar,
+            deferred,
+        };
+    }
+
+    _loadLearningImportState() {
+        if (typeof localStorage === 'undefined') {
+            return { importedSourceIds: [] };
+        }
+        try {
+            const raw = localStorage.getItem(LEARNING_IMPORT_STATE_KEY);
+            if (!raw) return { importedSourceIds: [] };
+            const parsed = JSON.parse(raw);
+            const importedSourceIds = Array.isArray(parsed?.importedSourceIds)
+                ? parsed.importedSourceIds.filter((id) => typeof id === 'string')
+                : [];
+            return { importedSourceIds };
+        } catch {
+            return { importedSourceIds: [] };
+        }
+    }
+
+    _saveLearningImportState(state) {
+        if (typeof localStorage === 'undefined') return false;
+        try {
+            const payload = {
+                version: 1,
+                importedSourceIds: Array.isArray(state?.importedSourceIds)
+                    ? state.importedSourceIds.filter((id) => typeof id === 'string').slice(-256)
+                    : [],
+                savedAt: Date.now(),
+            };
+            localStorage.setItem(LEARNING_IMPORT_STATE_KEY, JSON.stringify(payload));
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async _fetchJsonMaybe(path, timeoutMs = 5000) {
+        if (typeof fetch !== 'function') return null;
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = controller
+            ? setTimeout(() => {
+                try {
+                    controller.abort();
+                } catch {
+                    // ignore abort errors
+                }
+            }, timeoutMs)
+            : null;
+        try {
+            const response = await fetch(path, {
+                cache: 'no-store',
+                signal: controller?.signal,
+            });
+            if (!response || !response.ok) return null;
+            return await response.json();
+        } catch {
+            return null;
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    }
+
+    async _loadLegacyLearningFileSources() {
+        const sources = [];
+
+        for (let i = 0; i < LEGACY_LEARNING_BASE_PATHS.length; i++) {
+            const path = LEGACY_LEARNING_BASE_PATHS[i];
+            const payload = await this._fetchJsonMaybe(path, 5000);
+            if (payload && typeof payload === 'object') {
+                sources.push({
+                    hintMode: 'both',
+                    payload,
+                });
+            }
+        }
+
+        const summary = await this._fetchJsonMaybe(LEGACY_LEARNING_SUMMARY_PATH, 6500);
+        if (summary && Array.isArray(summary.snapshots) && summary.snapshots.length > 0) {
+            let latest = null;
+            for (let i = 0; i < summary.snapshots.length; i++) {
+                const entry = summary.snapshots[i];
+                if (!entry || typeof entry.file !== 'string') continue;
+                if (!latest) {
+                    latest = entry;
+                    continue;
+                }
+                const prevTs = String(latest.timestamp || latest.file);
+                const currTs = String(entry.timestamp || entry.file);
+                if (currTs >= prevTs) {
+                    latest = entry;
+                }
+            }
+
+            if (latest && typeof latest.file === 'string') {
+                const file = latest.file.replace(/\\/g, '/').trim();
+                if (file && !file.includes('..')) {
+                    const normalized = file.startsWith('learning_history/') ? file : `learning_history/${file}`;
+                    const payload = await this._fetchJsonMaybe(`./${normalized}`, 6500);
+                    if (payload && typeof payload === 'object') {
+                        sources.push({
+                            hintMode: 'both',
+                            payload,
+                        });
+                    }
+                }
+            }
+        }
+
+        return sources;
+    }
+
+    _collectLegacyLearningStorageSources() {
+        if (typeof localStorage === 'undefined') return [];
+
+        const activeKeys = new Set();
+        const stats3D = this.botLearning3D?.getStats?.();
+        const statsPlanar = this.botLearningPlanar?.getStats?.();
+        if (typeof stats3D?.storageKey === 'string') activeKeys.add(stats3D.storageKey);
+        if (typeof stats3D?.backupStorageKey === 'string') activeKeys.add(stats3D.backupStorageKey);
+        if (typeof statsPlanar?.storageKey === 'string') activeKeys.add(statsPlanar.storageKey);
+        if (typeof statsPlanar?.backupStorageKey === 'string') activeKeys.add(statsPlanar.backupStorageKey);
+
+        const out = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (typeof key !== 'string') continue;
+            if (!key.startsWith('mini-curve-fever-3d.bot-learning')) continue;
+            if (key === LEARNING_IMPORT_STATE_KEY) continue;
+            if (activeKeys.has(key)) continue;
+            if (key.endsWith('.lastgood') || key.endsWith('.fallback')) continue;
+
+            const raw = localStorage.getItem(key);
+            if (!raw) continue;
+
+            let payload = null;
+            try {
+                payload = JSON.parse(raw);
+            } catch {
+                payload = null;
+            }
+            if (!payload || typeof payload !== 'object') continue;
+
+            const lower = key.toLowerCase();
+            let hintMode = 'both';
+            if (lower.includes('.planar')) hintMode = 'planar';
+            else if (lower.includes('.3d')) hintMode = '3d';
+
+            out.push({
+                hintMode,
+                payload,
+            });
+        }
+
+        return out;
+    }
+
+    _buildLegacyStateFingerprint(rows) {
+        if (!Array.isArray(rows) || rows.length === 0) return '0';
+        const sanitize = (value) => String(value || '')
+            .replace(/[^a-zA-Z0-9_:-]/g, '')
+            .slice(0, 24);
+        const first = Array.isArray(rows[0]) ? sanitize(rows[0][0]) : '';
+        const middle = Array.isArray(rows[Math.floor(rows.length * 0.5)]) ? sanitize(rows[Math.floor(rows.length * 0.5)][0]) : '';
+        const last = Array.isArray(rows[rows.length - 1]) ? sanitize(rows[rows.length - 1][0]) : '';
+        return `${rows.length}:${first}:${middle}:${last}`;
+    }
+
+    _buildLegacySourceId(payload) {
+        const src = payload && typeof payload === 'object' ? payload : null;
+        if (!src) return '';
+
+        const savedAt = Math.max(0, Math.floor(
+            Number.isFinite(src.savedAt) ? src.savedAt
+                : (Number.isFinite(src.timestamp) ? src.timestamp : 0)
+        ));
+
+        const updates3D = Math.max(0, Math.floor(
+            Number.isFinite(src?.engine3D?.totalUpdates) ? src.engine3D.totalUpdates
+                : (Number.isFinite(src.totalUpdates) ? src.totalUpdates : 0)
+        ));
+        const updatesPlanar = Math.max(0, Math.floor(
+            Number.isFinite(src?.enginePlanar?.totalUpdates) ? src.enginePlanar.totalUpdates
+                : (Number.isFinite(src.totalUpdates) ? src.totalUpdates : 0)
+        ));
+
+        const states3D = Array.isArray(src.states3D) ? src.states3D : (Array.isArray(src.states) ? src.states : []);
+        const statesPlanar = Array.isArray(src.statesPlanar) ? src.statesPlanar : (Array.isArray(src.states) ? src.states : []);
+        const fp3D = this._buildLegacyStateFingerprint(states3D);
+        const fpPlanar = this._buildLegacyStateFingerprint(statesPlanar);
+
+        return `t${savedAt}|u3${updates3D}|up${updatesPlanar}|s3${fp3D}|sp${fpPlanar}`;
+    }
+
+    _toLegacyEngineDump(payload, mode, hintMode = 'both') {
+        const src = payload && typeof payload === 'object' ? payload : null;
+        if (!src) return null;
+        if (hintMode === '3d' && mode !== '3d') return null;
+        if (hintMode === 'planar' && mode !== 'planar') return null;
+
+        let rawStates = null;
+        if (mode === '3d' && Array.isArray(src.states3D)) {
+            rawStates = src.states3D;
+        } else if (mode === 'planar' && Array.isArray(src.statesPlanar)) {
+            rawStates = src.statesPlanar;
+        } else if (Array.isArray(src.states)) {
+            rawStates = src.states;
+        }
+        if (!Array.isArray(rawStates) || rawStates.length === 0) return null;
+
+        const engineStats = mode === '3d' ? src.engine3D : src.enginePlanar;
+        const savedAt = Math.max(0, Math.floor(
+            Number.isFinite(src.savedAt) ? src.savedAt
+                : (Number.isFinite(src.timestamp) ? src.timestamp : Date.now())
+        ));
+        const epsilon = Number.isFinite(engineStats?.epsilon)
+            ? engineStats.epsilon
+            : (Number.isFinite(src.epsilon) ? src.epsilon : null);
+        const totalUpdates = Math.max(0, Math.floor(
+            Number.isFinite(engineStats?.totalUpdates) ? engineStats.totalUpdates
+                : (Number.isFinite(src.totalUpdates) ? src.totalUpdates : 0)
+        ));
+        const totalReward = Number.isFinite(engineStats?.totalReward)
+            ? engineStats.totalReward
+            : (Number.isFinite(src.totalReward) ? src.totalReward : 0);
+
+        const actionCount = mode === 'planar'
+            ? (this.botLearningPlanar?.getActionCount?.() || this.botLearning3D?.getActionCount?.() || 8)
+            : (this.botLearning3D?.getActionCount?.() || 8);
+
+        const rows = [];
+        for (let i = 0; i < rawStates.length; i++) {
+            const row = rawStates[i];
+            if (!Array.isArray(row) || typeof row[0] !== 'string' || !Array.isArray(row[1])) continue;
+
+            const canonicalKey = this._canonicalizeLegacyStateKey(row[0]);
+            if (!canonicalKey) continue;
+
+            const values = new Array(actionCount);
+            for (let a = 0; a < actionCount; a++) {
+                values[a] = Number.isFinite(row[1][a]) ? row[1][a] : 0;
+            }
+
+            const visits = Number.isFinite(row[2]) ? Math.max(1, Math.floor(row[2])) : 1;
+            const lastSeen = Number.isFinite(row[3]) ? Math.max(0, Math.floor(row[3])) : savedAt;
+            rows.push([canonicalKey, values, visits, lastSeen]);
+        }
+
+        if (rows.length === 0) return null;
+
+        return {
+            savedAt,
+            epsilon,
+            totalUpdates,
+            totalReward,
+            states: this._mergeStateRowsByKey(rows, actionCount),
+        };
+    }
+
+    _mergeStateRowsByKey(rows, actionCount) {
+        const map = new Map();
+        const safeActionCount = Math.max(1, Math.floor(Number.isFinite(actionCount) ? actionCount : 1));
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            if (!Array.isArray(row) || typeof row[0] !== 'string' || !Array.isArray(row[1])) continue;
+
+            const key = row[0];
+            const values = new Array(safeActionCount);
+            for (let a = 0; a < safeActionCount; a++) {
+                values[a] = Number.isFinite(row[1][a]) ? row[1][a] : 0;
+            }
+            const visits = Number.isFinite(row[2]) ? Math.max(1, Math.floor(row[2])) : 1;
+            const lastSeen = Number.isFinite(row[3]) ? Math.max(0, Math.floor(row[3])) : 0;
+
+            if (!map.has(key)) {
+                map.set(key, [key, values, visits, lastSeen]);
+                continue;
+            }
+
+            const existing = map.get(key);
+            const existingValues = existing[1];
+            const existingVisits = Math.max(1, Math.floor(Number.isFinite(existing[2]) ? existing[2] : 1));
+            const mergedVisits = existingVisits + visits;
+
+            for (let a = 0; a < safeActionCount; a++) {
+                const oldValue = Number.isFinite(existingValues[a]) ? existingValues[a] : 0;
+                const newValue = Number.isFinite(values[a]) ? values[a] : 0;
+                existingValues[a] = ((oldValue * existingVisits) + (newValue * visits)) / mergedVisits;
+            }
+
+            existing[2] = mergedVisits;
+            existing[3] = Math.max(
+                Math.max(0, Math.floor(Number.isFinite(existing[3]) ? existing[3] : 0)),
+                lastSeen
+            );
+        }
+
+        return Array.from(map.values());
+    }
+
+    _tokenNumber(tokenMap, key, fallback, min, max) {
+        const raw = Number.isFinite(tokenMap?.[key]) ? tokenMap[key] : fallback;
+        const base = Number.isFinite(raw) ? raw : fallback;
+        return clamp(Math.floor(base), min, max);
+    }
+
+    _canonicalizeLegacyStateKey(rawKey) {
+        if (typeof rawKey !== 'string') return '';
+
+        const tokenMap = {};
+        const tokens = rawKey.split('|');
+        for (let i = 0; i < tokens.length; i++) {
+            const token = tokens[i]?.trim();
+            if (!token) continue;
+            const match = /^([a-zA-Z]+)(-?\d+)$/.exec(token);
+            if (!match) continue;
+            const key = match[1];
+            const value = parseInt(match[2], 10);
+            if (!Number.isFinite(value)) continue;
+            tokenMap[key] = value;
+        }
+
+        const hasCoreFields = Number.isFinite(tokenMap.f)
+            && Number.isFinite(tokenMap.p)
+            && Number.isFinite(tokenMap.o)
+            && Number.isFinite(tokenMap.d);
+        if (!hasCoreFields) return '';
+
+        const f = this._tokenNumber(tokenMap, 'f', 0, 0, 4);
+        const p = this._tokenNumber(tokenMap, 'p', 0, 0, 4);
+        const o = this._tokenNumber(tokenMap, 'o', 0, 0, 4);
+        const d = this._tokenNumber(tokenMap, 'd', 0, 0, 4);
+        const s = this._tokenNumber(tokenMap, 's', 0, 0, 4);
+        const t = this._tokenNumber(tokenMap, 't', 0, 0, 1);
+        const i = this._tokenNumber(tokenMap, 'i', 0, 0, 1);
+        const j = this._tokenNumber(tokenMap, 'j', 0, 0, 1);
+        const h = this._tokenNumber(tokenMap, 'h', 1, 0, 2);
+        const m = this._tokenNumber(tokenMap, 'm', 0, 0, 1);
+        const hc = this._tokenNumber(tokenMap, 'hc', 0, 0, 2);
+        const hdFallback = Number.isFinite(tokenMap?.hd) ? tokenMap.hd : 4;
+        const hd = this._tokenNumber(tokenMap, 'hd', hdFallback, 0, 4);
+        const ht = this._tokenNumber(tokenMap, 'ht', 0, 0, 4);
+
+        return `f${f}|p${p}|o${o}|d${d}|s${s}|t${t}|i${i}|j${j}|h${h}|m${m}|hc${hc}|hd${hd}|ht${ht}`;
+    }
+
+    _upgradeActiveLearningSchemas() {
+        if (this.state !== 'MENU') return 0;
+
+        const targets = [];
+        if (this.botLearning3D) {
+            targets.push({ engine: this.botLearning3D, mode: '3d' });
+        }
+        if (this.botLearningPlanar) {
+            targets.push({ engine: this.botLearningPlanar, mode: 'planar' });
+        }
+
+        let upgradedEngines = 0;
+        const seenEngines = new Set();
+        for (let i = 0; i < targets.length; i++) {
+            const target = targets[i];
+            if (!target?.engine || seenEngines.has(target.engine)) continue;
+            seenEngines.add(target.engine);
+            if (this._upgradeLearningEngineSchema(target.engine, target.mode)) {
+                upgradedEngines++;
+            }
+        }
+        return upgradedEngines;
+    }
+
+    _upgradeLearningEngineSchema(engine, mode = '3d') {
+        if (!engine) return false;
+        if (typeof engine.exportDump !== 'function' || typeof engine.importDumpAndSave !== 'function') {
+            return false;
+        }
+
+        const dump = engine.exportDump(Date.now());
+        if (!dump || !Array.isArray(dump.states) || dump.states.length === 0) {
+            return false;
+        }
+
+        const actionCount = Math.max(1, Math.floor(Number(engine.getActionCount?.() || 8)));
+        const normalizedRows = [];
+        let changed = false;
+
+        for (let i = 0; i < dump.states.length; i++) {
+            const row = dump.states[i];
+            if (!Array.isArray(row) || typeof row[0] !== 'string' || !Array.isArray(row[1])) continue;
+
+            const oldKey = row[0];
+            const canonicalKey = this._canonicalizeLegacyStateKey(oldKey);
+            const finalKey = canonicalKey || oldKey;
+            if (finalKey !== oldKey) {
+                changed = true;
+            }
+
+            const values = new Array(actionCount);
+            for (let a = 0; a < actionCount; a++) {
+                values[a] = Number.isFinite(row[1][a]) ? row[1][a] : 0;
+            }
+            const visits = Number.isFinite(row[2]) ? Math.max(1, Math.floor(row[2])) : 1;
+            const lastSeen = Number.isFinite(row[3]) ? Math.max(0, Math.floor(row[3])) : (dump.savedAt || Date.now());
+            normalizedRows.push([finalKey, values, visits, lastSeen]);
+        }
+
+        if (normalizedRows.length === 0) return false;
+
+        const mergedRows = this._mergeStateRowsByKey(normalizedRows, actionCount);
+        if (mergedRows.length !== dump.states.length) {
+            changed = true;
+        }
+        if (!changed) return false;
+
+        engine.importDumpAndSave({
+            savedAt: Number.isFinite(dump.savedAt) ? dump.savedAt : Date.now(),
+            epsilon: Number.isFinite(dump.epsilon) ? dump.epsilon : null,
+            totalUpdates: Number.isFinite(dump.totalUpdates) ? Math.max(0, Math.floor(dump.totalUpdates)) : 0,
+            totalReward: Number.isFinite(dump.totalReward) ? dump.totalReward : 0,
+            states: mergedRows,
+        });
+
+        return true;
+    }
+
+    _buildTrainingTelemetry() {
         const stats3D = this.botLearning3D ? this.botLearning3D.getStats() : null;
         const statsPlanar = this.botLearningPlanar ? this.botLearningPlanar.getStats() : null;
         const training = this.settings?.training || {};
         if (!stats3D && !statsPlanar) {
-            this.ui.trainingStatus.textContent = 'Learning engine nicht verfuegbar.';
-            return;
+            return {
+                available: false,
+                menuLines: ['Learning engine nicht verfuegbar.'],
+                overlayLines: ['Learning engine nicht verfuegbar.'],
+                overlayStatusClass: 'status-no_learning',
+                overlayProgressPct: 0,
+                overlayProgressLabel: '0.0%',
+            };
         }
 
         const stateCount = (stats3D?.states || 0) + (statsPlanar?.states || 0);
         const updateCount = (stats3D?.totalUpdates || 0) + (statsPlanar?.totalUpdates || 0);
         const rewardSum = (stats3D?.totalReward || 0) + (statsPlanar?.totalReward || 0);
+        const pendingUpdates = (stats3D?.updatesSinceSave || 0) + (statsPlanar?.updatesSinceSave || 0);
+        const lastSaveAt = Math.max(stats3D?.lastSaveAt || 0, statsPlanar?.lastSaveAt || 0);
+        const saveAgeSec = lastSaveAt > 0 ? ((Date.now() - lastSaveAt) / 1000) : NaN;
         const epsilon3D = Number.isFinite(stats3D?.epsilon) ? stats3D.epsilon.toFixed(3) : 'n/a';
         const epsilonPlanar = Number.isFinite(statsPlanar?.epsilon) ? statsPlanar.epsilon.toFixed(3) : 'n/a';
+        const aggregate = this.recorder?.getAggregateMetrics?.() || {};
+        const perBotSurvival = this.recorder?.getBotSurvivalAverages?.(8) || [];
+        const analysis = this.recorder?.getLearningAnalysis?.(12) || null;
+        const loopDiag = this.gameLoop?.getDiagnostics?.() || null;
+        const effectiveScale = Number.isFinite(loopDiag?.effectiveScale) ? loopDiag.effectiveScale : this._getTrainingBaseTimeScale();
+        const stepsPerFrame = Number.isFinite(loopDiag?.lastSteps) ? loopDiag.lastSteps : 0;
+        const fmt = (value, digits = 3) => (Number.isFinite(value) ? value.toFixed(digits) : 'n/a');
+        const analysisStatus = analysis?.status || 'NO_DATA';
+        const perBotSurvivalText = perBotSurvival.length > 0
+            ? perBotSurvival.map((entry) => `B${entry.botNumber}:${fmt(entry.averageSurvivalSec, 2)}s`).join(' | ')
+            : 'keine Daten';
 
-        const lines = [
+        const progressFromEpsilon = (stats) => {
+            if (!stats) return NaN;
+            const eps = Number(stats.epsilon);
+            const epsStart = Number(stats.epsilonStart);
+            const epsMin = Number(stats.epsilonMin);
+            if (!Number.isFinite(eps) || !Number.isFinite(epsStart) || !Number.isFinite(epsMin) || epsStart <= epsMin) {
+                return NaN;
+            }
+            return clamp(((epsStart - eps) / (epsStart - epsMin)) * 100, 0, 100);
+        };
+        const progressEps3D = progressFromEpsilon(stats3D);
+        const progressEpsPlanar = progressFromEpsilon(statsPlanar);
+        const progressSamples = [progressEps3D, progressEpsPlanar].filter((v) => Number.isFinite(v));
+        const epsilonProgressPct = progressSamples.length > 0
+            ? progressSamples.reduce((sum, value) => sum + value, 0) / progressSamples.length
+            : 0;
+
+        const maxStatesTotal = (stats3D?.maxStates || 0) + (statsPlanar?.maxStates || 0);
+        const stateCoveragePct = maxStatesTotal > 0 ? clamp((stateCount / maxStatesTotal) * 100, 0, 100) : 0;
+        const overlayProgressPct = clamp((epsilonProgressPct * 0.7) + (stateCoveragePct * 0.3), 0, 100);
+
+        const statusClassByAnalysis = {
+            IMPROVING: 'status-improving',
+            PLATEAU: 'status-plateau',
+            UNSTABLE: 'status-unstable',
+            NO_LEARNING: 'status-no_learning',
+            NO_DATA: 'status-no_learning',
+        };
+        const overlayStatusClass = statusClassByAnalysis[analysisStatus] || 'status-plateau';
+
+        const menuLines = [
             `Learning: ${training.enabled ? 'AN' : 'AUS'} | BotOnly: ${training.botVsBotOnly ? 'JA' : 'NEIN'} | Mortal: ${training.mortalBots ? 'JA' : 'NEIN'}`,
             `Split: ${this._isTrainingSpectatorSplitMode() ? 'JA' : 'NEIN'} | Dual-Welten: ${this._isTrainingDualWorldsMode() ? 'JA' : 'NEIN'} | Auto-Restart: ${training.autoRestart ? 'JA' : 'NEIN'}`,
             `States(3D/Planar/Total): ${stats3D?.states || 0}/${statsPlanar?.states || 0}/${stateCount} | Updates: ${updateCount}`,
             `Epsilon(3D/Planar): ${epsilon3D}/${epsilonPlanar} | RewardSum: ${rewardSum.toFixed(2)} | TimeScale: ${this._getTrainingBaseTimeScale().toFixed(1)}x`,
+            `Analyse: ${analysisStatus} | LearnUpd/Round: ${fmt(aggregate.learningUpdatesPerRound, 2)} | Reward/Round: ${fmt(aggregate.learningRewardPerRound, 3)} | TD-Abs(mean): ${fmt(aggregate.learningTdAbsMean, 3)}`,
+            `Trend (12 Runden): Updates ${fmt(analysis?.updateTrendPerRound, 2)} | Reward ${fmt(analysis?.rewardTrendPerRound, 3)} | TD ${fmt(analysis?.tdAbsTrend, 3)}`,
+            `Loop: Ziel ${this._getTrainingBaseTimeScale().toFixed(1)}x | Ist ${fmt(effectiveScale, 1)}x | Steps/Frame ${stepsPerFrame} | BudgetHits ${loopDiag?.totalBudgetHits || 0}`,
+            `Persistenz: pending ${pendingUpdates} | letzter Save vor ${fmt(saveAgeSec, 1)}s | DroppedFrames ${loopDiag?.totalDroppedFrames || 0}`,
+            `Avg Ueberleben pro Bot: ${perBotSurvivalText}`,
         ];
-        this.ui.trainingStatus.textContent = lines.join('\n');
+
+        const overlayLines = [
+            `Runden: ${aggregate.rounds || 0} | Updates: ${updateCount} | States: ${stateCount}`,
+            `Upd/Runde: ${fmt(aggregate.learningUpdatesPerRound, 2)} | Reward/Runde: ${fmt(aggregate.learningRewardPerRound, 3)} | TD: ${fmt(aggregate.learningTdAbsMean, 3)}`,
+            `Analyse: ${analysisStatus} | Epsilon 3D/Planar: ${epsilon3D}/${epsilonPlanar}`,
+            `Scale Ziel/Ist: ${this._getTrainingBaseTimeScale().toFixed(1)}x/${fmt(effectiveScale, 1)}x | Save in Queue: ${pendingUpdates}`,
+            `Avg Ueberleben/Bot: ${perBotSurvivalText}`,
+        ];
+
+        return {
+            available: true,
+            menuLines,
+            overlayLines,
+            overlayStatusClass,
+            overlayProgressPct,
+            overlayProgressLabel: `${overlayProgressPct.toFixed(1)}%`,
+        };
+    }
+
+    _updateTrainingOverlay(telemetry = null) {
+        const overlay = this.ui?.trainingOverlay;
+        if (!overlay) return;
+
+        const gameVisibleState = this.state === 'PLAYING' || this.state === 'ROUND_END' || this.state === 'MATCH_END';
+        const trainingEnabled = !!this.settings?.training?.enabled;
+        const visible = gameVisibleState && trainingEnabled;
+
+        overlay.classList.toggle('hidden', !visible);
+        if (!visible) return;
+
+        const data = telemetry || this._buildTrainingTelemetry();
+        const statusClasses = ['status-improving', 'status-plateau', 'status-unstable', 'status-no_learning'];
+        overlay.classList.remove(...statusClasses);
+        overlay.classList.add(data.overlayStatusClass || 'status-plateau');
+
+        if (this.ui.trainingOverlayLines) {
+            this.ui.trainingOverlayLines.textContent = (data.overlayLines || []).join('\n');
+        }
+        if (this.ui.trainingOverlayProgressFill) {
+            const pct = clamp(Number(data.overlayProgressPct) || 0, 0, 100);
+            this.ui.trainingOverlayProgressFill.style.width = `${pct.toFixed(1)}%`;
+        }
+        if (this.ui.trainingOverlayProgressLabel) {
+            this.ui.trainingOverlayProgressLabel.textContent = data.overlayProgressLabel || '0.0%';
+        }
+    }
+
+    _updateTrainingStatus() {
+        const telemetry = this._buildTrainingTelemetry();
+        if (this.ui.trainingStatus) {
+            this.ui.trainingStatus.textContent = (telemetry.menuLines || []).join('\n');
+        }
+        this._updateTrainingOverlay(telemetry);
     }
 
     _saveLearningData(showToast = false, force = true) {
@@ -1573,11 +2286,39 @@ export class Game {
         for (let i = 0; i < engines.length; i++) {
             ok = engines[i].save(force) && ok;
         }
+        if (ok) {
+            this._lastLearningAutoSaveAt = Date.now();
+        }
         this._updateTrainingStatus();
         if (showToast) {
             this._showStatusToast(ok ? 'Lerndaten gespeichert' : 'Lerndaten konnten nicht gespeichert werden', 1400, ok ? 'success' : 'error');
         }
         return ok;
+    }
+
+    _tickLearningAutoPersist() {
+        if (!this.settings?.training?.enabled) {
+            this._lastLearningAutoSaveAt = Date.now();
+            return;
+        }
+
+        const now = Date.now();
+        const minIntervalMs = 2500;
+        if (now - this._lastLearningAutoSaveAt < minIntervalMs) return;
+
+        let pending = 0;
+        const engines = this._getLearningEngines();
+        for (let i = 0; i < engines.length; i++) {
+            const stats = engines[i].getStats ? engines[i].getStats() : null;
+            pending += stats?.updatesSinceSave || 0;
+        }
+        if (pending <= 0) {
+            this._lastLearningAutoSaveAt = now;
+            return;
+        }
+
+        this._saveLearningData(false, true);
+        this._lastLearningAutoSaveAt = now;
     }
 
     _resetLearningData() {
@@ -1591,12 +2332,18 @@ export class Game {
     }
 
     _startDeveloperTraining() {
+        const bounds = this._getTrainingTimeScaleBounds();
         this.settings.training.enabled = true;
         this.settings.training.botVsBotOnly = true;
         this.settings.training.mortalBots = true;
         this.settings.training.autoRestart = true;
         this.settings.training.spectatorSplit = true;
         this.settings.training.dualWorlds = true;
+        this.settings.training.timeScale = bounds.max;
+        this.settings.training.autoSaveRounds = 1;
+        if (this.settings.gameplay) {
+            this.settings.gameplay.planarMode = false;
+        }
         this.settings.numBots = 4;
         this._onSettingsChanged();
         this._showStatusToast('Developer-Training gestartet', 1200, 'success');
@@ -1706,10 +2453,12 @@ export class Game {
             player.planarAimOffset = 0;
         }
 
-        this.gameLoop.setTimeScale(this._getTrainingBaseTimeScale());
+        this._applyLoopTiming(1.0);
         this.ui.messageOverlay.classList.add('hidden');
         this.ui.statusToast.classList.add('hidden');
+        this._trainingOverlayTimer = 0;
         this._updateHUD();
+        this._updateTrainingStatus();
     }
 
     _onRoundEnd(winner) {
@@ -1946,12 +2695,15 @@ export class Game {
         }
     }
 
-    update(dt) {
+    update(dt, loopMeta = null) {
         // FPS-Tracker (immer aktiv, kein Performance-Overhead)
         this._fpsTracker.update(dt);
 
         // Debug Recording
         if (this.state === 'PLAYING' && this.entityManager) {
+            if (this.recorder?.tick) {
+                this.recorder.tick(dt);
+            }
             this.recorder.recordFrame(this.entityManager.players);
         }
 
@@ -1988,6 +2740,12 @@ export class Game {
                 this.renderer.setQuality('LOW');
                 this._showStatusToast('⚡ Grafik automatisch reduziert');
             }
+        }
+
+        this._trainingOverlayTimer = (this._trainingOverlayTimer || 0) + dt;
+        if (this._trainingOverlayTimer >= 0.25) {
+            this._trainingOverlayTimer = 0;
+            this._updateTrainingStatus();
         }
 
         if (this.state === 'PLAYING') {
@@ -2040,7 +2798,6 @@ export class Game {
                 this.hudP2.setVisibility(false);
             }
 
-            const baseScale = this._getTrainingBaseTimeScale();
             let slowFactor = 1.0;
             for (const p of this.entityManager.players) {
                 for (const effect of p.activeEffects) {
@@ -2049,7 +2806,12 @@ export class Game {
                     }
                 }
             }
-            this.gameLoop.setTimeScale(baseScale * slowFactor);
+            this._applyLoopTiming(slowFactor);
+            if (loopMeta?.frame && loopMeta.stepIndex === 1) {
+                this._tickLearningAutoPersist();
+            } else if (!loopMeta) {
+                this._tickLearningAutoPersist();
+            }
         } else if (this.state === 'ROUND_END') {
             if (this.input.wasPressed('Escape')) {
                 this._returnToMenu();
@@ -2117,8 +2879,13 @@ export class Game {
             this.ui.crosshairP2.style.top = '50%';
             this.ui.crosshairP2.style.transform = 'translate(-50%, -50%) rotate(0deg)';
         }
+        if (this.ui.trainingOverlay) {
+            this.ui.trainingOverlay.classList.add('hidden');
+        }
         this._saveLearningData(false, true);
+        this._applyLoopTiming(1.0);
         this._syncMenuControls();
+        this._kickoffLegacyLearningImport();
     }
     _showDebugLog(recorderDump) {
         // Disabled

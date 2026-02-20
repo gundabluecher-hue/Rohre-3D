@@ -15,7 +15,9 @@ export const LEARNING_ACTIONS = Object.freeze([
     'SHOOT_ITEM',
 ]);
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
+const LEGACY_STORAGE_VERSION = 1;
+const STORAGE_BACKUP_SUFFIX = '.lastgood';
 const DEFAULT_STORAGE_KEY = 'mini-curve-fever-3d.bot-learning.v1';
 
 function clamp(value, min, max) {
@@ -37,6 +39,39 @@ function toFiniteNumber(value, fallback = 0) {
 function pickRandomIndex(indices) {
     if (!indices || indices.length === 0) return 0;
     return indices[Math.floor(Math.random() * indices.length)];
+}
+
+function fnv1a32(input) {
+    let hash = 0x811c9dc5;
+    const str = String(input || '');
+    for (let i = 0; i < str.length; i++) {
+        hash ^= str.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return hash.toString(16).padStart(8, '0');
+}
+
+function buildCorePayload(epsilon, totalUpdates, totalReward, states) {
+    return {
+        epsilon: toFiniteNumber(epsilon, 0),
+        totalUpdates: Math.max(0, Math.floor(toFiniteNumber(totalUpdates, 0))),
+        totalReward: toFiniteNumber(totalReward, 0),
+        states: Array.isArray(states) ? states : [],
+    };
+}
+
+function buildPayload(core, now = Date.now()) {
+    const safeCore = buildCorePayload(core?.epsilon, core?.totalUpdates, core?.totalReward, core?.states);
+    const checksum = fnv1a32(JSON.stringify(safeCore));
+    return {
+        version: STORAGE_VERSION,
+        savedAt: Math.max(0, Math.floor(toFiniteNumber(now, Date.now()))),
+        checksum,
+        epsilon: safeCore.epsilon,
+        totalUpdates: safeCore.totalUpdates,
+        totalReward: safeCore.totalReward,
+        states: safeCore.states,
+    };
 }
 
 export class BotLearningEngine {
@@ -62,6 +97,8 @@ export class BotLearningEngine {
         this.updatesSinceSave = 0;
         this.lastSaveAt = 0;
         this.lastLoadedAt = 0;
+        this.epsilonOverride = null;
+        this.backupStorageKey = `${this.storageKey}${STORAGE_BACKUP_SUFFIX}`;
 
         this.qTable = new Map();
         this.stateMeta = new Map();
@@ -74,6 +111,17 @@ export class BotLearningEngine {
 
     setTrainingEnabled(enabled) {
         this.trainingEnabled = !!enabled;
+    }
+
+    setEpsilonOverride(value) {
+        if (value === null || value === undefined || value === '') {
+            this.epsilonOverride = null;
+            return;
+        }
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return;
+        this.epsilonOverride = clamp(parsed, this.epsilonMin, 1);
+        this.epsilon = this.epsilonOverride;
     }
 
     getActionName(actionIndex) {
@@ -97,6 +145,11 @@ export class BotLearningEngine {
         const speedRatio = (player && player.baseSpeed > 0)
             ? toFiniteNumber(player.speed / player.baseSpeed, 1)
             : 1;
+        const nearestHumanDistance = Number.isFinite(safeSense.nearestHumanDistanceSq)
+            ? Math.sqrt(Math.max(0, safeSense.nearestHumanDistanceSq))
+            : Infinity;
+        const humanCount = Math.max(0, Math.floor(toFiniteNumber(safeSense.humanAliveCount, 0)));
+        const humanThreat = clamp(toFiniteNumber(safeSense.humanThreat, 0), 0, 2);
 
         let heightZone = 1;
         if (!planarMode && player && arena?.bounds) {
@@ -114,8 +167,11 @@ export class BotLearningEngine {
         const i = safeSense.immediateDanger ? 1 : 0;
         const j = safeSense.projectileThreat ? 1 : 0;
         const m = planarMode ? 1 : 0;
+        const hc = toBin(humanCount, [1, 2]);
+        const hd = toBin(nearestHumanDistance, [10, 20, 35, 55]);
+        const ht = toBin(humanThreat, [0.2, 0.45, 0.75, 1.1]);
 
-        return `f${f}|p${p}|o${o}|d${d}|s${s}|t${t}|i${i}|j${j}|h${heightZone}|m${m}`;
+        return `f${f}|p${p}|o${o}|d${d}|s${s}|t${t}|i${i}|j${j}|h${heightZone}|m${m}|hc${hc}|hd${hd}|ht${ht}`;
     }
 
     selectAction(stateKey, options = {}) {
@@ -182,7 +238,11 @@ export class BotLearningEngine {
             this.totalUpdates++;
             this.totalReward += reward;
             this.updatesSinceSave++;
-            this.epsilon = Math.max(this.epsilonMin, this.epsilon * this.epsilonDecay);
+            if (this.epsilonOverride === null) {
+                this.epsilon = Math.max(this.epsilonMin, this.epsilon * this.epsilonDecay);
+            } else {
+                this.epsilon = this.epsilonOverride;
+            }
 
             this._touchState(stateKey);
             if (nextStateKey) this._touchState(nextStateKey);
@@ -204,8 +264,128 @@ export class BotLearningEngine {
         this.totalUpdates = 0;
         this.totalReward = 0;
         this.updatesSinceSave = 0;
-        this.epsilon = this.epsilonStart;
+        this.epsilon = this.epsilonOverride === null ? this.epsilonStart : this.epsilonOverride;
         if (saveAfterReset) this.save(true);
+    }
+
+    exportDump(now = Date.now()) {
+        const safeNow = Math.max(0, Math.floor(toFiniteNumber(now, Date.now())));
+        return {
+            savedAt: safeNow,
+            epsilon: this.epsilon,
+            totalUpdates: this.totalUpdates,
+            totalReward: this.totalReward,
+            states: this._serializeStates(safeNow),
+        };
+    }
+
+    importDumpAndSave(dump, options = {}) {
+        const incoming = this._normalizeExternalDump(dump);
+        if (!incoming) return false;
+
+        this.qTable.clear();
+        this.stateMeta.clear();
+
+        const actionCount = this.actions.length;
+        for (let i = 0; i < incoming.states.length; i++) {
+            const row = incoming.states[i];
+            const stateKey = row[0];
+            const values = row[1];
+            const visits = row[2];
+            const lastSeen = row[3];
+
+            const arr = new Float64Array(actionCount);
+            for (let a = 0; a < actionCount; a++) {
+                arr[a] = toFiniteNumber(values[a], 0);
+            }
+
+            this.qTable.set(stateKey, arr);
+            this.stateMeta.set(stateKey, {
+                visits: Math.max(1, Math.floor(toFiniteNumber(visits, 1))),
+                lastSeen: Math.max(0, Math.floor(toFiniteNumber(lastSeen, incoming.savedAt))),
+            });
+        }
+
+        if (Number.isFinite(incoming.epsilon)) {
+            const nextEpsilon = clamp(incoming.epsilon, this.epsilonMin, this.epsilonStart);
+            this.epsilon = this.epsilonOverride === null ? nextEpsilon : this.epsilonOverride;
+        }
+        this.totalUpdates = Math.max(0, Math.floor(toFiniteNumber(incoming.totalUpdates, 0)));
+        this.totalReward = toFiniteNumber(incoming.totalReward, 0);
+        this.lastLoadedAt = Date.now();
+        this.updatesSinceSave = 0;
+        this._pruneStatesIfNeeded();
+
+        if (options.save !== false) {
+            this.save(true);
+        }
+        return true;
+    }
+
+    mergeDumpAndSave(dump, options = {}) {
+        const incoming = this._normalizeExternalDump(dump);
+        if (!incoming) return false;
+
+        const actionCount = this.actions.length;
+        for (let i = 0; i < incoming.states.length; i++) {
+            const row = incoming.states[i];
+            const stateKey = row[0];
+            const incomingValues = row[1];
+            const incomingVisits = Math.max(1, Math.floor(toFiniteNumber(row[2], 1)));
+            const incomingLastSeen = Math.max(0, Math.floor(toFiniteNumber(row[3], incoming.savedAt)));
+
+            const existingValues = this.qTable.get(stateKey);
+            const existingMeta = this.stateMeta.get(stateKey);
+            if (!existingValues || !existingMeta) {
+                const arr = new Float64Array(actionCount);
+                for (let a = 0; a < actionCount; a++) {
+                    arr[a] = toFiniteNumber(incomingValues[a], 0);
+                }
+                this.qTable.set(stateKey, arr);
+                this.stateMeta.set(stateKey, {
+                    visits: incomingVisits,
+                    lastSeen: incomingLastSeen,
+                });
+                continue;
+            }
+
+            const oldVisits = Math.max(1, Math.floor(toFiniteNumber(existingMeta.visits, 1)));
+            const mergedVisits = oldVisits + incomingVisits;
+            for (let a = 0; a < actionCount; a++) {
+                const oldValue = toFiniteNumber(existingValues[a], 0);
+                const nextValue = toFiniteNumber(incomingValues[a], 0);
+                existingValues[a] = ((oldValue * oldVisits) + (nextValue * incomingVisits)) / mergedVisits;
+            }
+            existingMeta.visits = mergedVisits;
+            existingMeta.lastSeen = Math.max(
+                Math.max(0, Math.floor(toFiniteNumber(existingMeta.lastSeen, 0))),
+                incomingLastSeen
+            );
+        }
+
+        const previousUpdates = this.totalUpdates;
+        const incomingUpdates = Math.max(0, Math.floor(toFiniteNumber(incoming.totalUpdates, 0)));
+        this.totalUpdates = Math.max(this.totalUpdates, incomingUpdates);
+
+        const incomingReward = toFiniteNumber(incoming.totalReward, 0);
+        if (incomingUpdates > previousUpdates || Math.abs(incomingReward) > Math.abs(this.totalReward)) {
+            this.totalReward = incomingReward;
+        }
+
+        if (Number.isFinite(incoming.epsilon)) {
+            const targetEpsilon = Math.min(this.epsilon, incoming.epsilon);
+            const nextEpsilon = clamp(targetEpsilon, this.epsilonMin, this.epsilonStart);
+            this.epsilon = this.epsilonOverride === null ? nextEpsilon : this.epsilonOverride;
+        }
+
+        this.lastLoadedAt = Date.now();
+        this.updatesSinceSave = Math.max(1, this.updatesSinceSave);
+        this._pruneStatesIfNeeded();
+
+        if (options.save !== false) {
+            this.save(true);
+        }
+        return true;
     }
 
     getStats() {
@@ -214,12 +394,20 @@ export class BotLearningEngine {
             enabled: this.enabled,
             trainingEnabled: this.trainingEnabled,
             states: this.qTable.size,
+            maxStates: this.maxStates,
             epsilon: this.epsilon,
+            epsilonStart: this.epsilonStart,
+            epsilonMin: this.epsilonMin,
             totalUpdates: this.totalUpdates,
             totalReward: this.totalReward,
             storageKey: this.storageKey,
+            backupStorageKey: this.backupStorageKey,
             lastSaveAt: this.lastSaveAt,
             lastLoadedAt: this.lastLoadedAt,
+            updatesSinceSave: this.updatesSinceSave,
+            saveEveryUpdates: this.saveEveryUpdates,
+            minSaveIntervalMs: this.minSaveIntervalMs,
+            epsilonOverride: this.epsilonOverride,
         };
     }
 
@@ -231,6 +419,62 @@ export class BotLearningEngine {
             if (now - this.lastSaveAt < this.minSaveIntervalMs) return false;
         }
 
+        const payload = buildPayload({
+            epsilon: this.epsilon,
+            totalUpdates: this.totalUpdates,
+            totalReward: this.totalReward,
+            states: this._serializeStates(now),
+        }, now);
+        const serialized = JSON.stringify(payload);
+
+        try {
+            const previousRaw = localStorage.getItem(this.storageKey);
+            if (previousRaw) {
+                localStorage.setItem(this.backupStorageKey, previousRaw);
+            }
+            localStorage.setItem(this.storageKey, serialized);
+            this.lastSaveAt = now;
+            this.updatesSinceSave = 0;
+            return true;
+        } catch {
+            try {
+                // Last fallback: write current payload at least to the primary key.
+                localStorage.setItem(this.storageKey, serialized);
+                this.lastSaveAt = now;
+                this.updatesSinceSave = 0;
+                return true;
+            } catch {
+                return false;
+            }
+        }
+    }
+
+    load() {
+        if (typeof localStorage === 'undefined') return false;
+        try {
+            const primaryRaw = localStorage.getItem(this.storageKey);
+            if (this._hydrateFromRaw(primaryRaw)) {
+                return true;
+            }
+
+            const backupRaw = localStorage.getItem(this.backupStorageKey);
+            if (!this._hydrateFromRaw(backupRaw)) {
+                return false;
+            }
+
+            // Self-heal the primary key if backup was the last valid payload.
+            try {
+                if (backupRaw) localStorage.setItem(this.storageKey, backupRaw);
+            } catch {
+                // Ignore self-heal failures.
+            }
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    _serializeStates(now = Date.now()) {
         const states = [];
         for (const [key, values] of this.qTable.entries()) {
             const meta = this.stateMeta.get(key) || { visits: 1, lastSeen: now };
@@ -241,69 +485,102 @@ export class BotLearningEngine {
                 Math.max(0, Math.floor(meta.lastSeen || now)),
             ]);
         }
-
-        const payload = {
-            version: STORAGE_VERSION,
-            savedAt: now,
-            epsilon: this.epsilon,
-            totalUpdates: this.totalUpdates,
-            totalReward: this.totalReward,
-            states,
-        };
-
-        try {
-            localStorage.setItem(this.storageKey, JSON.stringify(payload));
-            this.lastSaveAt = now;
-            this.updatesSinceSave = 0;
-            return true;
-        } catch {
-            return false;
-        }
+        return states;
     }
 
-    load() {
-        if (typeof localStorage === 'undefined') return false;
+    _normalizeExternalDump(source) {
+        const src = source && typeof source === 'object' ? source : null;
+        if (!src || !Array.isArray(src.states)) return null;
+
+        const safeNow = Date.now();
+        const savedAt = Math.max(0, Math.floor(toFiniteNumber(src.savedAt ?? src.timestamp, safeNow)));
+        const epsilon = Number.isFinite(src.epsilon) ? src.epsilon : null;
+        const totalUpdates = Math.max(0, Math.floor(toFiniteNumber(src.totalUpdates, 0)));
+        const totalReward = toFiniteNumber(src.totalReward, 0);
+
+        const states = [];
+        const actionCount = this.actions.length;
+        for (let i = 0; i < src.states.length; i++) {
+            const entry = src.states[i];
+            if (!Array.isArray(entry) || typeof entry[0] !== 'string' || !Array.isArray(entry[1])) continue;
+
+            const values = new Array(actionCount);
+            for (let a = 0; a < actionCount; a++) {
+                values[a] = toFiniteNumber(entry[1][a], 0);
+            }
+
+            const visits = Math.max(1, Math.floor(toFiniteNumber(entry[2], 1)));
+            const lastSeen = Math.max(0, Math.floor(toFiniteNumber(entry[3], savedAt)));
+            states.push([entry[0], values, visits, lastSeen]);
+        }
+
+        if (states.length === 0) return null;
+        return {
+            savedAt,
+            epsilon,
+            totalUpdates,
+            totalReward,
+            states,
+        };
+    }
+
+    _hydrateFromRaw(raw) {
+        if (!raw) return false;
+        let parsed = null;
         try {
-            const raw = localStorage.getItem(this.storageKey);
-            if (!raw) return false;
-            const parsed = JSON.parse(raw);
-            if (!parsed || parsed.version !== STORAGE_VERSION || !Array.isArray(parsed.states)) {
-                return false;
-            }
-
-            this.qTable.clear();
-            this.stateMeta.clear();
-
-            const actionCount = this.actions.length;
-            for (let i = 0; i < parsed.states.length; i++) {
-                const entry = parsed.states[i];
-                if (!Array.isArray(entry) || entry.length < 2) continue;
-                const stateKey = entry[0];
-                const values = entry[1];
-                const visits = toFiniteNumber(entry[2], 1);
-                const lastSeen = toFiniteNumber(entry[3], Date.now());
-                if (typeof stateKey !== 'string' || !Array.isArray(values)) continue;
-
-                const arr = new Float64Array(actionCount);
-                for (let a = 0; a < actionCount; a++) {
-                    arr[a] = toFiniteNumber(values[a], 0);
-                }
-                this.qTable.set(stateKey, arr);
-                this.stateMeta.set(stateKey, {
-                    visits: Math.max(1, Math.floor(visits)),
-                    lastSeen: Math.max(0, Math.floor(lastSeen)),
-                });
-            }
-
-            this.epsilon = clamp(toFiniteNumber(parsed.epsilon, this.epsilonStart), this.epsilonMin, this.epsilonStart);
-            this.totalUpdates = Math.max(0, Math.floor(toFiniteNumber(parsed.totalUpdates, 0)));
-            this.totalReward = toFiniteNumber(parsed.totalReward, 0);
-            this.lastLoadedAt = Date.now();
-            this._pruneStatesIfNeeded();
-            return true;
+            parsed = JSON.parse(raw);
         } catch {
             return false;
         }
+        if (!parsed || !Array.isArray(parsed.states)) return false;
+
+        const version = Number(parsed.version);
+        if (Number.isFinite(version) && version !== STORAGE_VERSION && version !== LEGACY_STORAGE_VERSION) {
+            return false;
+        }
+
+        if (version === STORAGE_VERSION && typeof parsed.checksum === 'string') {
+            const core = buildCorePayload(parsed.epsilon, parsed.totalUpdates, parsed.totalReward, parsed.states);
+            const expected = fnv1a32(JSON.stringify(core));
+            if (parsed.checksum !== expected) {
+                return false;
+            }
+        }
+
+        this.qTable.clear();
+        this.stateMeta.clear();
+
+        const actionCount = this.actions.length;
+        const loadedAt = Date.now();
+        for (let i = 0; i < parsed.states.length; i++) {
+            const entry = parsed.states[i];
+            if (!Array.isArray(entry) || entry.length < 2) continue;
+            const stateKey = entry[0];
+            const values = entry[1];
+            const visits = toFiniteNumber(entry[2], 1);
+            const lastSeen = toFiniteNumber(entry[3], loadedAt);
+            if (typeof stateKey !== 'string' || !Array.isArray(values)) continue;
+
+            const arr = new Float64Array(actionCount);
+            for (let a = 0; a < actionCount; a++) {
+                arr[a] = toFiniteNumber(values[a], 0);
+            }
+            this.qTable.set(stateKey, arr);
+            this.stateMeta.set(stateKey, {
+                visits: Math.max(1, Math.floor(visits)),
+                lastSeen: Math.max(0, Math.floor(lastSeen)),
+            });
+        }
+
+        const nextEpsilon = clamp(toFiniteNumber(parsed.epsilon, this.epsilonStart), this.epsilonMin, this.epsilonStart);
+        this.epsilon = this.epsilonOverride === null ? nextEpsilon : this.epsilonOverride;
+        this.totalUpdates = Math.max(0, Math.floor(toFiniteNumber(parsed.totalUpdates, 0)));
+        this.totalReward = toFiniteNumber(parsed.totalReward, 0);
+        this.lastSaveAt = Math.max(0, Math.floor(toFiniteNumber(parsed.savedAt, this.lastSaveAt)));
+        this.lastLoadedAt = loadedAt;
+        this.updatesSinceSave = 0;
+        this._pruneStatesIfNeeded();
+        return true;
     }
 
     _ensureState(stateKey) {

@@ -127,6 +127,14 @@ export class EntityManager {
     }
 
     _resolveLearningEngine(forcePlanarMode = false) {
+        // Dual worlds must always map world-specific engines, independent of global planar mode.
+        if (this.dualWorlds && this.worldCount >= 2) {
+            if (forcePlanarMode) {
+                return this.learningEngines.planar || this.learningEngines.mode3d || null;
+            }
+            return this.learningEngines.mode3d || this.learningEngines.planar || null;
+        }
+
         const usePlanar = !!(forcePlanarMode || CONFIG.GAMEPLAY.PLANAR_MODE);
         if (usePlanar) {
             return this.learningEngines.planar || this.learningEngines.mode3d || null;
@@ -1208,7 +1216,7 @@ export class EntityManager {
         if (player.isBot) {
             const ai = this.botByPlayer.get(player);
             if (ai?.onDeath) {
-                ai.onDeath(cause);
+                ai.onDeath(cause, killer || null);
             }
         }
         if (killer && killer.isBot) {

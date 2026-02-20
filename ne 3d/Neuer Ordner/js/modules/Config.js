@@ -372,6 +372,54 @@ export const CONFIG = {
             portals: [
                 { a: [0, 25, -30], b: [0, 25, 30], color: 0xff44ff },
             ]
+        },
+        showcase: {
+            name: 'Item Showcase',
+            size: [100, 30, 100],
+            obstacles: [
+                // Floor plane (or keep empty if default works)
+            ],
+            portals: [],
+            models: [
+                // --- KATEGORIE: ITEMS ---
+                { file: 'assets/items/item_box.obj', pos: [-40, 3, -30], scale: 2.5, color: 0xffaa44 },
+                { file: 'assets/items/item_crystal.obj', pos: [-30, 3, -30], scale: 2.5, color: 0x22aaff },
+                { file: 'assets/items/item_star.obj', pos: [-20, 3, -30], scale: 3.0, color: 0xffdd22 },
+                { file: 'assets/items/item_pyramid.obj', pos: [-10, 3, -30], scale: 3.0, color: 0xff4444 },
+                { file: 'assets/items/item_health.obj', pos: [0, 3, -30], scale: 3.0, color: 0x44ff44 },
+                { file: 'assets/items/item_ring.obj', pos: [10, 3, -30], scale: 3.0, color: 0xffaa00 },
+                { file: 'assets/items/item_battery.obj', pos: [20, 3, -30], scale: 3.0, color: 0x00ffcc },
+                { file: 'assets/items/item_shield.obj', pos: [30, 3, -30], scale: 3.0, color: 0x4488ff },
+                { file: 'assets/items/item_sphere.obj', pos: [40, 3, -30], scale: 3.0, color: 0xff00ff },
+
+                // --- KATEGORIE: TRAILS ---
+                { file: 'assets/trails/trail_segment.obj', pos: [-10, 3, -15], scale: 4.0, color: 0xaaaaaa },
+                { file: 'assets/trails/trail_arrow.obj', pos: [10, 3, -15], scale: 4.0, color: 0xaaaaaa },
+
+                // --- KATEGORIE: PORTALE ---
+                { file: 'assets/portals/portal_square.obj', pos: [-20, 6, 5], scale: 5.0, color: 0x00ffaa },
+                { file: 'assets/portals/portal_ring.obj', pos: [0, 6, 5], scale: 5.0, color: 0x00ffaa },
+                { file: 'assets/portals/portal_hex.obj', pos: [20, 6, 5], scale: 5.0, color: 0x00ffaa },
+
+                // --- KATEGORIE: JETS & SPACESHIPS ---
+                // Flugzeuge
+                { file: 'assets/models/jets/cc0/WWIairplane.obj', pos: [-30, 5, 25], scale: 1.0, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/funky_aircraft_low.obj', pos: [-15, 5, 25], scale: 1.0, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/funky_aircraft_high.obj', pos: [0, 5, 25], scale: 1.0, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/funky_aircraft_control.obj', pos: [15, 5, 25], scale: 1.0, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/pinnace_lo.obj', pos: [30, 5, 25], scale: 1.0, color: 0xffffff },
+
+                // Spaceship Pack
+                { file: 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship1.obj', pos: [-40, 5, 40], scale: 0.5, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship2.obj', pos: [-20, 5, 40], scale: 0.5, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship3.obj', pos: [0, 5, 40], scale: 0.5, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship4.obj', pos: [20, 5, 40], scale: 0.5, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship5.obj', pos: [40, 5, 40], scale: 0.5, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship6.obj', pos: [-30, 5, 55], scale: 0.5, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship7.obj', pos: [-10, 5, 55], scale: 0.5, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship8.obj', pos: [10, 5, 55], scale: 0.5, color: 0xffffff },
+                { file: 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship9.obj', pos: [30, 5, 55], scale: 0.5, color: 0xffffff },
+            ]
         }
     },
 

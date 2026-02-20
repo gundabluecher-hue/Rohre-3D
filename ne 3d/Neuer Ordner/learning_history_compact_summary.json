@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-20T13:13:46.769Z",
+  "generatedAt": "2026-02-20T14:47:32.440Z",
   "sourceDir": "learning_history",
   "totalFilesFound": 300,
   "totalSnapshots": 300,
@@ -9,2115 +9,2115 @@
     "lastTimestamp": "20260220_015940"
   },
   "summary": {
-    "updatesMin": 0,
-    "updatesMax": 218414,
-    "updatesGrowth": -140604,
-    "rewardMin": -4270.248999998481,
-    "rewardMax": 0,
-    "rewardDelta": 2612.649499999016,
-    "statesMin": 0,
-    "statesMax": 2788,
-    "statesGrowth": -2300
+    "updatesMin": 501,
+    "updatesMax": 375756,
+    "updatesGrowth": -116266,
+    "rewardMin": -7837.112499997154,
+    "rewardMax": -11.824999999999928,
+    "rewardDelta": 1192.288999999304,
+    "statesMin": 99,
+    "statesMax": 4429,
+    "statesGrowth": 622
   },
   "snapshots": [
     {
       "timestamp": "20260219_204220",
-      "updates": 140604,
-      "reward": -2612.649499999016,
-      "states": 2300,
+      "updates": 252722,
+      "reward": -5020.845499998215,
+      "states": 3749,
       "file": "bot_intelligence_20260219_204220.json"
     },
     {
       "timestamp": "20260219_204223",
-      "updates": 140963,
-      "reward": -2617.763499999013,
-      "states": 2302,
+      "updates": 253339,
+      "reward": -5038.41149999821,
+      "states": 3751,
       "file": "bot_intelligence_20260219_204223.json"
     },
     {
       "timestamp": "20260219_204226",
-      "updates": 141260,
-      "reward": -2625.9879999990126,
-      "states": 2302,
+      "updates": 253859,
+      "reward": -5051.303999998207,
+      "states": 3752,
       "file": "bot_intelligence_20260219_204226.json"
     },
     {
       "timestamp": "20260219_204227",
-      "updates": 141535,
-      "reward": -2631.5414999990094,
-      "states": 2305,
+      "updates": 254291,
+      "reward": -5061.978999998202,
+      "states": 3755,
       "file": "bot_intelligence_20260219_204227.json"
     },
     {
       "timestamp": "20260219_204229",
-      "updates": 141868,
-      "reward": -2642.3749999990064,
-      "states": 2308,
+      "updates": 254921,
+      "reward": -5078.803999998196,
+      "states": 3760,
       "file": "bot_intelligence_20260219_204229.json"
     },
     {
       "timestamp": "20260219_204230",
-      "updates": 142289,
-      "reward": -2656.774499999002,
-      "states": 2309,
+      "updates": 255780,
+      "reward": -5098.888499998187,
+      "states": 3765,
       "file": "bot_intelligence_20260219_204230.json"
     },
     {
       "timestamp": "20260219_204231",
-      "updates": 142788,
-      "reward": -2661.147499998998,
-      "states": 2311,
+      "updates": 256609,
+      "reward": -5112.642499998181,
+      "states": 3767,
       "file": "bot_intelligence_20260219_204231.json"
     },
     {
       "timestamp": "20260219_204232",
-      "updates": 143083,
-      "reward": -2666.681499998994,
-      "states": 2313,
+      "updates": 257131,
+      "reward": -5118.7094999981755,
+      "states": 3769,
       "file": "bot_intelligence_20260219_204232.json"
     },
     {
       "timestamp": "20260219_204233",
-      "updates": 143253,
-      "reward": -2675.479999998991,
-      "states": 2314,
+      "updates": 257503,
+      "reward": -5131.887499998172,
+      "states": 3772,
       "file": "bot_intelligence_20260219_204233.json"
     },
     {
       "timestamp": "20260219_204234",
-      "updates": 143438,
-      "reward": -2684.2764999989895,
-      "states": 2316,
+      "updates": 257920,
+      "reward": -5149.179499998167,
+      "states": 3774,
       "file": "bot_intelligence_20260219_204234.json"
     },
     {
       "timestamp": "20260219_204236",
-      "updates": 143790,
-      "reward": -2692.282499998985,
-      "states": 2317,
+      "updates": 258488,
+      "reward": -5164.32199999816,
+      "states": 3775,
       "file": "bot_intelligence_20260219_204236.json"
     },
     {
       "timestamp": "20260219_204238",
-      "updates": 144094,
-      "reward": -2700.371999998983,
-      "states": 2317,
+      "updates": 259101,
+      "reward": -5176.210499998157,
+      "states": 3776,
       "file": "bot_intelligence_20260219_204238.json"
     },
     {
       "timestamp": "20260219_204240",
-      "updates": 144387,
-      "reward": -2705.773999998981,
-      "states": 2319,
+      "updates": 259564,
+      "reward": -5186.045499998152,
+      "states": 3779,
       "file": "bot_intelligence_20260219_204240.json"
     },
     {
       "timestamp": "20260219_204241",
-      "updates": 144572,
-      "reward": -2709.0099999989798,
-      "states": 2319,
+      "updates": 259925,
+      "reward": -5195.18299999815,
+      "states": 3781,
       "file": "bot_intelligence_20260219_204241.json"
     },
     {
       "timestamp": "20260219_204243",
-      "updates": 145026,
-      "reward": -2713.620999998976,
-      "states": 2325,
+      "updates": 260659,
+      "reward": -5209.259499998144,
+      "states": 3787,
       "file": "bot_intelligence_20260219_204243.json"
     },
     {
       "timestamp": "20260219_204244",
-      "updates": 145209,
-      "reward": -2722.4239999989754,
-      "states": 2325,
+      "updates": 261058,
+      "reward": -5221.61749999814,
+      "states": 3788,
       "file": "bot_intelligence_20260219_204244.json"
     },
     {
       "timestamp": "20260219_204247",
-      "updates": 145415,
-      "reward": -2731.1954999989744,
-      "states": 2325,
+      "updates": 261513,
+      "reward": -5229.396499998138,
+      "states": 3790,
       "file": "bot_intelligence_20260219_204247.json"
     },
     {
       "timestamp": "20260219_204248",
-      "updates": 145622,
-      "reward": -2737.1614999989715,
-      "states": 2326,
+      "updates": 261909,
+      "reward": -5239.113499998133,
+      "states": 3793,
       "file": "bot_intelligence_20260219_204248.json"
     },
     {
       "timestamp": "20260219_204249",
-      "updates": 145850,
-      "reward": -2740.763499998969,
-      "states": 2327,
+      "updates": 262416,
+      "reward": -5248.08199999813,
+      "states": 3798,
       "file": "bot_intelligence_20260219_204249.json"
     },
     {
       "timestamp": "20260219_204250",
-      "updates": 146191,
-      "reward": -2747.248999998966,
-      "states": 2328,
+      "updates": 263074,
+      "reward": -5265.598499998126,
+      "states": 3800,
       "file": "bot_intelligence_20260219_204250.json"
     },
     {
       "timestamp": "20260219_204251",
-      "updates": 146412,
-      "reward": -2750.9249999989643,
-      "states": 2330,
+      "updates": 263524,
+      "reward": -5275.678499998121,
+      "states": 3803,
       "file": "bot_intelligence_20260219_204251.json"
     },
     {
       "timestamp": "20260219_204252",
-      "updates": 146939,
-      "reward": -2762.0984999989596,
-      "states": 2334,
+      "updates": 264489,
+      "reward": -5295.17149999811,
+      "states": 3807,
       "file": "bot_intelligence_20260219_204252.json"
     },
     {
       "timestamp": "20260219_204253",
-      "updates": 147129,
-      "reward": -2769.4014999989577,
-      "states": 2334,
+      "updates": 264922,
+      "reward": -5305.974999998107,
+      "states": 3807,
       "file": "bot_intelligence_20260219_204253.json"
     },
     {
       "timestamp": "20260219_204254",
-      "updates": 147418,
-      "reward": -2772.5699999989547,
-      "states": 2340,
+      "updates": 265455,
+      "reward": -5315.424499998102,
+      "states": 3814,
       "file": "bot_intelligence_20260219_204254.json"
     },
     {
       "timestamp": "20260219_204255",
-      "updates": 147527,
-      "reward": -2778.997499998954,
-      "states": 2344,
+      "updates": 265769,
+      "reward": -5325.6164999981,
+      "states": 3818,
       "file": "bot_intelligence_20260219_204255.json"
     },
     {
       "timestamp": "20260219_204256",
-      "updates": 147790,
-      "reward": -2784.5474999989515,
-      "states": 2345,
+      "updates": 266334,
+      "reward": -5337.198499998096,
+      "states": 3820,
       "file": "bot_intelligence_20260219_204256.json"
     },
     {
       "timestamp": "20260219_204258",
-      "updates": 147947,
-      "reward": -2792.1109999989503,
-      "states": 2345,
+      "updates": 266699,
+      "reward": -5344.041499998093,
+      "states": 3825,
       "file": "bot_intelligence_20260219_204258.json"
     },
     {
       "timestamp": "20260219_204259",
-      "updates": 148213,
-      "reward": -2799.0409999989474,
-      "states": 2345,
+      "updates": 267148,
+      "reward": -5357.469999998088,
+      "states": 3826,
       "file": "bot_intelligence_20260219_204259.json"
     },
     {
       "timestamp": "20260219_204301",
-      "updates": 148442,
-      "reward": -2807.568499998945,
-      "states": 2348,
+      "updates": 267685,
+      "reward": -5371.352999998083,
+      "states": 3831,
       "file": "bot_intelligence_20260219_204301.json"
     },
     {
       "timestamp": "20260219_204303",
-      "updates": 148753,
-      "reward": -2810.134499998942,
-      "states": 2350,
+      "updates": 268282,
+      "reward": -5382.899499998077,
+      "states": 3837,
       "file": "bot_intelligence_20260219_204303.json"
     },
     {
       "timestamp": "20260219_204306",
-      "updates": 148995,
-      "reward": -2822.0074999989383,
-      "states": 2352,
+      "updates": 268824,
+      "reward": -5400.745999998071,
+      "states": 3841,
       "file": "bot_intelligence_20260219_204306.json"
     },
     {
       "timestamp": "20260219_204308",
-      "updates": 149231,
-      "reward": -2827.5709999989363,
-      "states": 2353,
+      "updates": 269298,
+      "reward": -5409.801999998066,
+      "states": 3845,
       "file": "bot_intelligence_20260219_204308.json"
     },
     {
       "timestamp": "20260219_204309",
-      "updates": 149417,
-      "reward": -2833.5179999989336,
-      "states": 2357,
+      "updates": 269663,
+      "reward": -5422.237999998062,
+      "states": 3850,
       "file": "bot_intelligence_20260219_204309.json"
     },
     {
       "timestamp": "20260219_204310",
-      "updates": 149712,
-      "reward": -2839.0329999989317,
-      "states": 2360,
+      "updates": 270208,
+      "reward": -5436.822999998058,
+      "states": 3854,
       "file": "bot_intelligence_20260219_204310.json"
     },
     {
       "timestamp": "20260219_204312",
-      "updates": 150018,
-      "reward": -2844.197999998928,
-      "states": 2360,
+      "updates": 270828,
+      "reward": -5454.30399999805,
+      "states": 3855,
       "file": "bot_intelligence_20260219_204312.json"
     },
     {
       "timestamp": "20260219_204313",
-      "updates": 150311,
-      "reward": -2849.553499998925,
-      "states": 2361,
+      "updates": 271336,
+      "reward": -5466.052999998046,
+      "states": 3859,
       "file": "bot_intelligence_20260219_204313.json"
     },
     {
       "timestamp": "20260219_204314",
-      "updates": 150890,
-      "reward": -2858.24049999892,
-      "states": 2362,
+      "updates": 272327,
+      "reward": -5491.278499998039,
+      "states": 3862,
       "file": "bot_intelligence_20260219_204314.json"
     },
     {
       "timestamp": "20260219_204315",
-      "updates": 151238,
-      "reward": -2873.1014999989156,
-      "states": 2364,
+      "updates": 273034,
+      "reward": -5518.749999998032,
+      "states": 3864,
       "file": "bot_intelligence_20260219_204315.json"
     },
     {
       "timestamp": "20260219_204316",
-      "updates": 151483,
-      "reward": -2878.845499998914,
-      "states": 2364,
+      "updates": 273490,
+      "reward": -5530.237999998028,
+      "states": 3868,
       "file": "bot_intelligence_20260219_204316.json"
     },
     {
       "timestamp": "20260219_204317",
-      "updates": 151926,
-      "reward": -2900.2154999989098,
-      "states": 2366,
+      "updates": 274427,
+      "reward": -5564.638999998018,
+      "states": 3872,
       "file": "bot_intelligence_20260219_204317.json"
     },
     {
       "timestamp": "20260219_204319",
-      "updates": 152239,
-      "reward": -2902.7324999989073,
-      "states": 2366,
+      "updates": 274933,
+      "reward": -5573.720999998014,
+      "states": 3875,
       "file": "bot_intelligence_20260219_204319.json"
     },
     {
       "timestamp": "20260219_204321",
-      "updates": 152517,
-      "reward": -2908.311499998905,
-      "states": 2366,
+      "updates": 275445,
+      "reward": -5584.976999998011,
+      "states": 3876,
       "file": "bot_intelligence_20260219_204321.json"
     },
     {
       "timestamp": "20260219_204322",
-      "updates": 152691,
-      "reward": -2917.0904999989034,
-      "states": 2366,
+      "updates": 275843,
+      "reward": -5600.144499998007,
+      "states": 3876,
       "file": "bot_intelligence_20260219_204322.json"
     },
     {
       "timestamp": "20260219_204323",
-      "updates": 152838,
-      "reward": -2923.3274999989026,
-      "states": 2367,
+      "updates": 276150,
+      "reward": -5608.1554999980035,
+      "states": 3879,
       "file": "bot_intelligence_20260219_204323.json"
     },
     {
       "timestamp": "20260219_204324",
-      "updates": 152990,
-      "reward": -2929.4024999989006,
-      "states": 2367,
+      "updates": 276539,
+      "reward": -5615.526499997999,
+      "states": 3880,
       "file": "bot_intelligence_20260219_204324.json"
     },
     {
       "timestamp": "20260219_204325",
-      "updates": 153246,
-      "reward": -2934.9104999988976,
-      "states": 2367,
+      "updates": 276946,
+      "reward": -5627.782499997996,
+      "states": 3881,
       "file": "bot_intelligence_20260219_204325.json"
     },
     {
       "timestamp": "20260219_204327",
-      "updates": 153441,
-      "reward": -2943.595499998896,
-      "states": 2367,
+      "updates": 277377,
+      "reward": -5642.203999997992,
+      "states": 3881,
       "file": "bot_intelligence_20260219_204327.json"
     },
     {
       "timestamp": "20260219_204328",
-      "updates": 153655,
-      "reward": -2949.2569999988946,
-      "states": 2372,
+      "updates": 277814,
+      "reward": -5649.887999997989,
+      "states": 3886,
       "file": "bot_intelligence_20260219_204328.json"
     },
     {
       "timestamp": "20260219_204329",
-      "updates": 153882,
-      "reward": -2957.8889999988924,
-      "states": 2373,
+      "updates": 278338,
+      "reward": -5663.811999997983,
+      "states": 3887,
       "file": "bot_intelligence_20260219_204329.json"
     },
     {
       "timestamp": "20260219_204331",
-      "updates": 154143,
-      "reward": -2963.51099999889,
-      "states": 2374,
+      "updates": 278906,
+      "reward": -5673.284499997977,
+      "states": 3890,
       "file": "bot_intelligence_20260219_204331.json"
     },
     {
       "timestamp": "20260219_204333",
-      "updates": 154476,
-      "reward": -2968.7094999988863,
-      "states": 2377,
+      "updates": 279520,
+      "reward": -5686.752499997971,
+      "states": 3893,
       "file": "bot_intelligence_20260219_204333.json"
     },
     {
       "timestamp": "20260219_204335",
-      "updates": 154829,
-      "reward": -2973.7814999988827,
-      "states": 2380,
+      "updates": 280079,
+      "reward": -5703.1874999979655,
+      "states": 3896,
       "file": "bot_intelligence_20260219_204335.json"
     },
     {
       "timestamp": "20260219_204337",
-      "updates": 154963,
-      "reward": -2980.0449999988828,
-      "states": 2380,
+      "updates": 280326,
+      "reward": -5714.9549999979645,
+      "states": 3896,
       "file": "bot_intelligence_20260219_204337.json"
     },
     {
       "timestamp": "20260219_204338",
-      "updates": 155179,
-      "reward": -2985.96999999888,
-      "states": 2382,
+      "updates": 280700,
+      "reward": -5728.37999999796,
+      "states": 3898,
       "file": "bot_intelligence_20260219_204338.json"
     },
     {
       "timestamp": "20260219_204340",
-      "updates": 155384,
-      "reward": -2994.605499998878,
-      "states": 2382,
+      "updates": 281194,
+      "reward": -5742.973999997956,
+      "states": 3903,
       "file": "bot_intelligence_20260219_204340.json"
     },
     {
       "timestamp": "20260219_204341",
-      "updates": 155608,
-      "reward": -3006.578999998875,
-      "states": 2385,
+      "updates": 281683,
+      "reward": -5763.3189999979495,
+      "states": 3909,
       "file": "bot_intelligence_20260219_204341.json"
     },
     {
       "timestamp": "20260219_204342",
-      "updates": 155916,
-      "reward": -3011.934999998873,
-      "states": 2387,
+      "updates": 282180,
+      "reward": -5777.974499997945,
+      "states": 3911,
       "file": "bot_intelligence_20260219_204342.json"
     },
     {
       "timestamp": "20260219_204343",
-      "updates": 156307,
-      "reward": -3019.7694999988694,
-      "states": 2390,
+      "updates": 282892,
+      "reward": -5787.173499997938,
+      "states": 3915,
       "file": "bot_intelligence_20260219_204343.json"
     },
     {
       "timestamp": "20260219_204344",
-      "updates": 156787,
-      "reward": -3031.180999998863,
-      "states": 2393,
+      "updates": 283759,
+      "reward": -5811.598999997928,
+      "states": 3920,
       "file": "bot_intelligence_20260219_204344.json"
     },
     {
       "timestamp": "20260219_204345",
-      "updates": 156946,
-      "reward": -3037.993499998862,
-      "states": 2394,
+      "updates": 284109,
+      "reward": -5826.278499997925,
+      "states": 3922,
       "file": "bot_intelligence_20260219_204345.json"
     },
     {
       "timestamp": "20260219_204346",
-      "updates": 157461,
-      "reward": -3043.8394999988573,
-      "states": 2395,
+      "updates": 284891,
+      "reward": -5846.120999997918,
+      "states": 3923,
       "file": "bot_intelligence_20260219_204346.json"
     },
     {
       "timestamp": "20260219_204348",
-      "updates": 157620,
-      "reward": -3049.8144999988554,
-      "states": 2395,
+      "updates": 285222,
+      "reward": -5856.482999997916,
+      "states": 3926,
       "file": "bot_intelligence_20260219_204348.json"
     },
     {
       "timestamp": "20260219_204350",
-      "updates": 157928,
-      "reward": -3057.958499998852,
-      "states": 2397,
+      "updates": 285870,
+      "reward": -5871.19449999791,
+      "states": 3928,
       "file": "bot_intelligence_20260219_204350.json"
     },
     {
       "timestamp": "20260219_204352",
-      "updates": 158278,
-      "reward": -3062.970499998848,
-      "states": 2397,
+      "updates": 286495,
+      "reward": -5884.4634999979025,
+      "states": 3928,
       "file": "bot_intelligence_20260219_204352.json"
     },
     {
       "timestamp": "20260219_204354",
-      "updates": 158477,
-      "reward": -3068.908499998846,
-      "states": 2397,
+      "updates": 286958,
+      "reward": -5898.641499997898,
+      "states": 3929,
       "file": "bot_intelligence_20260219_204354.json"
     },
     {
       "timestamp": "20260219_204355",
-      "updates": 158641,
-      "reward": -3079.266499998845,
-      "states": 2398,
+      "updates": 287373,
+      "reward": -5912.600999997894,
+      "states": 3930,
       "file": "bot_intelligence_20260219_204355.json"
     },
     {
       "timestamp": "20260219_204356",
-      "updates": 158874,
-      "reward": -3090.474999998842,
-      "states": 2398,
+      "updates": 287872,
+      "reward": -5929.869999997889,
+      "states": 3931,
       "file": "bot_intelligence_20260219_204356.json"
     },
     {
       "timestamp": "20260219_204357",
-      "updates": 159257,
-      "reward": -3102.305999998839,
-      "states": 2400,
+      "updates": 288617,
+      "reward": -5947.730999997881,
+      "states": 3936,
       "file": "bot_intelligence_20260219_204357.json"
     },
     {
       "timestamp": "20260219_204358",
-      "updates": 159639,
-      "reward": -3119.7744999988354,
-      "states": 2400,
+      "updates": 289408,
+      "reward": -5975.853999997875,
+      "states": 3939,
       "file": "bot_intelligence_20260219_204358.json"
     },
     {
       "timestamp": "20260219_204359",
-      "updates": 160006,
-      "reward": -3122.046999998833,
-      "states": 2400,
+      "updates": 290054,
+      "reward": -5984.86299999787,
+      "states": 3940,
       "file": "bot_intelligence_20260219_204359.json"
     },
     {
       "timestamp": "20260219_204400",
-      "updates": 160320,
-      "reward": -3127.38949999883,
-      "states": 2405,
+      "updates": 290554,
+      "reward": -5999.526999997865,
+      "states": 3945,
       "file": "bot_intelligence_20260219_204400.json"
     },
     {
       "timestamp": "20260219_204401",
-      "updates": 160805,
-      "reward": -3129.4994999988253,
-      "states": 2409,
+      "updates": 291372,
+      "reward": -6007.511999997856,
+      "states": 3951,
       "file": "bot_intelligence_20260219_204401.json"
     },
     {
       "timestamp": "20260219_204402",
-      "updates": 160999,
-      "reward": -3138.3594999988245,
-      "states": 2409,
+      "updates": 291736,
+      "reward": -6020.896499997853,
+      "states": 3955,
       "file": "bot_intelligence_20260219_204402.json"
     },
     {
       "timestamp": "20260219_204404",
-      "updates": 161261,
-      "reward": -3149.542499998821,
-      "states": 2410,
+      "updates": 292273,
+      "reward": -6035.397499997847,
+      "states": 3956,
       "file": "bot_intelligence_20260219_204404.json"
     },
     {
       "timestamp": "20260219_204405",
-      "updates": 161509,
-      "reward": -3155.0859999988174,
-      "states": 2412,
+      "updates": 292816,
+      "reward": -6042.047499997841,
+      "states": 3960,
       "file": "bot_intelligence_20260219_204405.json"
     },
     {
       "timestamp": "20260219_204407",
-      "updates": 161832,
-      "reward": -3160.429499998814,
-      "states": 2413,
+      "updates": 293402,
+      "reward": -6053.072499997834,
+      "states": 3961,
       "file": "bot_intelligence_20260219_204407.json"
     },
     {
       "timestamp": "20260219_204408",
-      "updates": 162066,
-      "reward": -3166.0444999988126,
-      "states": 2414,
+      "updates": 293843,
+      "reward": -6060.75049999783,
+      "states": 3962,
       "file": "bot_intelligence_20260219_204408.json"
     },
     {
       "timestamp": "20260219_204410",
-      "updates": 162224,
-      "reward": -3179.2929999988114,
-      "states": 2414,
+      "updates": 294314,
+      "reward": -6075.023499997826,
+      "states": 3964,
       "file": "bot_intelligence_20260219_204410.json"
     },
     {
       "timestamp": "20260219_204412",
-      "updates": 162446,
-      "reward": -3182.41549999881,
-      "states": 2414,
+      "updates": 294793,
+      "reward": -6084.451499997822,
+      "states": 3967,
       "file": "bot_intelligence_20260219_204412.json"
     },
     {
       "timestamp": "20260219_204414",
-      "updates": 162746,
-      "reward": -3187.7974999988073,
-      "states": 2415,
+      "updates": 295350,
+      "reward": -6093.769499997817,
+      "states": 3969,
       "file": "bot_intelligence_20260219_204414.json"
     },
     {
       "timestamp": "20260219_204415",
-      "updates": 162979,
-      "reward": -3194.9429999988047,
-      "states": 2415,
+      "updates": 295817,
+      "reward": -6107.361499997813,
+      "states": 3972,
       "file": "bot_intelligence_20260219_204415.json"
     },
     {
       "timestamp": "20260219_204416",
-      "updates": 163173,
-      "reward": -3205.0639999988025,
-      "states": 2417,
+      "updates": 296212,
+      "reward": -6126.088999997807,
+      "states": 3977,
       "file": "bot_intelligence_20260219_204416.json"
     },
     {
       "timestamp": "20260219_204419",
-      "updates": 163719,
-      "reward": -3218.7639999987978,
-      "states": 2423,
+      "updates": 297283,
+      "reward": -6146.915999997798,
+      "states": 3985,
       "file": "bot_intelligence_20260219_204419.json"
     },
     {
       "timestamp": "20260219_204421",
-      "updates": 164431,
-      "reward": -3233.432999998791,
-      "states": 2427,
+      "updates": 298442,
+      "reward": -6173.3804999977865,
+      "states": 3991,
       "file": "bot_intelligence_20260219_204421.json"
     },
     {
       "timestamp": "20260219_204422",
-      "updates": 164791,
-      "reward": -3239.8924999987876,
-      "states": 2428,
+      "updates": 299240,
+      "reward": -6187.028499997779,
+      "states": 3994,
       "file": "bot_intelligence_20260219_204422.json"
     },
     {
       "timestamp": "20260219_204423",
-      "updates": 165117,
-      "reward": -3247.9459999987857,
-      "states": 2430,
+      "updates": 299833,
+      "reward": -6201.239499997775,
+      "states": 3999,
       "file": "bot_intelligence_20260219_204423.json"
     },
     {
       "timestamp": "20260219_204425",
-      "updates": 165424,
-      "reward": -3258.7884999987828,
-      "states": 2430,
+      "updates": 300556,
+      "reward": -6210.195999997768,
+      "states": 4001,
       "file": "bot_intelligence_20260219_204425.json"
     },
     {
       "timestamp": "20260219_204427",
-      "updates": 165646,
-      "reward": -3271.5259999987816,
-      "states": 2431,
+      "updates": 301020,
+      "reward": -6226.287499997765,
+      "states": 4002,
       "file": "bot_intelligence_20260219_204427.json"
     },
     {
       "timestamp": "20260219_204428",
-      "updates": 165775,
-      "reward": -3284.8424999987806,
-      "states": 2433,
+      "updates": 301372,
+      "reward": -6243.218999997762,
+      "states": 4005,
       "file": "bot_intelligence_20260219_204428.json"
     },
     {
       "timestamp": "20260219_204431",
-      "updates": 166221,
-      "reward": -3289.3559999987765,
-      "states": 2434,
+      "updates": 302260,
+      "reward": -6246.469999997755,
+      "states": 4009,
       "file": "bot_intelligence_20260219_204431.json"
     },
     {
       "timestamp": "20260219_204432",
-      "updates": 166382,
-      "reward": -3301.098999998775,
-      "states": 2435,
+      "updates": 302657,
+      "reward": -6259.5124999977525,
+      "states": 4013,
       "file": "bot_intelligence_20260219_204432.json"
     },
     {
       "timestamp": "20260219_204434",
-      "updates": 166746,
-      "reward": -3306.190499998772,
-      "states": 2437,
+      "updates": 303359,
+      "reward": -6269.104999997746,
+      "states": 4017,
       "file": "bot_intelligence_20260219_204434.json"
     },
     {
       "timestamp": "20260219_204435",
-      "updates": 166946,
-      "reward": -3317.65049999877,
-      "states": 2437,
+      "updates": 303877,
+      "reward": -6286.030999997742,
+      "states": 4019,
       "file": "bot_intelligence_20260219_204435.json"
     },
     {
       "timestamp": "20260219_204438",
-      "updates": 167307,
-      "reward": -3322.786499998768,
-      "states": 2438,
+      "updates": 304580,
+      "reward": -6294.159999997737,
+      "states": 4024,
       "file": "bot_intelligence_20260219_204438.json"
     },
     {
       "timestamp": "20260219_204439",
-      "updates": 167525,
-      "reward": -3331.4354999987654,
-      "states": 2440,
+      "updates": 305075,
+      "reward": -6306.722499997732,
+      "states": 4027,
       "file": "bot_intelligence_20260219_204439.json"
     },
     {
       "timestamp": "20260219_204441",
-      "updates": 167727,
-      "reward": -3336.6579999987625,
-      "states": 2442,
+      "updates": 305519,
+      "reward": -6311.056999997727,
+      "states": 4030,
       "file": "bot_intelligence_20260219_204441.json"
     },
     {
       "timestamp": "20260219_204443",
-      "updates": 167923,
-      "reward": -3343.9344999987607,
-      "states": 2443,
+      "updates": 305965,
+      "reward": -6324.594499997722,
+      "states": 4031,
       "file": "bot_intelligence_20260219_204443.json"
     },
     {
       "timestamp": "20260219_204446",
-      "updates": 168213,
-      "reward": -3347.2594999987577,
-      "states": 2444,
+      "updates": 306451,
+      "reward": -6327.777499997716,
+      "states": 4033,
       "file": "bot_intelligence_20260219_204446.json"
     },
     {
       "timestamp": "20260219_204448",
-      "updates": 168522,
-      "reward": -3350.3619999987545,
-      "states": 2446,
+      "updates": 306983,
+      "reward": -6332.83299999771,
+      "states": 4037,
       "file": "bot_intelligence_20260219_204448.json"
     },
     {
       "timestamp": "20260219_204450",
-      "updates": 168927,
-      "reward": -3355.289499998751,
-      "states": 2448,
+      "updates": 307620,
+      "reward": -6337.5844999977035,
+      "states": 4041,
       "file": "bot_intelligence_20260219_204450.json"
     },
     {
       "timestamp": "20260219_204452",
-      "updates": 169505,
-      "reward": -3359.3609999987457,
-      "states": 2453,
+      "updates": 308603,
+      "reward": -6350.053999997693,
+      "states": 4047,
       "file": "bot_intelligence_20260219_204452.json"
     },
     {
       "timestamp": "20260219_204453",
-      "updates": 169902,
-      "reward": -3376.833999998741,
-      "states": 2454,
+      "updates": 309514,
+      "reward": -6369.885999997684,
+      "states": 4050,
       "file": "bot_intelligence_20260219_204453.json"
     },
     {
       "timestamp": "20260219_204454",
-      "updates": 170210,
-      "reward": -3385.674999998738,
-      "states": 2460,
+      "updates": 310062,
+      "reward": -6382.841999997678,
+      "states": 4056,
       "file": "bot_intelligence_20260219_204454.json"
     },
     {
       "timestamp": "20260219_204455",
-      "updates": 170466,
-      "reward": -3396.8879999987344,
-      "states": 2461,
+      "updates": 310594,
+      "reward": -6395.207499997672,
+      "states": 4057,
       "file": "bot_intelligence_20260219_204455.json"
     },
     {
       "timestamp": "20260219_204456",
-      "updates": 170794,
-      "reward": -3402.204999998732,
-      "states": 2466,
+      "updates": 311240,
+      "reward": -6411.524499997668,
+      "states": 4062,
       "file": "bot_intelligence_20260219_204456.json"
     },
     {
       "timestamp": "20260219_204458",
-      "updates": 171212,
-      "reward": -3407.819499998729,
-      "states": 2470,
+      "updates": 311974,
+      "reward": -6423.044499997662,
+      "states": 4068,
       "file": "bot_intelligence_20260219_204458.json"
     },
     {
       "timestamp": "20260219_204459",
-      "updates": 171405,
-      "reward": -3410.977999998727,
-      "states": 2470,
+      "updates": 312298,
+      "reward": -6430.937999997658,
+      "states": 4070,
       "file": "bot_intelligence_20260219_204459.json"
     },
     {
       "timestamp": "20260219_204500",
-      "updates": 171530,
-      "reward": -3420.1139999987267,
-      "states": 2470,
+      "updates": 312576,
+      "reward": -6441.815999997658,
+      "states": 4072,
       "file": "bot_intelligence_20260219_204500.json"
     },
     {
       "timestamp": "20260219_204501",
-      "updates": 171711,
-      "reward": -3426.109499998726,
-      "states": 2474,
+      "updates": 312926,
+      "reward": -6451.680499997656,
+      "states": 4077,
       "file": "bot_intelligence_20260219_204501.json"
     },
     {
       "timestamp": "20260219_204503",
-      "updates": 171963,
-      "reward": -3426.6179999987235,
-      "states": 2475,
+      "updates": 313447,
+      "reward": -6455.50799999765,
+      "states": 4079,
       "file": "bot_intelligence_20260219_204503.json"
     },
     {
       "timestamp": "20260219_204505",
-      "updates": 172370,
-      "reward": -3437.08049999872,
-      "states": 2479,
+      "updates": 314271,
+      "reward": -6472.685499997642,
+      "states": 4084,
       "file": "bot_intelligence_20260219_204505.json"
     },
     {
       "timestamp": "20260219_204507",
-      "updates": 172624,
-      "reward": -3440.5239999987175,
-      "states": 2481,
+      "updates": 314823,
+      "reward": -6477.131999997638,
+      "states": 4086,
       "file": "bot_intelligence_20260219_204507.json"
     },
     {
       "timestamp": "20260219_204509",
-      "updates": 172877,
-      "reward": -3446.250999998715,
-      "states": 2481,
+      "updates": 315377,
+      "reward": -6486.046999997633,
+      "states": 4088,
       "file": "bot_intelligence_20260219_204509.json"
     },
     {
       "timestamp": "20260219_204510",
-      "updates": 173087,
-      "reward": -3456.265499998714,
-      "states": 2481,
+      "updates": 315786,
+      "reward": -6507.49699999763,
+      "states": 4088,
       "file": "bot_intelligence_20260219_204510.json"
     },
     {
       "timestamp": "20260219_204512",
-      "updates": 173333,
-      "reward": -3464.823499998712,
-      "states": 2481,
+      "updates": 316179,
+      "reward": -6520.585999997627,
+      "states": 4090,
       "file": "bot_intelligence_20260219_204512.json"
     },
     {
       "timestamp": "20260219_204514",
-      "updates": 173567,
-      "reward": -3468.43549999871,
-      "states": 2483,
+      "updates": 316606,
+      "reward": -6521.394499997623,
+      "states": 4093,
       "file": "bot_intelligence_20260219_204514.json"
     },
     {
       "timestamp": "20260219_204515",
-      "updates": 173707,
-      "reward": -3477.4354999987095,
-      "states": 2483,
+      "updates": 316932,
+      "reward": -6536.432999997622,
+      "states": 4094,
       "file": "bot_intelligence_20260219_204515.json"
     },
     {
       "timestamp": "20260219_204517",
-      "updates": 173973,
-      "reward": -3482.862999998706,
-      "states": 2494,
+      "updates": 317390,
+      "reward": -6548.354499997617,
+      "states": 4110,
       "file": "bot_intelligence_20260219_204517.json"
     },
     {
       "timestamp": "20260219_204518",
-      "updates": 174250,
-      "reward": -3488.3444999987037,
-      "states": 2496,
+      "updates": 317865,
+      "reward": -6558.709999997613,
+      "states": 4115,
       "file": "bot_intelligence_20260219_204518.json"
     },
     {
       "timestamp": "20260219_204519",
-      "updates": 174454,
-      "reward": -3491.4929999987016,
-      "states": 2499,
+      "updates": 318252,
+      "reward": -6565.705499997609,
+      "states": 4120,
       "file": "bot_intelligence_20260219_204519.json"
     },
     {
       "timestamp": "20260219_204521",
-      "updates": 174997,
-      "reward": -3502.7419999986973,
-      "states": 2501,
+      "updates": 319230,
+      "reward": -6589.8769999976,
+      "states": 4127,
       "file": "bot_intelligence_20260219_204521.json"
     },
     {
       "timestamp": "20260219_204522",
-      "updates": 175412,
-      "reward": -3507.568499998693,
-      "states": 2505,
+      "updates": 319991,
+      "reward": -6600.442999997592,
+      "states": 4131,
       "file": "bot_intelligence_20260219_204522.json"
     },
     {
       "timestamp": "20260219_204523",
-      "updates": 175695,
-      "reward": -3512.99099999869,
-      "states": 2509,
+      "updates": 320462,
+      "reward": -6616.008999997587,
+      "states": 4136,
       "file": "bot_intelligence_20260219_204523.json"
     },
     {
       "timestamp": "20260219_204524",
-      "updates": 176017,
-      "reward": -3521.0714999986876,
-      "states": 2511,
+      "updates": 321050,
+      "reward": -6630.248499997582,
+      "states": 4139,
       "file": "bot_intelligence_20260219_204524.json"
     },
     {
       "timestamp": "20260219_204525",
-      "updates": 176437,
-      "reward": -3528.7734999986837,
-      "states": 2512,
+      "updates": 321715,
+      "reward": -6651.947999997576,
+      "states": 4140,
       "file": "bot_intelligence_20260219_204525.json"
     },
     {
       "timestamp": "20260219_204527",
-      "updates": 176668,
-      "reward": -3537.3954999986813,
-      "states": 2512,
+      "updates": 322244,
+      "reward": -6664.25399999757,
+      "states": 4144,
       "file": "bot_intelligence_20260219_204527.json"
     },
     {
       "timestamp": "20260219_204528",
-      "updates": 218198,
-      "reward": -2936.1974999984045,
-      "states": 2788,
+      "updates": 375358,
+      "reward": -6189.458499997192,
+      "states": 4428,
       "file": "bot_intelligence_20260219_204528.json"
     },
     {
       "timestamp": "20260219_204529",
-      "updates": 177028,
-      "reward": -3542.535499998678,
-      "states": 2513,
+      "updates": 322868,
+      "reward": -6674.068499997565,
+      "states": 4147,
       "file": "bot_intelligence_20260219_204529.json"
     },
     {
       "timestamp": "20260219_204530",
-      "updates": 177207,
-      "reward": -3555.527999998677,
-      "states": 2514,
+      "updates": 323307,
+      "reward": -6692.656999997562,
+      "states": 4148,
       "file": "bot_intelligence_20260219_204530.json"
     },
     {
       "timestamp": "20260219_204531",
-      "updates": 177454,
-      "reward": -3561.204999998675,
-      "states": 2514,
+      "updates": 323764,
+      "reward": -6702.567499997556,
+      "states": 4149,
       "file": "bot_intelligence_20260219_204531.json"
     },
     {
       "timestamp": "20260219_204532",
-      "updates": 177650,
-      "reward": -3569.9859999986734,
-      "states": 2514,
+      "updates": 324143,
+      "reward": -6710.551999997554,
+      "states": 4151,
       "file": "bot_intelligence_20260219_204532.json"
     },
     {
       "timestamp": "20260219_204534",
-      "updates": 177877,
-      "reward": -3579.8514999986714,
-      "states": 2514,
+      "updates": 324628,
+      "reward": -6721.59999999755,
+      "states": 4153,
       "file": "bot_intelligence_20260219_204534.json"
     },
     {
       "timestamp": "20260219_204536",
-      "updates": 178115,
-      "reward": -3588.3149999986686,
-      "states": 2514,
+      "updates": 325147,
+      "reward": -6736.0494999975435,
+      "states": 4154,
       "file": "bot_intelligence_20260219_204536.json"
     },
     {
       "timestamp": "20260219_204538",
-      "updates": 178491,
-      "reward": -3596.073999998665,
-      "states": 2515,
+      "updates": 325797,
+      "reward": -6749.925999997538,
+      "states": 4156,
       "file": "bot_intelligence_20260219_204538.json"
     },
     {
       "timestamp": "20260219_204541",
-      "updates": 178808,
-      "reward": -3601.409999998662,
-      "states": 2516,
+      "updates": 326313,
+      "reward": -6759.527999997535,
+      "states": 4158,
       "file": "bot_intelligence_20260219_204541.json"
     },
     {
       "timestamp": "20260219_204543",
-      "updates": 179087,
-      "reward": -3607.520499998658,
-      "states": 2517,
+      "updates": 326911,
+      "reward": -6766.430499997529,
+      "states": 4163,
       "file": "bot_intelligence_20260219_204543.json"
     },
     {
       "timestamp": "20260219_204545",
-      "updates": 179356,
-      "reward": -3612.9994999986566,
-      "states": 2519,
+      "updates": 327457,
+      "reward": -6780.118999997526,
+      "states": 4165,
       "file": "bot_intelligence_20260219_204545.json"
     },
     {
       "timestamp": "20260219_204547",
-      "updates": 179593,
-      "reward": -3624.364499998654,
-      "states": 2522,
+      "updates": 328064,
+      "reward": -6797.12799999752,
+      "states": 4172,
       "file": "bot_intelligence_20260219_204547.json"
     },
     {
       "timestamp": "20260219_204548",
-      "updates": 179752,
-      "reward": -3630.5174999986534,
-      "states": 2524,
+      "updates": 328364,
+      "reward": -6807.232999997519,
+      "states": 4176,
       "file": "bot_intelligence_20260219_204548.json"
     },
     {
       "timestamp": "20260219_204549",
-      "updates": 180068,
-      "reward": -3642.950499998651,
-      "states": 2525,
+      "updates": 329026,
+      "reward": -6829.604999997513,
+      "states": 4178,
       "file": "bot_intelligence_20260219_204549.json"
     },
     {
       "timestamp": "20260219_204550",
-      "updates": 180430,
-      "reward": -3648.7169999986477,
-      "states": 2528,
+      "updates": 329699,
+      "reward": -6843.402999997506,
+      "states": 4182,
       "file": "bot_intelligence_20260219_204550.json"
     },
     {
       "timestamp": "20260219_204551",
-      "updates": 180839,
-      "reward": -3664.5919999986436,
-      "states": 2529,
+      "updates": 330565,
+      "reward": -6874.1724999974995,
+      "states": 4183,
       "file": "bot_intelligence_20260219_204551.json"
     },
     {
       "timestamp": "20260219_204552",
-      "updates": 181197,
-      "reward": -3682.3054999986407,
-      "states": 2531,
+      "updates": 331269,
+      "reward": -6902.2634999974925,
+      "states": 4187,
       "file": "bot_intelligence_20260219_204552.json"
     },
     {
       "timestamp": "20260219_204553",
-      "updates": 181376,
-      "reward": -3693.75799999864,
-      "states": 2531,
+      "updates": 331726,
+      "reward": -6916.972999997488,
+      "states": 4191,
       "file": "bot_intelligence_20260219_204553.json"
     },
     {
       "timestamp": "20260219_204555",
-      "updates": 181543,
-      "reward": -3705.406999998639,
-      "states": 2531,
+      "updates": 332143,
+      "reward": -6932.112999997485,
+      "states": 4192,
       "file": "bot_intelligence_20260219_204555.json"
     },
     {
       "timestamp": "20260219_204557",
-      "updates": 181936,
-      "reward": -3710.2614999986354,
-      "states": 2532,
+      "updates": 332836,
+      "reward": -6945.784999997481,
+      "states": 4193,
       "file": "bot_intelligence_20260219_204557.json"
     },
     {
       "timestamp": "20260219_204558",
-      "updates": 182213,
-      "reward": -3715.846499998633,
-      "states": 2533,
+      "updates": 333352,
+      "reward": -6954.993499997476,
+      "states": 4194,
       "file": "bot_intelligence_20260219_204558.json"
     },
     {
       "timestamp": "20260219_204600",
-      "updates": 182433,
-      "reward": -3724.41449999863,
-      "states": 2533,
+      "updates": 333928,
+      "reward": -6969.25849999747,
+      "states": 4195,
       "file": "bot_intelligence_20260219_204600.json"
     },
     {
       "timestamp": "20260219_204601",
-      "updates": 182663,
-      "reward": -3730.003499998629,
-      "states": 2537,
+      "updates": 334431,
+      "reward": -6981.102999997465,
+      "states": 4199,
       "file": "bot_intelligence_20260219_204601.json"
     },
     {
       "timestamp": "20260219_204604",
-      "updates": 183010,
-      "reward": -3733.078499998626,
-      "states": 2541,
+      "updates": 335097,
+      "reward": -6989.911499997459,
+      "states": 4204,
       "file": "bot_intelligence_20260219_204604.json"
     },
     {
       "timestamp": "20260219_204606",
-      "updates": 183394,
-      "reward": -3738.5364999986223,
-      "states": 2541,
+      "updates": 335719,
+      "reward": -7006.624999997453,
+      "states": 4205,
       "file": "bot_intelligence_20260219_204606.json"
     },
     {
       "timestamp": "20260219_204607",
-      "updates": 183712,
-      "reward": -3741.634499998619,
-      "states": 2543,
+      "updates": 336294,
+      "reward": -7011.635499997447,
+      "states": 4208,
       "file": "bot_intelligence_20260219_204607.json"
     },
     {
       "timestamp": "20260219_204609",
-      "updates": 183948,
-      "reward": -3744.676499998618,
-      "states": 2548,
+      "updates": 336788,
+      "reward": -7020.942999997444,
+      "states": 4213,
       "file": "bot_intelligence_20260219_204609.json"
     },
     {
       "timestamp": "20260219_204610",
-      "updates": 184127,
-      "reward": -3754.9209999986165,
-      "states": 2551,
+      "updates": 337174,
+      "reward": -7035.38699999744,
+      "states": 4216,
       "file": "bot_intelligence_20260219_204610.json"
     },
     {
       "timestamp": "20260219_204611",
-      "updates": 184626,
-      "reward": -3762.231499998613,
-      "states": 2557,
+      "updates": 337956,
+      "reward": -7042.214999997434,
+      "states": 4225,
       "file": "bot_intelligence_20260219_204611.json"
     },
     {
       "timestamp": "20260219_204612",
-      "updates": 185345,
-      "reward": -3775.192999998607,
-      "states": 2561,
+      "updates": 339148,
+      "reward": -7066.1744999974235,
+      "states": 4230,
       "file": "bot_intelligence_20260219_204612.json"
     },
     {
       "timestamp": "20260219_204614",
-      "updates": 185776,
-      "reward": -3779.8129999986027,
-      "states": 2562,
+      "updates": 339908,
+      "reward": -7077.183999997416,
+      "states": 4234,
       "file": "bot_intelligence_20260219_204614.json"
     },
     {
       "timestamp": "20260219_204615",
-      "updates": 185910,
-      "reward": -3791.640999998601,
-      "states": 2563,
+      "updates": 340255,
+      "reward": -7090.576499997413,
+      "states": 4235,
       "file": "bot_intelligence_20260219_204615.json"
     },
     {
       "timestamp": "20260219_204617",
-      "updates": 186061,
-      "reward": -3797.7814999986,
-      "states": 2563,
+      "updates": 340609,
+      "reward": -7100.430999997411,
+      "states": 4237,
       "file": "bot_intelligence_20260219_204617.json"
     },
     {
       "timestamp": "20260219_204618",
-      "updates": 186242,
-      "reward": -3805.1329999985983,
-      "states": 2564,
+      "updates": 340996,
+      "reward": -7114.322999997408,
+      "states": 4238,
       "file": "bot_intelligence_20260219_204618.json"
     },
     {
       "timestamp": "20260219_204620",
-      "updates": 186501,
-      "reward": -3813.592999998596,
-      "states": 2565,
+      "updates": 341509,
+      "reward": -7129.000499997404,
+      "states": 4239,
       "file": "bot_intelligence_20260219_204620.json"
     },
     {
       "timestamp": "20260219_204622",
-      "updates": 186846,
-      "reward": -3818.6694999985925,
-      "states": 2565,
+      "updates": 342102,
+      "reward": -7145.954999997399,
+      "states": 4243,
       "file": "bot_intelligence_20260219_204622.json"
     },
     {
       "timestamp": "20260219_204623",
-      "updates": 187023,
-      "reward": -3827.506499998592,
-      "states": 2566,
+      "updates": 342485,
+      "reward": -7159.027999997396,
+      "states": 4246,
       "file": "bot_intelligence_20260219_204623.json"
     },
     {
       "timestamp": "20260219_204624",
-      "updates": 187184,
-      "reward": -3839.1374999985915,
-      "states": 2566,
+      "updates": 342821,
+      "reward": -7175.034499997394,
+      "states": 4246,
       "file": "bot_intelligence_20260219_204624.json"
     },
     {
       "timestamp": "20260219_204625",
-      "updates": 187422,
-      "reward": -3843.5299999985887,
-      "states": 2568,
+      "updates": 343357,
+      "reward": -7190.510499997388,
+      "states": 4250,
       "file": "bot_intelligence_20260219_204625.json"
     },
     {
       "timestamp": "20260219_204627",
-      "updates": 187606,
-      "reward": -3855.028499998587,
-      "states": 2569,
+      "updates": 343833,
+      "reward": -7203.089999997383,
+      "states": 4252,
       "file": "bot_intelligence_20260219_204627.json"
     },
     {
       "timestamp": "20260219_204629",
-      "updates": 187915,
-      "reward": -3860.464499998583,
-      "states": 2569,
+      "updates": 344347,
+      "reward": -7215.0064999973765,
+      "states": 4254,
       "file": "bot_intelligence_20260219_204629.json"
     },
     {
       "timestamp": "20260219_204631",
-      "updates": 188156,
-      "reward": -3866.0694999985817,
-      "states": 2569,
+      "updates": 344845,
+      "reward": -7222.484999997372,
+      "states": 4255,
       "file": "bot_intelligence_20260219_204631.json"
     },
     {
       "timestamp": "20260219_204633",
-      "updates": 188401,
-      "reward": -3874.470999998579,
-      "states": 2569,
+      "updates": 345383,
+      "reward": -7236.362499997367,
+      "states": 4255,
       "file": "bot_intelligence_20260219_204633.json"
     },
     {
       "timestamp": "20260219_204636",
-      "updates": 188615,
-      "reward": -3883.012499998578,
-      "states": 2569,
+      "updates": 345898,
+      "reward": -7245.877499997364,
+      "states": 4255,
       "file": "bot_intelligence_20260219_204636.json"
     },
     {
       "timestamp": "20260219_204638",
-      "updates": 188793,
-      "reward": -3894.4139999985764,
-      "states": 2572,
+      "updates": 346343,
+      "reward": -7261.27549999736,
+      "states": 4258,
       "file": "bot_intelligence_20260219_204638.json"
     },
     {
       "timestamp": "20260219_204639",
-      "updates": 188981,
-      "reward": -3905.975999998575,
-      "states": 2575,
+      "updates": 346840,
+      "reward": -7273.874999997355,
+      "states": 4261,
       "file": "bot_intelligence_20260219_204639.json"
     },
     {
       "timestamp": "20260219_204641",
-      "updates": 189280,
-      "reward": -3910.4519999985714,
-      "states": 2575,
+      "updates": 347406,
+      "reward": -7280.84999999735,
+      "states": 4265,
       "file": "bot_intelligence_20260219_204641.json"
     },
     {
       "timestamp": "20260219_204642",
-      "updates": 189403,
-      "reward": -3925.10899999857,
-      "states": 2576,
+      "updates": 347792,
+      "reward": -7298.816999997347,
+      "states": 4266,
       "file": "bot_intelligence_20260219_204642.json"
     },
     {
       "timestamp": "20260219_204644",
-      "updates": 189594,
-      "reward": -3933.761999998567,
-      "states": 2576,
+      "updates": 348247,
+      "reward": -7308.470999997342,
+      "states": 4266,
       "file": "bot_intelligence_20260219_204644.json"
     },
     {
       "timestamp": "20260219_204645",
-      "updates": 189984,
-      "reward": -3951.301999998563,
-      "states": 2579,
+      "updates": 349048,
+      "reward": -7328.3889999973335,
+      "states": 4271,
       "file": "bot_intelligence_20260219_204645.json"
     },
     {
       "timestamp": "20260219_204646",
-      "updates": 190523,
-      "reward": -3965.167999998558,
-      "states": 2582,
+      "updates": 350074,
+      "reward": -7351.085499997325,
+      "states": 4276,
       "file": "bot_intelligence_20260219_204646.json"
     },
     {
       "timestamp": "20260219_204647",
-      "updates": 190765,
-      "reward": -3970.902499998555,
-      "states": 2582,
+      "updates": 350567,
+      "reward": -7360.9229999973195,
+      "states": 4278,
       "file": "bot_intelligence_20260219_204647.json"
     },
     {
       "timestamp": "20260219_204648",
-      "updates": 191139,
-      "reward": -3975.816999998552,
-      "states": 2586,
+      "updates": 351378,
+      "reward": -7371.194499997313,
+      "states": 4283,
       "file": "bot_intelligence_20260219_204648.json"
     },
     {
       "timestamp": "20260219_204650",
-      "updates": 191416,
-      "reward": -3985.60749999855,
-      "states": 2587,
+      "updates": 351904,
+      "reward": -7387.365499997308,
+      "states": 4284,
       "file": "bot_intelligence_20260219_204650.json"
     },
     {
       "timestamp": "20260219_204652",
-      "updates": 191804,
-      "reward": -3990.542999998547,
-      "states": 2588,
+      "updates": 352626,
+      "reward": -7390.828999997302,
+      "states": 4285,
       "file": "bot_intelligence_20260219_204652.json"
     },
     {
       "timestamp": "20260219_204653",
-      "updates": 191958,
-      "reward": -3995.919999998545,
-      "states": 2591,
+      "updates": 352948,
+      "reward": -7399.202999997298,
+      "states": 4290,
       "file": "bot_intelligence_20260219_204653.json"
     },
     {
       "timestamp": "20260219_204654",
-      "updates": 192230,
-      "reward": -4001.4474999985423,
-      "states": 2600,
+      "updates": 353391,
+      "reward": -7411.293499997293,
+      "states": 4299,
       "file": "bot_intelligence_20260219_204654.json"
     },
     {
       "timestamp": "20260219_204655",
-      "updates": 192390,
-      "reward": -4007.6519999985403,
-      "states": 2600,
+      "updates": 353746,
+      "reward": -7418.94049999729,
+      "states": 4300,
       "file": "bot_intelligence_20260219_204655.json"
     },
     {
       "timestamp": "20260219_204656",
-      "updates": 192522,
-      "reward": -4021.0209999985386,
-      "states": 2601,
+      "updates": 354115,
+      "reward": -7435.905499997287,
+      "states": 4301,
       "file": "bot_intelligence_20260219_204656.json"
     },
     {
       "timestamp": "20260219_204658",
-      "updates": 192675,
-      "reward": -4027.7964999985365,
-      "states": 2604,
+      "updates": 354496,
+      "reward": -7446.246999997282,
+      "states": 4305,
       "file": "bot_intelligence_20260219_204658.json"
     },
     {
       "timestamp": "20260219_204700",
-      "updates": 193142,
-      "reward": -4039.3899999985324,
-      "states": 2612,
+      "updates": 355084,
+      "reward": -7468.788999997278,
+      "states": 4313,
       "file": "bot_intelligence_20260219_204700.json"
     },
     {
       "timestamp": "20260219_204702",
-      "updates": 193490,
-      "reward": -4044.485499998528,
-      "states": 2616,
+      "updates": 355634,
+      "reward": -7480.302499997271,
+      "states": 4318,
       "file": "bot_intelligence_20260219_204702.json"
     },
     {
       "timestamp": "20260219_204705",
-      "updates": 193811,
-      "reward": -4049.7674999985247,
-      "states": 2616,
+      "updates": 356172,
+      "reward": -7494.175499997265,
+      "states": 4319,
       "file": "bot_intelligence_20260219_204705.json"
     },
     {
       "timestamp": "20260219_204707",
-      "updates": 194193,
-      "reward": -4054.810999998521,
-      "states": 2616,
+      "updates": 356856,
+      "reward": -7499.48599999726,
+      "states": 4319,
       "file": "bot_intelligence_20260219_204707.json"
     },
     {
       "timestamp": "20260219_204709",
-      "updates": 194404,
-      "reward": -4057.8974999985194,
-      "states": 2616,
+      "updates": 357241,
+      "reward": -7504.869999997256,
+      "states": 4320,
       "file": "bot_intelligence_20260219_204709.json"
     },
     {
       "timestamp": "20260219_204710",
-      "updates": 194581,
-      "reward": -4063.9869999985176,
-      "states": 2616,
+      "updates": 357622,
+      "reward": -7516.901999997253,
+      "states": 4322,
       "file": "bot_intelligence_20260219_204710.json"
     },
     {
       "timestamp": "20260219_204711",
-      "updates": 194798,
-      "reward": -4069.807999998515,
-      "states": 2618,
+      "updates": 358013,
+      "reward": -7531.641499997248,
+      "states": 4324,
       "file": "bot_intelligence_20260219_204711.json"
     },
     {
       "timestamp": "20260219_204713",
-      "updates": 195233,
-      "reward": -4074.4429999985114,
-      "states": 2618,
+      "updates": 358686,
+      "reward": -7539.694499997242,
+      "states": 4325,
       "file": "bot_intelligence_20260219_204713.json"
     },
     {
       "timestamp": "20260219_204715",
-      "updates": 195945,
-      "reward": -4084.6284999985064,
-      "states": 2623,
+      "updates": 359899,
+      "reward": -7565.015499997231,
+      "states": 4333,
       "file": "bot_intelligence_20260219_204715.json"
     },
     {
       "timestamp": "20260219_204716",
-      "updates": 196180,
-      "reward": -4095.965999998503,
-      "states": 2624,
+      "updates": 360446,
+      "reward": -7575.1794999972235,
+      "states": 4334,
       "file": "bot_intelligence_20260219_204716.json"
     },
     {
       "timestamp": "20260219_204717",
-      "updates": 196389,
-      "reward": -4108.924499998504,
-      "states": 2624,
+      "updates": 360947,
+      "reward": -7589.218999997222,
+      "states": 4334,
       "file": "bot_intelligence_20260219_204717.json"
     },
     {
       "timestamp": "20260219_204718",
-      "updates": 196745,
-      "reward": -4125.181499998504,
-      "states": 2624,
+      "updates": 361735,
+      "reward": -7605.520999997218,
+      "states": 4337,
       "file": "bot_intelligence_20260219_204718.json"
     },
     {
       "timestamp": "20260219_204719",
-      "updates": 196860,
-      "reward": -4135.6899999985035,
-      "states": 2625,
+      "updates": 361953,
+      "reward": -7621.6894999972155,
+      "states": 4340,
       "file": "bot_intelligence_20260219_204719.json"
     },
     {
       "timestamp": "20260219_204720",
-      "updates": 197024,
-      "reward": -4141.887499998503,
-      "states": 2626,
+      "updates": 362247,
+      "reward": -7633.431999997214,
+      "states": 4342,
       "file": "bot_intelligence_20260219_204720.json"
     },
     {
       "timestamp": "20260219_204721",
-      "updates": 197140,
-      "reward": -4151.026999998501,
-      "states": 2626,
+      "updates": 362563,
+      "reward": -7644.10549999721,
+      "states": 4343,
       "file": "bot_intelligence_20260219_204721.json"
     },
     {
       "timestamp": "20260219_204722",
-      "updates": 197394,
-      "reward": -4159.4754999985025,
-      "states": 2626,
+      "updates": 363067,
+      "reward": -7658.787499997208,
+      "states": 4343,
       "file": "bot_intelligence_20260219_204722.json"
     },
     {
       "timestamp": "20260219_204724",
-      "updates": 197702,
-      "reward": -4167.621499998502,
-      "states": 2627,
+      "updates": 363595,
+      "reward": -7681.133999997205,
+      "states": 4344,
       "file": "bot_intelligence_20260219_204724.json"
     },
     {
       "timestamp": "20260219_204725",
-      "updates": 197896,
-      "reward": -4176.307499998503,
-      "states": 2628,
+      "updates": 364051,
+      "reward": -7695.437499997202,
+      "states": 4346,
       "file": "bot_intelligence_20260219_204725.json"
     },
     {
       "timestamp": "20260219_204727",
-      "updates": 198154,
-      "reward": -4184.7439999985,
-      "states": 2629,
+      "updates": 364548,
+      "reward": -7707.398499997197,
+      "states": 4348,
       "file": "bot_intelligence_20260219_204727.json"
     },
     {
       "timestamp": "20260219_204728",
-      "updates": 198333,
-      "reward": -4190.836499998497,
-      "states": 2629,
+      "updates": 364967,
+      "reward": -7717.007499997191,
+      "states": 4349,
       "file": "bot_intelligence_20260219_204728.json"
     },
     {
       "timestamp": "20260219_204730",
-      "updates": 198563,
-      "reward": -4196.693499998493,
-      "states": 2629,
+      "updates": 365441,
+      "reward": -7728.558999997187,
+      "states": 4349,
       "file": "bot_intelligence_20260219_204730.json"
     },
     {
       "timestamp": "20260219_204731",
-      "updates": 198764,
-      "reward": -4205.314999998492,
-      "states": 2629,
+      "updates": 365874,
+      "reward": -7746.340499997183,
+      "states": 4349,
       "file": "bot_intelligence_20260219_204731.json"
     },
     {
       "timestamp": "20260219_204735",
-      "updates": 198989,
-      "reward": -4216.732499998488,
-      "states": 2630,
+      "updates": 366287,
+      "reward": -7764.156999997176,
+      "states": 4352,
       "file": "bot_intelligence_20260219_204735.json"
     },
     {
       "timestamp": "20260219_204737",
-      "updates": 199311,
-      "reward": -4221.9384999984895,
-      "states": 2631,
+      "updates": 366896,
+      "reward": -7777.574999997178,
+      "states": 4353,
       "file": "bot_intelligence_20260219_204737.json"
     },
     {
       "timestamp": "20260219_204739",
-      "updates": 199454,
-      "reward": -4233.697999998485,
-      "states": 2632,
+      "updates": 367373,
+      "reward": -7788.0974999971695,
+      "states": 4355,
       "file": "bot_intelligence_20260219_204739.json"
     },
     {
       "timestamp": "20260219_204741",
-      "updates": 199670,
-      "reward": -4239.626499998485,
-      "states": 2632,
+      "updates": 367783,
+      "reward": -7795.683499997167,
+      "states": 4355,
       "file": "bot_intelligence_20260219_204741.json"
     },
     {
       "timestamp": "20260219_204743",
-      "updates": 199908,
-      "reward": -4248.149499998484,
-      "states": 2632,
+      "updates": 368359,
+      "reward": -7802.913999997163,
+      "states": 4357,
       "file": "bot_intelligence_20260219_204743.json"
     },
     {
       "timestamp": "20260219_204744",
-      "updates": 200032,
-      "reward": -4254.396499998484,
-      "states": 2632,
+      "updates": 368643,
+      "reward": -7811.515499997161,
+      "states": 4361,
       "file": "bot_intelligence_20260219_204744.json"
     },
     {
       "timestamp": "20260219_204746",
-      "updates": 200278,
-      "reward": -4260.133499998483,
-      "states": 2632,
+      "updates": 369060,
+      "reward": -7826.639499997159,
+      "states": 4362,
       "file": "bot_intelligence_20260219_204746.json"
     },
     {
       "timestamp": "20260219_204747",
-      "updates": 218414,
-      "reward": -2937.8739999984027,
-      "states": 2788,
+      "updates": 375756,
+      "reward": -6192.978999997189,
+      "states": 4429,
       "file": "bot_intelligence_20260219_204747.json"
     },
     {
       "timestamp": "20260219_204748",
-      "updates": 200480,
-      "reward": -4268.953999998481,
-      "states": 2632,
+      "updates": 369519,
+      "reward": -7836.727499997155,
+      "states": 4362,
       "file": "bot_intelligence_20260219_204748.json"
     },
     {
       "timestamp": "20260219_204749",
-      "updates": 200503,
-      "reward": -4270.248999998481,
-      "states": 2632,
+      "updates": 369562,
+      "reward": -7837.112499997154,
+      "states": 4363,
       "file": "bot_intelligence_20260219_204749.json"
     },
     {
       "timestamp": "20260219_215610",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 501,
+      "reward": -11.824999999999928,
+      "states": 99,
       "file": "bot_intelligence_20260219_215610.json"
     },
     {
       "timestamp": "20260219_215821",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 1358,
+      "reward": -38.26449999999982,
+      "states": 157,
       "file": "bot_intelligence_20260219_215821.json"
     },
     {
       "timestamp": "20260219_215823",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 2901,
+      "reward": -70.78500000000236,
+      "states": 219,
       "file": "bot_intelligence_20260219_215823.json"
     },
     {
       "timestamp": "20260219_215831",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 4985,
+      "reward": -127.04600000001537,
+      "states": 277,
       "file": "bot_intelligence_20260219_215831.json"
     },
     {
       "timestamp": "20260219_215832",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 15163,
+      "reward": -338.29699999994995,
+      "states": 496,
       "file": "bot_intelligence_20260219_215832.json"
     },
     {
       "timestamp": "20260219_215833",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 889,
+      "reward": -23.521999999999874,
+      "states": 131,
       "file": "bot_intelligence_20260219_215833.json"
     },
     {
       "timestamp": "20260219_220421",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 16125,
+      "reward": -365.47649999994377,
+      "states": 514,
       "file": "bot_intelligence_20260219_220421.json"
     },
     {
       "timestamp": "20260219_220423",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 16483,
+      "reward": -368.1529999999417,
+      "states": 523,
       "file": "bot_intelligence_20260219_220423.json"
     },
     {
       "timestamp": "20260219_220429",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 16583,
+      "reward": -373.2144999999411,
+      "states": 528,
       "file": "bot_intelligence_20260219_220429.json"
     },
     {
       "timestamp": "20260219_220430",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 17606,
+      "reward": -399.5509999999344,
+      "states": 538,
       "file": "bot_intelligence_20260219_220430.json"
     },
     {
       "timestamp": "20260219_220431",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 18241,
+      "reward": -402.08099999993016,
+      "states": 546,
       "file": "bot_intelligence_20260219_220431.json"
     },
     {
       "timestamp": "20260219_220434",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 18836,
+      "reward": -413.99149999992636,
+      "states": 549,
       "file": "bot_intelligence_20260219_220434.json"
     },
     {
       "timestamp": "20260219_220436",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 19414,
+      "reward": -430.9899999999227,
+      "states": 558,
       "file": "bot_intelligence_20260219_220436.json"
     },
     {
       "timestamp": "20260219_220439",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 19968,
+      "reward": -445.969499999919,
+      "states": 572,
       "file": "bot_intelligence_20260219_220439.json"
     },
     {
       "timestamp": "20260219_220440",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 20351,
+      "reward": -459.7734999999166,
+      "states": 584,
       "file": "bot_intelligence_20260219_220440.json"
     },
     {
       "timestamp": "20260219_220441",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 21297,
+      "reward": -468.4599999999108,
+      "states": 604,
       "file": "bot_intelligence_20260219_220441.json"
     },
     {
       "timestamp": "20260219_220442",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 21723,
+      "reward": -477.04499999990816,
+      "states": 608,
       "file": "bot_intelligence_20260219_220442.json"
     },
     {
       "timestamp": "20260219_220443",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 22326,
+      "reward": -482.5549999999041,
+      "states": 612,
       "file": "bot_intelligence_20260219_220443.json"
     },
     {
       "timestamp": "20260219_220444",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 22837,
+      "reward": -485.6899999999009,
+      "states": 618,
       "file": "bot_intelligence_20260219_220444.json"
     },
     {
       "timestamp": "20260219_220447",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 23489,
+      "reward": -497.5084999998968,
+      "states": 632,
       "file": "bot_intelligence_20260219_220447.json"
     },
     {
       "timestamp": "20260219_220449",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 23973,
+      "reward": -505.7839999998938,
+      "states": 633,
       "file": "bot_intelligence_20260219_220449.json"
     },
     {
       "timestamp": "20260219_220451",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 24532,
+      "reward": -515.7294999998898,
+      "states": 639,
       "file": "bot_intelligence_20260219_220451.json"
     },
     {
       "timestamp": "20260219_220452",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 25099,
+      "reward": -513.599499999886,
+      "states": 648,
       "file": "bot_intelligence_20260219_220452.json"
     },
     {
       "timestamp": "20260219_220453",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 25645,
+      "reward": -523.1164999998828,
+      "states": 654,
       "file": "bot_intelligence_20260219_220453.json"
     },
     {
       "timestamp": "20260219_220455",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 26391,
+      "reward": -529.7049999998777,
+      "states": 662,
       "file": "bot_intelligence_20260219_220455.json"
     },
     {
       "timestamp": "20260219_220456",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 26902,
+      "reward": -539.3934999998745,
+      "states": 671,
       "file": "bot_intelligence_20260219_220456.json"
     },
     {
       "timestamp": "20260219_220459",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 27608,
+      "reward": -548.70949999987,
+      "states": 677,
       "file": "bot_intelligence_20260219_220459.json"
     },
     {
       "timestamp": "20260219_220501",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 28325,
+      "reward": -559.6339999998651,
+      "states": 680,
       "file": "bot_intelligence_20260219_220501.json"
     },
     {
       "timestamp": "20260219_220503",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 29196,
+      "reward": -574.9039999998594,
+      "states": 690,
       "file": "bot_intelligence_20260219_220503.json"
     },
     {
       "timestamp": "20260219_220504",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 29732,
+      "reward": -587.3464999998562,
+      "states": 695,
       "file": "bot_intelligence_20260219_220504.json"
     },
     {
       "timestamp": "20260219_220506",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 30442,
+      "reward": -586.7509999998513,
+      "states": 697,
       "file": "bot_intelligence_20260219_220506.json"
     },
     {
       "timestamp": "20260219_220507",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 31003,
+      "reward": -591.8434999998474,
+      "states": 703,
       "file": "bot_intelligence_20260219_220507.json"
     },
     {
       "timestamp": "20260219_220508",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 31546,
+      "reward": -602.4604999998435,
+      "states": 709,
       "file": "bot_intelligence_20260219_220508.json"
     },
     {
       "timestamp": "20260219_220511",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 32097,
+      "reward": -604.5864999998399,
+      "states": 710,
       "file": "bot_intelligence_20260219_220511.json"
     },
     {
       "timestamp": "20260219_220513",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 32592,
+      "reward": -609.9359999998369,
+      "states": 711,
       "file": "bot_intelligence_20260219_220513.json"
     },
     {
       "timestamp": "20260219_220515",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 33264,
+      "reward": -618.8599999998322,
+      "states": 718,
       "file": "bot_intelligence_20260219_220515.json"
     },
     {
       "timestamp": "20260219_220516",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 33964,
+      "reward": -628.1724999998274,
+      "states": 725,
       "file": "bot_intelligence_20260219_220516.json"
     },
     {
       "timestamp": "20260219_220518",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 35062,
+      "reward": -644.74549999982,
+      "states": 737,
       "file": "bot_intelligence_20260219_220518.json"
     },
     {
       "timestamp": "20260219_220519",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 35606,
+      "reward": -653.6704999998166,
+      "states": 747,
       "file": "bot_intelligence_20260219_220519.json"
     },
     {
       "timestamp": "20260219_220522",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 36261,
+      "reward": -665.4054999998122,
+      "states": 755,
       "file": "bot_intelligence_20260219_220522.json"
     },
     {
       "timestamp": "20260219_220525",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 36753,
+      "reward": -679.4434999998093,
+      "states": 761,
       "file": "bot_intelligence_20260219_220525.json"
     },
     {
       "timestamp": "20260219_220527",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 37144,
+      "reward": -691.515999999807,
+      "states": 770,
       "file": "bot_intelligence_20260219_220527.json"
     },
     {
       "timestamp": "20260219_220528",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 37653,
+      "reward": -708.0779999998041,
+      "states": 773,
       "file": "bot_intelligence_20260219_220528.json"
     },
     {
       "timestamp": "20260219_220529",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 37981,
+      "reward": -719.9554999998015,
+      "states": 774,
       "file": "bot_intelligence_20260219_220529.json"
     },
     {
       "timestamp": "20260219_220530",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 38516,
+      "reward": -748.9479999997982,
+      "states": 782,
       "file": "bot_intelligence_20260219_220530.json"
     },
     {
       "timestamp": "20260219_220531",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 38863,
+      "reward": -761.6144999997961,
+      "states": 789,
       "file": "bot_intelligence_20260219_220531.json"
     },
     {
       "timestamp": "20260219_220532",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 39419,
+      "reward": -768.3704999997923,
+      "states": 792,
       "file": "bot_intelligence_20260219_220532.json"
     },
     {
       "timestamp": "20260219_220533",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 39728,
+      "reward": -782.1689999997899,
+      "states": 795,
       "file": "bot_intelligence_20260219_220533.json"
     },
     {
       "timestamp": "20260219_220535",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 40136,
+      "reward": -794.6329999997872,
+      "states": 795,
       "file": "bot_intelligence_20260219_220535.json"
     },
     {
       "timestamp": "20260219_220538",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 40610,
+      "reward": -802.1644999997836,
+      "states": 797,
       "file": "bot_intelligence_20260219_220538.json"
     },
     {
       "timestamp": "20260219_220541",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 41564,
+      "reward": -811.0904999997769,
+      "states": 809,
       "file": "bot_intelligence_20260219_220541.json"
     },
     {
       "timestamp": "20260219_220542",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 41957,
+      "reward": -823.5879999997745,
+      "states": 810,
       "file": "bot_intelligence_20260219_220542.json"
     },
     {
       "timestamp": "20260219_220543",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 42630,
+      "reward": -834.6314999997701,
+      "states": 816,
       "file": "bot_intelligence_20260219_220543.json"
     },
     {
       "timestamp": "20260219_220544",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 42830,
+      "reward": -839.1794999997688,
+      "states": 816,
       "file": "bot_intelligence_20260219_220544.json"
     },
     {
       "timestamp": "20260220_014632",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 42830,
+      "reward": -839.1794999997688,
+      "states": 816,
       "file": "bot_intelligence_20260220_014632.json"
     },
     {
       "timestamp": "20260220_014751",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 42830,
+      "reward": -839.1794999997688,
+      "states": 816,
       "file": "bot_intelligence_20260220_014751.json"
     },
     {
       "timestamp": "20260220_014858",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 42830,
+      "reward": -839.1794999997688,
+      "states": 816,
       "file": "bot_intelligence_20260220_014858.json"
     },
     {
       "timestamp": "20260220_014939",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 46703,
+      "reward": -960.8779999997445,
+      "states": 1432,
       "file": "bot_intelligence_20260220_014939.json"
     },
     {
       "timestamp": "20260220_014954",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 50062,
+      "reward": -1083.1544999997175,
+      "states": 1749,
       "file": "bot_intelligence_20260220_014954.json"
     },
     {
       "timestamp": "20260220_015015",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 53911,
+      "reward": -1215.6319999996767,
+      "states": 2033,
       "file": "bot_intelligence_20260220_015015.json"
     },
     {
       "timestamp": "20260220_015033",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 57279,
+      "reward": -1331.593999999645,
+      "states": 2241,
       "file": "bot_intelligence_20260220_015033.json"
     },
     {
       "timestamp": "20260220_015103",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 60988,
+      "reward": -1454.3549999996055,
+      "states": 2460,
       "file": "bot_intelligence_20260220_015103.json"
     },
     {
       "timestamp": "20260220_015137",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 64949,
+      "reward": -1563.477499999568,
+      "states": 2624,
       "file": "bot_intelligence_20260220_015137.json"
     },
     {
       "timestamp": "20260220_015207",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 68553,
+      "reward": -1677.8919999995362,
+      "states": 2771,
       "file": "bot_intelligence_20260220_015207.json"
     },
     {
       "timestamp": "20260220_015238",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 72590,
+      "reward": -1818.7979999994982,
+      "states": 2903,
       "file": "bot_intelligence_20260220_015238.json"
     },
     {
       "timestamp": "20260220_015313",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 76723,
+      "reward": -1934.9654999994593,
+      "states": 3057,
       "file": "bot_intelligence_20260220_015313.json"
     },
     {
       "timestamp": "20260220_015338",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 80397,
+      "reward": -2052.595499999428,
+      "states": 3163,
       "file": "bot_intelligence_20260220_015338.json"
     },
     {
       "timestamp": "20260220_015359",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 84024,
+      "reward": -2171.356999999398,
+      "states": 3265,
       "file": "bot_intelligence_20260220_015359.json"
     },
     {
       "timestamp": "20260220_015433",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 87589,
+      "reward": -2279.1629999993593,
+      "states": 3407,
       "file": "bot_intelligence_20260220_015433.json"
     },
     {
       "timestamp": "20260220_015459",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 90721,
+      "reward": -2389.2564999993265,
+      "states": 3480,
       "file": "bot_intelligence_20260220_015459.json"
     },
     {
       "timestamp": "20260220_015524",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 94801,
+      "reward": -2513.317999999288,
+      "states": 3569,
       "file": "bot_intelligence_20260220_015524.json"
     },
     {
       "timestamp": "20260220_015553",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 98776,
+      "reward": -2645.653999999251,
+      "states": 3658,
       "file": "bot_intelligence_20260220_015553.json"
     },
     {
       "timestamp": "20260220_015612",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 102226,
+      "reward": -2749.7429999992273,
+      "states": 3770,
       "file": "bot_intelligence_20260220_015612.json"
     },
     {
       "timestamp": "20260220_015636",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 106063,
+      "reward": -2867.960499999194,
+      "states": 3836,
       "file": "bot_intelligence_20260220_015636.json"
     },
     {
       "timestamp": "20260220_015708",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 109834,
+      "reward": -2976.717499999163,
+      "states": 3927,
       "file": "bot_intelligence_20260220_015708.json"
     },
     {
       "timestamp": "20260220_015731",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 114054,
+      "reward": -3096.622499999125,
+      "states": 4011,
       "file": "bot_intelligence_20260220_015731.json"
     },
     {
       "timestamp": "20260220_015800",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 117864,
+      "reward": -3198.6524999990916,
+      "states": 4071,
       "file": "bot_intelligence_20260220_015800.json"
     },
     {
       "timestamp": "20260220_015827",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 122255,
+      "reward": -3335.312499999051,
+      "states": 4126,
       "file": "bot_intelligence_20260220_015827.json"
     },
     {
       "timestamp": "20260220_015847",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 125893,
+      "reward": -3458.1824999990167,
+      "states": 4201,
       "file": "bot_intelligence_20260220_015847.json"
     },
     {
       "timestamp": "20260220_015904",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 129778,
+      "reward": -3591.331999998981,
+      "states": 4238,
       "file": "bot_intelligence_20260220_015904.json"
     },
     {
       "timestamp": "20260220_015921",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 133175,
+      "reward": -3708.455499998946,
+      "states": 4301,
       "file": "bot_intelligence_20260220_015921.json"
     },
     {
       "timestamp": "20260220_015940",
-      "updates": 0,
-      "reward": 0,
-      "states": 0,
+      "updates": 136456,
+      "reward": -3828.556499998911,
+      "states": 4371,
       "file": "bot_intelligence_20260220_015940.json"
     }
   ]

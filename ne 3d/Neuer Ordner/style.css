@@ -425,6 +425,37 @@ body {
     white-space: pre-line;
 }
 
+.training-status-card {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(110, 185, 255, 0.32);
+    background: rgba(20, 38, 64, 0.24);
+}
+
+.training-status-card-title {
+    font-size: 0.75em;
+    color: #89bce7;
+    text-transform: uppercase;
+    letter-spacing: 0.85px;
+    margin-bottom: 4px;
+}
+
+.training-status-card-main {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.83em;
+    color: #dce8f8;
+    line-height: 1.4;
+}
+
+.training-status-card-sub {
+    margin-top: 3px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.72em;
+    color: #9db4cc;
+    line-height: 1.35;
+}
+
 .debug-hint {
     color: #8893aa;
     font-size: 0.88em;
@@ -1031,6 +1062,9 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .training-overlay {
+    --training-accent-main: #53f09b;
+    --training-accent-secondary: #3ec6ff;
+    --training-accent-fill: rgba(83, 240, 155, 0.17);
     position: absolute;
     top: 50%;
     left: 50%;
@@ -1057,11 +1091,30 @@ input[type="range"]::-webkit-slider-thumb {
     gap: 10px;
 }
 
+.training-overlay-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .training-overlay-title {
     font-family: 'Orbitron', monospace;
     font-weight: 700;
     letter-spacing: 1.2px;
     color: #8dd4ff;
+}
+
+.training-overlay-status-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 0.45px;
+    color: #d8f2ff;
+    background: rgba(62, 198, 255, 0.2);
+    border: 1px solid rgba(62, 198, 255, 0.45);
 }
 
 .training-overlay-progress-label {
@@ -1070,9 +1123,123 @@ input[type="range"]::-webkit-slider-thumb {
     color: #d5ecff;
 }
 
+.training-overlay-status-explanation {
+    margin-bottom: 6px;
+    color: #c7ddf4;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.training-overlay-progress-summary {
+    margin-bottom: 6px;
+    color: #d8e8ff;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    letter-spacing: 0.4px;
+}
+
+.training-overlay-progress-explainer {
+    margin-bottom: 5px;
+    color: #b4cee8;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.training-overlay-storage-summary {
+    margin-bottom: 6px;
+    color: #abc3dc;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.2px;
+}
+
+.training-overlay-graph-wrap {
+    margin-bottom: 6px;
+}
+
+.training-overlay-graph {
+    display: block;
+    width: 100%;
+    height: 64px;
+    border-radius: 8px;
+    border: 1px solid rgba(145, 220, 255, 0.35);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 100%),
+        rgba(8, 26, 44, 0.78);
+}
+
+.training-overlay-graph-area {
+    fill: var(--training-accent-fill);
+    stroke: none;
+}
+
+.training-overlay-graph-line {
+    fill: none;
+    stroke: var(--training-accent-main);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.training-overlay-graph-range {
+    margin-top: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: #a8bfd8;
+}
+
+.training-overlay-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.training-overlay-card {
+    border: 1px solid rgba(145, 220, 255, 0.26);
+    border-radius: 8px;
+    background: rgba(11, 27, 45, 0.68);
+    padding: 7px 8px;
+}
+
+.training-overlay-card-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    color: #8ec8f2;
+    letter-spacing: 0.45px;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+}
+
+.training-overlay-card-main {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    color: #e3f0ff;
+    line-height: 1.35;
+}
+
+.training-overlay-card-sub {
+    margin-top: 2px;
+    font-size: 10px;
+    color: #a9c0d7;
+    line-height: 1.35;
+}
+
+.training-overlay-details-label {
+    margin-top: 8px;
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    color: #7ca6ca;
+    letter-spacing: 0.45px;
+    text-transform: uppercase;
+}
+
 .training-overlay-lines {
+    margin-top: 4px;
     white-space: pre-line;
     color: #d8e6f5;
+    font-size: 11px;
+    line-height: 1.4;
 }
 
 .training-overlay-bar {
@@ -1089,34 +1256,62 @@ input[type="range"]::-webkit-slider-thumb {
     width: 0%;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #3ec6ff 0%, #53f09b 100%);
+    background: linear-gradient(90deg, var(--training-accent-secondary) 0%, var(--training-accent-main) 100%);
     transition: width 0.18s ease;
 }
 
 .training-overlay.status-improving {
+    --training-accent-main: #9af07b;
+    --training-accent-secondary: #3dcd78;
+    --training-accent-fill: rgba(96, 227, 160, 0.22);
     border-color: rgba(95, 227, 160, 0.5);
 }
 
+.training-overlay.status-improving .training-overlay-status-chip {
+    color: #e5ffef;
+    border-color: rgba(95, 227, 160, 0.7);
+    background: rgba(95, 227, 160, 0.24);
+}
+
 .training-overlay.status-improving .training-overlay-progress-fill {
-    background: linear-gradient(90deg, #3dcd78 0%, #9af07b 100%);
+    background: linear-gradient(90deg, var(--training-accent-secondary) 0%, var(--training-accent-main) 100%);
 }
 
 .training-overlay.status-plateau {
+    --training-accent-main: #f2df86;
+    --training-accent-secondary: #e1b741;
+    --training-accent-fill: rgba(248, 199, 95, 0.2);
     border-color: rgba(248, 199, 95, 0.5);
 }
 
+.training-overlay.status-plateau .training-overlay-status-chip {
+    color: #fff3ca;
+    border-color: rgba(248, 199, 95, 0.7);
+    background: rgba(248, 199, 95, 0.24);
+}
+
 .training-overlay.status-plateau .training-overlay-progress-fill {
-    background: linear-gradient(90deg, #e1b741 0%, #f2df86 100%);
+    background: linear-gradient(90deg, var(--training-accent-secondary) 0%, var(--training-accent-main) 100%);
 }
 
 .training-overlay.status-unstable,
 .training-overlay.status-no_learning {
+    --training-accent-main: #f59a9a;
+    --training-accent-secondary: #d75b5b;
+    --training-accent-fill: rgba(247, 124, 124, 0.2);
     border-color: rgba(247, 124, 124, 0.55);
+}
+
+.training-overlay.status-unstable .training-overlay-status-chip,
+.training-overlay.status-no_learning .training-overlay-status-chip {
+    color: #ffe0e0;
+    border-color: rgba(247, 124, 124, 0.72);
+    background: rgba(247, 124, 124, 0.26);
 }
 
 .training-overlay.status-unstable .training-overlay-progress-fill,
 .training-overlay.status-no_learning .training-overlay-progress-fill {
-    background: linear-gradient(90deg, #d75b5b 0%, #f59a9a 100%);
+    background: linear-gradient(90deg, var(--training-accent-secondary) 0%, var(--training-accent-main) 100%);
 }
 
 @keyframes toastFade {
@@ -1170,6 +1365,43 @@ input[type="range"]::-webkit-slider-thumb {
         width: auto;
         transform: none;
         font-size: 11px;
+    }
+
+    .training-overlay-graph {
+        height: 52px;
+    }
+
+    .training-overlay-cards {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .training-overlay-card-main {
+        font-size: 10px;
+    }
+
+    .training-overlay-card-sub {
+        font-size: 9px;
+    }
+
+    .training-overlay-progress-summary {
+        font-size: 11px;
+    }
+
+    .training-overlay-status-explanation {
+        font-size: 10px;
+    }
+
+    .training-overlay-progress-explainer {
+        font-size: 10px;
+    }
+
+    .training-overlay-storage-summary {
+        font-size: 10px;
+    }
+
+    .training-overlay-lines {
+        font-size: 10px;
     }
 }
 

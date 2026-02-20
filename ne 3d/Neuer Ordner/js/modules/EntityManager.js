@@ -151,8 +151,10 @@ export class EntityManager {
         this.botDifficulty = options.botDifficulty || CONFIG.BOT.ACTIVE_DIFFICULTY || this.botDifficulty;
         const training = (options.training && typeof options.training === 'object') ? options.training : {};
         this.trainingEnabled = !!training.enabled;
-        this.mortalBots = !!training.mortalBots;
-        this.botOnlyRoundEnd = !!training.botVsBotOnly;
+        const learningEnabled = true;
+        const learningTraining = true;
+        this.mortalBots = this.trainingEnabled ? !!training.mortalBots : true;
+        this.botOnlyRoundEnd = this.trainingEnabled && !!training.botVsBotOnly;
         this.dualWorlds = !!(this.botOnlyRoundEnd && training.dualWorlds);
         this.worldCount = this.dualWorlds ? 2 : 1;
         this._worldZones = [];
@@ -192,8 +194,8 @@ export class EntityManager {
                 difficulty: this.botDifficulty,
                 recorder: this.recorder,
                 learning: learningEngine,
-                learningEnabled: this.trainingEnabled,
-                learningTraining: this.trainingEnabled,
+                learningEnabled,
+                learningTraining,
                 botId: `bot-w${worldId}-${numHumans + i}`,
                 forcePlanarMode,
             });
@@ -215,8 +217,8 @@ export class EntityManager {
 
     setTrainingOptions(training = {}) {
         this.trainingEnabled = !!training.enabled;
-        this.mortalBots = !!training.mortalBots;
-        this.botOnlyRoundEnd = !!training.botVsBotOnly;
+        this.mortalBots = this.trainingEnabled ? !!training.mortalBots : true;
+        this.botOnlyRoundEnd = this.trainingEnabled && !!training.botVsBotOnly;
         this.dualWorlds = !!(this.botOnlyRoundEnd && training.dualWorlds);
         this.worldCount = this.dualWorlds ? 2 : 1;
         this._worldZones = [];
@@ -240,8 +242,8 @@ export class EntityManager {
                 const learningEngine = this._resolveLearningEngine(forcePlanarMode);
                 bot.ai.setLearningOptions({
                     learningEngine,
-                    enabled: this.trainingEnabled,
-                    training: this.trainingEnabled,
+                    enabled: true,
+                    training: true,
                     forcePlanarMode,
                 });
             }
@@ -748,7 +750,7 @@ export class EntityManager {
         // Guard: nur einmal pro Runde onRoundEnd aufrufen
         if (this._roundEnded) return;
 
-        // Zähle nur menschliche Spieler (Bots sind unsterblich)
+        // Rundenende orientiert sich an menschlichen Spielern.
         let humansAlive = 0;
         let lastHumanAlive = null;
         for (const h of this.humanPlayers) {

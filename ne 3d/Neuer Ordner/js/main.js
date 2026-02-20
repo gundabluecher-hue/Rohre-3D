@@ -20,6 +20,12 @@ import { BotLearningProxy } from './modules/BotLearningProxy.js';
 const SETTINGS_STORAGE_KEY = 'mini-curve-fever-3d.settings.v4';
 const SETTINGS_STORAGE_LEGACY_KEYS = ['mini-curve-fever-3d.settings.v3'];
 const SETTINGS_PROFILES_STORAGE_KEY = 'mini-curve-fever-3d.settings-profiles.v1';
+const TRAINING_META_STORAGE_KEY = 'mini-curve-fever-3d.training-meta.v1';
+const TRAINING_META_BACKUP_STORAGE_KEY = 'mini-curve-fever-3d.training-meta.v1.backup';
+const LEARNING_SNAPSHOT_STORAGE_KEY = 'mini-curve-fever-3d.bot-learning.snapshot.v1';
+const LEARNING_BASELINE_STORAGE_KEY = 'mini-curve-fever-3d.bot-learning.baseline.v1';
+const LEARNING_DISK_SYNC_ENDPOINT = '/api/learning-sync';
+const LEARNING_DISK_SYNC_MIN_INTERVAL_MS = 8000;
 const LEARNING_IMPORT_STATE_KEY = 'mini-curve-fever-3d.bot-learning.legacy-import.v1';
 const LEGACY_LEARNING_BASE_PATHS = Object.freeze([
     './bot-learning-data.json',
@@ -69,6 +75,9 @@ export class Game {
     constructor() {
         this.settings = this._loadSettings();
         this.settingsProfiles = this._loadProfiles();
+        this.trainingMeta = this._loadTrainingMeta();
+        this.learningBaseline = this._loadLearningBaseline();
+        this._recoverTrainingMetaFromPersistentSources();
         this.activeProfileName = '';
         this.settingsDirty = false;
 
@@ -78,7 +87,17 @@ export class Game {
         this._adaptiveTimer = 0;
         this._statsTimer = 0;
         this._trainingOverlayTimer = 0;
+        this._trainingProgressHistory = [];
         this._lastLearningAutoSaveAt = Date.now();
+        this._learningDiskSync = {
+            available: null,
+            inFlight: false,
+            initStarted: false,
+            lastLoadedAt: 0,
+            lastSavedAt: 0,
+            lastFingerprint: '',
+            lastError: '',
+        };
         this._legacyLearningImportPromise = null;
         this._legacyLearningImportDone = false;
         this.keyCapture = null;
@@ -208,6 +227,7 @@ export class Game {
             trainingAutoRestartToggle: document.getElementById('training-auto-restart-toggle'),
             trainingSpectatorSplitToggle: document.getElementById('training-spectator-split-toggle'),
             trainingDualWorldsToggle: document.getElementById('training-dual-worlds-toggle'),
+            trainingPauseLearningToggle: document.getElementById('training-pause-learning-toggle'),
             trainingTimeScaleSlider: document.getElementById('training-time-scale-slider'),
             trainingTimeScaleLabel: document.getElementById('training-time-scale-label'),
             trainingAutoSaveSlider: document.getElementById('training-autosave-rounds-slider'),
@@ -215,11 +235,32 @@ export class Game {
             trainingStartButton: document.getElementById('btn-training-start'),
             trainingSaveButton: document.getElementById('btn-training-save'),
             trainingResetButton: document.getElementById('btn-training-reset'),
+            trainingSnapshotSaveButton: document.getElementById('btn-training-snapshot-save'),
+            trainingSnapshotRestoreButton: document.getElementById('btn-training-snapshot-restore'),
+            trainingBaselineSetButton: document.getElementById('btn-training-baseline-set'),
+            trainingBaselineClearButton: document.getElementById('btn-training-baseline-clear'),
+            trainingBaselineStatus: document.getElementById('training-baseline-status'),
+            trainingStatusMain: document.getElementById('training-status-main'),
+            trainingStatusStorage: document.getElementById('training-status-storage'),
             trainingStatus: document.getElementById('training-status'),
             trainingOverlay: document.getElementById('training-overlay'),
             trainingOverlayLines: document.getElementById('training-overlay-lines'),
             trainingOverlayProgressFill: document.getElementById('training-overlay-progress-fill'),
             trainingOverlayProgressLabel: document.getElementById('training-overlay-progress-label'),
+            trainingOverlayStatusChip: document.getElementById('training-overlay-status-chip'),
+            trainingOverlayStatusExplanation: document.getElementById('training-overlay-status-explanation'),
+            trainingOverlayProgressSummary: document.getElementById('training-overlay-progress-summary'),
+            trainingOverlayProgressExplainer: document.getElementById('training-overlay-progress-explainer'),
+            trainingOverlayStorageSummary: document.getElementById('training-overlay-storage-summary'),
+            trainingOverlayGraphLine: document.getElementById('training-overlay-graph-line'),
+            trainingOverlayGraphArea: document.getElementById('training-overlay-graph-area'),
+            trainingOverlayGraphRange: document.getElementById('training-overlay-graph-range'),
+            trainingOverlayActivityMain: document.getElementById('training-overlay-activity-main'),
+            trainingOverlayActivitySub: document.getElementById('training-overlay-activity-sub'),
+            trainingOverlayStabilityMain: document.getElementById('training-overlay-stability-main'),
+            trainingOverlayStabilitySub: document.getElementById('training-overlay-stability-sub'),
+            trainingOverlayPersistenceMain: document.getElementById('training-overlay-persistence-main'),
+            trainingOverlayPersistenceSub: document.getElementById('training-overlay-persistence-sub'),
         };
 
         this._navButtons = [];
@@ -232,6 +273,7 @@ export class Game {
         this._syncMenuControls();
         this._markSettingsDirty(false);
         this._renderBuildInfo();
+        this._bootstrapLearningDiskSync();
         this._kickoffLegacyLearningImport();
 
         this.gameLoop.start();
@@ -271,6 +313,7 @@ export class Game {
 
         const flushLearningData = () => {
             this._saveLearningData(false, true);
+            this._syncLearningDataToDisk(true, { keepalive: true });
         };
         window.addEventListener('beforeunload', flushLearningData);
         window.addEventListener('pagehide', flushLearningData);
@@ -406,6 +449,7 @@ export class Game {
                 autoRestart: true,
                 spectatorSplit: false,
                 dualWorlds: false,
+                onlineLearningPaused: false,
                 timeScale: 1000.0,
                 autoSaveRounds: 5,
             },
@@ -482,6 +526,7 @@ export class Game {
             : defaults.training.autoRestart;
         merged.training.spectatorSplit = !!(src?.training?.spectatorSplit ?? defaults.training.spectatorSplit);
         merged.training.dualWorlds = !!(src?.training?.dualWorlds ?? defaults.training.dualWorlds);
+        merged.training.onlineLearningPaused = !!(src?.training?.onlineLearningPaused ?? defaults.training.onlineLearningPaused);
         const parsedTrainingScale = parseFloat(src?.training?.timeScale ?? defaults.training.timeScale);
         const trainingScaleBounds = this._getTrainingTimeScaleBounds();
         merged.training.timeScale = clamp(
@@ -563,6 +608,124 @@ export class Game {
         }
     }
 
+    _createDefaultTrainingMeta() {
+        return {
+            version: 1,
+            totalTrainingRounds: 0,
+            firstTrainingAt: 0,
+            lastTrainingAt: 0,
+        };
+    }
+
+    _sanitizeTrainingMeta(meta) {
+        const src = meta && typeof meta === 'object' ? meta : {};
+        const out = this._createDefaultTrainingMeta();
+        out.totalTrainingRounds = Math.max(0, Math.floor(Number(src.totalTrainingRounds) || 0));
+        out.firstTrainingAt = Math.max(0, Math.floor(Number(src.firstTrainingAt) || 0));
+        out.lastTrainingAt = Math.max(0, Math.floor(Number(src.lastTrainingAt) || 0));
+        return out;
+    }
+
+    _mergeTrainingMeta(...sources) {
+        const merged = this._createDefaultTrainingMeta();
+        for (let i = 0; i < sources.length; i++) {
+            const current = this._sanitizeTrainingMeta(sources[i]);
+            merged.totalTrainingRounds = Math.max(merged.totalTrainingRounds, current.totalTrainingRounds);
+            if (current.firstTrainingAt > 0 && (merged.firstTrainingAt <= 0 || current.firstTrainingAt < merged.firstTrainingAt)) {
+                merged.firstTrainingAt = current.firstTrainingAt;
+            }
+            merged.lastTrainingAt = Math.max(merged.lastTrainingAt, current.lastTrainingAt);
+        }
+        if (merged.lastTrainingAt > 0 && merged.firstTrainingAt > 0 && merged.lastTrainingAt < merged.firstTrainingAt) {
+            merged.lastTrainingAt = merged.firstTrainingAt;
+        }
+        return this._sanitizeTrainingMeta(merged);
+    }
+
+    _readTrainingMetaFromStorageKey(storageKey) {
+        if (typeof localStorage === 'undefined' || !storageKey) return null;
+        try {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            return this._sanitizeTrainingMeta(parsed);
+        } catch {
+            return null;
+        }
+    }
+
+    _loadTrainingMeta() {
+        const primary = this._readTrainingMetaFromStorageKey(TRAINING_META_STORAGE_KEY);
+        const backup = this._readTrainingMetaFromStorageKey(TRAINING_META_BACKUP_STORAGE_KEY);
+        return this._mergeTrainingMeta(primary, backup);
+    }
+
+    _recoverTrainingMetaFromPersistentSources() {
+        const baselineRounds = Math.max(0, Math.floor(Number(this.learningBaseline?.absoluteRoundCount) || 0));
+        const baselineAt = Math.max(0, Math.floor(Number(this.learningBaseline?.createdAt) || 0));
+        const snapshot = this._loadLearningSnapshot();
+        const merged = this._mergeTrainingMeta(
+            this.trainingMeta,
+            baselineRounds > 0 || baselineAt > 0
+                ? {
+                    totalTrainingRounds: baselineRounds,
+                    firstTrainingAt: baselineAt,
+                    lastTrainingAt: baselineAt,
+                }
+                : null,
+            snapshot?.trainingMeta || null
+        );
+        const current = this._sanitizeTrainingMeta(this.trainingMeta);
+        const changed = (
+            merged.totalTrainingRounds !== current.totalTrainingRounds
+            || merged.firstTrainingAt !== current.firstTrainingAt
+            || merged.lastTrainingAt !== current.lastTrainingAt
+        );
+        this.trainingMeta = merged;
+        if (changed) {
+            this._saveTrainingMeta();
+        }
+    }
+
+    _saveTrainingMeta() {
+        if (typeof localStorage === 'undefined') return false;
+        try {
+            const payload = this._mergeTrainingMeta(
+                this._readTrainingMetaFromStorageKey(TRAINING_META_STORAGE_KEY),
+                this._readTrainingMetaFromStorageKey(TRAINING_META_BACKUP_STORAGE_KEY),
+                this.trainingMeta
+            );
+            this.trainingMeta = payload;
+            const serialized = JSON.stringify(payload);
+            localStorage.setItem(TRAINING_META_STORAGE_KEY, serialized);
+            localStorage.setItem(TRAINING_META_BACKUP_STORAGE_KEY, serialized);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    _recordAbsoluteTrainingRound() {
+        if (!this.trainingMeta || typeof this.trainingMeta !== 'object') {
+            this.trainingMeta = this._createDefaultTrainingMeta();
+        }
+        const now = Date.now();
+        this.trainingMeta.totalTrainingRounds = Math.max(0, Math.floor(Number(this.trainingMeta.totalTrainingRounds) || 0)) + 1;
+        if (!Number.isFinite(this.trainingMeta.firstTrainingAt) || this.trainingMeta.firstTrainingAt <= 0) {
+            this.trainingMeta.firstTrainingAt = now;
+        }
+        this.trainingMeta.lastTrainingAt = now;
+        this._saveTrainingMeta();
+        return this.trainingMeta.totalTrainingRounds;
+    }
+
+    _getAbsoluteTrainingRoundCount(sessionRoundCount = 0) {
+        const sessionRounds = Number.isFinite(sessionRoundCount) ? Math.max(0, Math.floor(sessionRoundCount)) : 0;
+        const persistedRounds = Math.max(0, Math.floor(Number(this.trainingMeta?.totalTrainingRounds) || 0));
+        const baselineRounds = Math.max(0, Math.floor(Number(this.learningBaseline?.absoluteRoundCount) || 0));
+        return Math.max(sessionRounds, persistedRounds, baselineRounds);
+    }
+
     _normalizeProfileName(rawName) {
         return String(rawName || '')
             .trim()
@@ -622,7 +785,8 @@ export class Game {
         }
 
         CONFIG.BOT.ACTIVE_DIFFICULTY = this.settings.botDifficulty || CONFIG.BOT.DEFAULT_DIFFICULTY;
-        this._setLearningEnginesEnabled(!!this.settings.training?.enabled);
+        const onlineLearningPaused = !!this.settings.training?.onlineLearningPaused;
+        this._setLearningEnginesEnabled(true, !onlineLearningPaused);
 
         // Apply immediately if arena exists
         if (this.arena && this.arena.toggleBeams) {
@@ -915,6 +1079,12 @@ export class Game {
                 this._onSettingsChanged();
             });
         }
+        if (this.ui.trainingPauseLearningToggle) {
+            this.ui.trainingPauseLearningToggle.addEventListener('change', () => {
+                this.settings.training.onlineLearningPaused = !!this.ui.trainingPauseLearningToggle.checked;
+                this._onSettingsChanged();
+            });
+        }
         if (this.ui.trainingTimeScaleSlider) {
             this.ui.trainingTimeScaleSlider.addEventListener('input', () => {
                 const bounds = this._getTrainingTimeScaleBounds();
@@ -942,6 +1112,26 @@ export class Game {
         if (this.ui.trainingResetButton) {
             this.ui.trainingResetButton.addEventListener('click', () => {
                 this._resetLearningData();
+            });
+        }
+        if (this.ui.trainingSnapshotSaveButton) {
+            this.ui.trainingSnapshotSaveButton.addEventListener('click', () => {
+                this._saveLearningSnapshot(true);
+            });
+        }
+        if (this.ui.trainingSnapshotRestoreButton) {
+            this.ui.trainingSnapshotRestoreButton.addEventListener('click', () => {
+                this._restoreLearningSnapshot(true);
+            });
+        }
+        if (this.ui.trainingBaselineSetButton) {
+            this.ui.trainingBaselineSetButton.addEventListener('click', () => {
+                this._setLearningBaseline(true);
+            });
+        }
+        if (this.ui.trainingBaselineClearButton) {
+            this.ui.trainingBaselineClearButton.addEventListener('click', () => {
+                this._clearLearningBaseline(true);
             });
         }
     }
@@ -1175,6 +1365,12 @@ export class Game {
         }
         if (this.ui.trainingDualWorldsToggle) {
             this.ui.trainingDualWorldsToggle.checked = !!this.settings.training?.dualWorlds;
+        }
+        if (this.ui.trainingPauseLearningToggle) {
+            this.ui.trainingPauseLearningToggle.checked = !!this.settings.training?.onlineLearningPaused;
+        }
+        if (this.ui.trainingBaselineClearButton) {
+            this.ui.trainingBaselineClearButton.disabled = !this.learningBaseline;
         }
         if (this.ui.trainingTimeScaleSlider && this.ui.trainingTimeScaleLabel) {
             const bounds = this._getTrainingTimeScaleBounds();
@@ -1557,9 +1753,13 @@ export class Game {
         let dropAccumulatorOnBudgetExhaust = false;
 
         if (turboTraining) {
-            maxUpdatesPerFrame = clamp(Math.ceil(targetScale), defaultBudget, 1200);
-            maxUpdateCpuMs = clamp(6 + Math.log10(targetScale + 1) * 4, 6, 16);
-            dropAccumulatorOnBudgetExhaust = true;
+            // Quality-safe turbo mode:
+            // - no accumulator dropping
+            // - no CPU-budget early-abort
+            // - enough fixed-step budget to cover clamped dt spikes (up to 0.05s/frame)
+            maxUpdatesPerFrame = clamp(Math.ceil(targetScale * 3.2), defaultBudget, 4000);
+            maxUpdateCpuMs = 0;
+            dropAccumulatorOnBudgetExhaust = false;
         }
 
         if (typeof this.gameLoop.configureUpdateBudget === 'function') {
@@ -1610,12 +1810,13 @@ export class Game {
         };
     }
 
-    _setLearningEnginesEnabled(enabled) {
+    _setLearningEnginesEnabled(enabled, trainingEnabled = enabled) {
         const active = !!enabled;
+        const trainingActive = !!trainingEnabled;
         const engines = this._getLearningEngines();
         for (let i = 0; i < engines.length; i++) {
             engines[i].setEnabled(active);
-            engines[i].setTrainingEnabled(active);
+            engines[i].setTrainingEnabled(trainingActive);
         }
     }
 
@@ -2148,18 +2349,173 @@ export class Game {
         return true;
     }
 
+    _clearTrainingProgressHistory() {
+        this._trainingProgressHistory = [];
+    }
+
+    _recordTrainingProgressSample(progressPct, rounds, updateCount) {
+        if (!Array.isArray(this._trainingProgressHistory)) {
+            this._trainingProgressHistory = [];
+        }
+
+        const pct = clamp(Number(progressPct) || 0, 0, 100);
+        const roundValue = Number.isFinite(rounds) ? Math.max(0, Math.floor(rounds)) : 0;
+        const updateValue = Number.isFinite(updateCount) ? Math.max(0, Math.floor(updateCount)) : 0;
+        const now = Date.now();
+        const history = this._trainingProgressHistory;
+        const last = history.length > 0 ? history[history.length - 1] : null;
+
+        if (last) {
+            const sameRound = roundValue === last.rounds;
+            const sameUpdates = updateValue === last.updates;
+            const sameProgress = Math.abs(pct - last.pct) < 0.05;
+            if (sameRound && sameUpdates && sameProgress) {
+                return;
+            }
+        }
+
+        history.push({
+            time: now,
+            rounds: roundValue,
+            updates: updateValue,
+            pct,
+        });
+
+        const maxSamples = 120;
+        if (history.length > maxSamples) {
+            history.splice(0, history.length - maxSamples);
+        }
+    }
+
+    _buildTrainingProgressGraphData() {
+        const history = Array.isArray(this._trainingProgressHistory) ? this._trainingProgressHistory : [];
+        const series = history.slice(-80);
+        if (series.length === 0) {
+            return {
+                sampleCount: 0,
+                currentPct: 0,
+                minPct: 0,
+                maxPct: 0,
+                linePoints: '',
+                areaPoints: '',
+            };
+        }
+
+        const values = new Array(series.length);
+        for (let i = 0; i < series.length; i++) {
+            values[i] = clamp(Number(series[i].pct) || 0, 0, 100);
+        }
+
+        let minPct = values[0];
+        let maxPct = values[0];
+        for (let i = 1; i < values.length; i++) {
+            minPct = Math.min(minPct, values[i]);
+            maxPct = Math.max(maxPct, values[i]);
+        }
+
+        const currentPct = values[values.length - 1];
+        if ((maxPct - minPct) < 1.5) {
+            minPct = clamp(currentPct - 0.8, 0, 100);
+            maxPct = clamp(currentPct + 0.8, 0, 100);
+            if ((maxPct - minPct) < 1.5) {
+                minPct = clamp(maxPct - 1.5, 0, 100);
+                maxPct = clamp(minPct + 1.5, 0, 100);
+            }
+        }
+
+        const width = 100;
+        const height = 28;
+        const denom = Math.max(0.001, maxPct - minPct);
+        const lineParts = [];
+        for (let i = 0; i < values.length; i++) {
+            const x = values.length > 1 ? (i / (values.length - 1)) * width : width;
+            const norm = clamp((values[i] - minPct) / denom, 0, 1);
+            const y = height - (norm * height);
+            lineParts.push(`${x.toFixed(2)},${y.toFixed(2)}`);
+        }
+
+        const linePoints = lineParts.join(' ');
+        const areaPoints = lineParts.length > 0
+            ? `0,${height.toFixed(2)} ${linePoints} ${width.toFixed(2)},${height.toFixed(2)}`
+            : '';
+
+        return {
+            sampleCount: values.length,
+            currentPct,
+            minPct,
+            maxPct,
+            linePoints,
+            areaPoints,
+        };
+    }
+
+    _storageKeyExists(key) {
+        if (typeof key !== 'string' || key.length === 0 || typeof localStorage === 'undefined') return false;
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                if (localStorage.key(i) === key) return true;
+            }
+        } catch {
+            return false;
+        }
+        return false;
+    }
+
+    _countExistingStorageKeys(keys = []) {
+        const unique = new Set();
+        for (let i = 0; i < keys.length; i++) {
+            if (typeof keys[i] !== 'string' || keys[i].length === 0) continue;
+            unique.add(keys[i]);
+        }
+        const list = Array.from(unique);
+        let existing = 0;
+        for (let i = 0; i < list.length; i++) {
+            if (this._storageKeyExists(list[i])) {
+                existing++;
+            }
+        }
+        return {
+            existing,
+            total: list.length,
+        };
+    }
+
     _buildTrainingTelemetry() {
         const stats3D = this.botLearning3D ? this.botLearning3D.getStats() : null;
         const statsPlanar = this.botLearningPlanar ? this.botLearningPlanar.getStats() : null;
         const training = this.settings?.training || {};
+        const onlineLearningPaused = !!training.onlineLearningPaused;
+        const baseline = this._loadLearningBaseline();
+        this.learningBaseline = baseline;
+        const baselineDefaultSummary = baseline
+            ? `A/B-Baseline gesetzt: ${new Date(baseline.createdAt).toLocaleString('de-DE', { hour12: false })} (R${baseline.absoluteRoundCount}).`
+            : 'A/B: keine Baseline gesetzt (Button "Benchmark A setzen").';
         if (!stats3D && !statsPlanar) {
             return {
                 available: false,
                 menuLines: ['Learning engine nicht verfuegbar.'],
                 overlayLines: ['Learning engine nicht verfuegbar.'],
                 overlayStatusClass: 'status-no_learning',
+                overlayStatusChipLabel: 'Keine Daten',
+                overlayStatusExplanation: 'Learning-Engine ist nicht verfuegbar.',
                 overlayProgressPct: 0,
                 overlayProgressLabel: '0.0%',
+                overlayProgressSummary: 'Gesamtfortschritt: 0.0%',
+                overlayProgressExplainer: 'Erklaerung: 70% Explorations-Abbau + 30% State-Coverage.',
+                overlayStorageSummary: 'Speicher: keine Daten',
+                overlayGraphLinePoints: '',
+                overlayGraphAreaPoints: '',
+                overlayGraphRangeLabel: 'Trendfenster: keine Daten',
+                overlayActivityMain: 'Upd/Runde: n/a',
+                overlayActivitySub: 'Mehr Updates beschleunigen Lernen.',
+                overlayStabilityMain: 'Reward-Trend: n/a',
+                overlayStabilitySub: 'Reward hoch und TD runter ist ein gutes Zeichen.',
+                overlayPersistenceMain: 'Save: n/a',
+                overlayPersistenceSub: 'Backup hilft bei versehentlichem Reset.',
+                menuSummaryMain: 'Updates: 0 | States: 0 | Reward: 0.00',
+                menuSummaryStorage: 'Save: n/a | Pending: 0 | Backup: n/a',
+                baselineAvailable: !!baseline,
+                baselineSummary: baselineDefaultSummary,
             };
         }
 
@@ -2171,13 +2527,28 @@ export class Game {
         const saveAgeSec = lastSaveAt > 0 ? ((Date.now() - lastSaveAt) / 1000) : NaN;
         const epsilon3D = Number.isFinite(stats3D?.epsilon) ? stats3D.epsilon.toFixed(3) : 'n/a';
         const epsilonPlanar = Number.isFinite(statsPlanar?.epsilon) ? statsPlanar.epsilon.toFixed(3) : 'n/a';
+        const saveTimeLabel = lastSaveAt > 0
+            ? new Date(lastSaveAt).toLocaleTimeString('de-DE', { hour12: false })
+            : 'n/a';
         const aggregate = this.recorder?.getAggregateMetrics?.() || {};
+        const sessionRoundCount = Number.isFinite(aggregate?.rounds) ? aggregate.rounds : 0;
+        const absoluteRoundCount = this._getAbsoluteTrainingRoundCount(sessionRoundCount);
+        const absoluteStartAtRaw = Math.max(0, Math.floor(Number(this.trainingMeta?.firstTrainingAt) || 0));
+        const absoluteStartLabel = absoluteStartAtRaw > 0
+            ? new Date(absoluteStartAtRaw).toLocaleString('de-DE', { hour12: false })
+            : 'n/a';
         const perBotSurvival = this.recorder?.getBotSurvivalAverages?.(8) || [];
         const analysis = this.recorder?.getLearningAnalysis?.(12) || null;
         const loopDiag = this.gameLoop?.getDiagnostics?.() || null;
         const effectiveScale = Number.isFinite(loopDiag?.effectiveScale) ? loopDiag.effectiveScale : this._getTrainingBaseTimeScale();
         const stepsPerFrame = Number.isFinite(loopDiag?.lastSteps) ? loopDiag.lastSteps : 0;
         const fmt = (value, digits = 3) => (Number.isFinite(value) ? value.toFixed(digits) : 'n/a');
+        const trendWord = (value, threshold = 0.01) => {
+            if (!Number.isFinite(value)) return 'n/a';
+            if (value > threshold) return 'steigend';
+            if (value < -threshold) return 'fallend';
+            return 'stabil';
+        };
         const analysisStatus = analysis?.status || 'NO_DATA';
         const perBotSurvivalText = perBotSurvival.length > 0
             ? perBotSurvival.map((entry) => `B${entry.botNumber}:${fmt(entry.averageSurvivalSec, 2)}s`).join(' | ')
@@ -2204,6 +2575,105 @@ export class Game {
         const stateCoveragePct = maxStatesTotal > 0 ? clamp((stateCount / maxStatesTotal) * 100, 0, 100) : 0;
         const overlayProgressPct = clamp((epsilonProgressPct * 0.7) + (stateCoveragePct * 0.3), 0, 100);
 
+        this._recordTrainingProgressSample(overlayProgressPct, absoluteRoundCount, updateCount);
+        const progressGraph = this._buildTrainingProgressGraphData();
+        const overlayProgressSummary = `Gesamtfortschritt: ${overlayProgressPct.toFixed(1)}% | Exploration ${epsilonProgressPct.toFixed(1)}% | State-Coverage ${stateCoveragePct.toFixed(1)}%`;
+        const overlayGraphRangeLabel = progressGraph.sampleCount > 1
+            ? `Trendfenster: ${progressGraph.sampleCount} Samples | Bereich ${progressGraph.minPct.toFixed(1)}-${progressGraph.maxPct.toFixed(1)}%`
+            : 'Trendfenster: Aufbau der Verlaufsdaten...';
+        let progressPhase = 'Fruehphase: erst Daten sammeln, Aussagen sind noch unsicher.';
+        if (overlayProgressPct >= 75) {
+            progressPhase = 'Spaetphase: Exploration ist niedrig, Bot nutzt gelerntes Wissen.';
+        } else if (overlayProgressPct >= 40) {
+            progressPhase = 'Aufbauphase: der Bot stabilisiert seine Entscheidungen.';
+        }
+        const overlayProgressExplainer = `Erklaerung: 70% Explorations-Abbau + 30% State-Coverage. ${progressPhase}`;
+
+        const activeStorage = this._countExistingStorageKeys([
+            stats3D?.storageKey,
+            statsPlanar?.storageKey,
+        ]);
+        const backupStorage = this._countExistingStorageKeys([
+            stats3D?.backupStorageKey,
+            statsPlanar?.backupStorageKey,
+        ]);
+        const backupLabel = backupStorage.total > 0
+            ? (backupStorage.existing > 0 ? 'JA' : 'NEIN')
+            : 'n/a';
+        const saveAgeLabel = Number.isFinite(saveAgeSec) ? `${saveAgeSec.toFixed(1)}s` : 'n/a';
+        const diskSyncState = this._learningDiskSync?.available === true
+            ? 'AKTIV'
+            : (this._learningDiskSync?.available === false ? 'AUS' : 'INIT');
+        const menuSummaryMain = `Updates: ${updateCount} | States: ${stateCount} | Runden gesamt: ${absoluteRoundCount}`;
+        const menuSummaryStorage = `Save: ${saveTimeLabel} (${saveAgeLabel}) | Pending: ${pendingUpdates} | Backup: ${backupLabel} | PC-Sync: ${diskSyncState}`;
+        const overlayStorageSummary = `Speicher: Keys ${activeStorage.existing}/${activeStorage.total} | Backup ${backupStorage.existing}/${backupStorage.total} | Save ${saveTimeLabel} | PC-Sync ${diskSyncState}`;
+
+        const epsilonValues = [stats3D?.epsilon, statsPlanar?.epsilon].filter((value) => Number.isFinite(value));
+        const epsilonStartValues = [stats3D?.epsilonStart, statsPlanar?.epsilonStart].filter((value) => Number.isFinite(value));
+        const epsilonMinValues = [stats3D?.epsilonMin, statsPlanar?.epsilonMin].filter((value) => Number.isFinite(value));
+        const epsilonAvg = epsilonValues.length > 0
+            ? epsilonValues.reduce((sum, value) => sum + value, 0) / epsilonValues.length
+            : NaN;
+        const epsilonStartAvg = epsilonStartValues.length > 0
+            ? epsilonStartValues.reduce((sum, value) => sum + value, 0) / epsilonStartValues.length
+            : NaN;
+        const epsilonMinAvg = epsilonMinValues.length > 0
+            ? epsilonMinValues.reduce((sum, value) => sum + value, 0) / epsilonMinValues.length
+            : NaN;
+        const explorationProgress = (Number.isFinite(epsilonAvg) && Number.isFinite(epsilonStartAvg) && Number.isFinite(epsilonMinAvg) && epsilonStartAvg > epsilonMinAvg)
+            ? clamp(((epsilonStartAvg - epsilonAvg) / (epsilonStartAvg - epsilonMinAvg)) * 100, 0, 100)
+            : NaN;
+        let activityHint = 'Mehr Updates pro Runde beschleunigen das Lernen.';
+        if (onlineLearningPaused) {
+            activityHint = 'Online-Lernen ist pausiert: Bot spielt nur mit aktuellem Wissen.';
+        } else if (Number.isFinite(explorationProgress) && explorationProgress > 80) {
+            activityHint = 'Exploration ist niedrig: Bot nutzt gelernte Strategien statt Zufall.';
+        } else if (Number.isFinite(explorationProgress) && explorationProgress > 40) {
+            activityHint = 'Exploration sinkt: Entscheidungen werden zunehmend stabil.';
+        } else if (Number.isFinite(explorationProgress)) {
+            activityHint = 'Exploration ist noch hoch: fruehe Lernphase mit mehr Zufall.';
+        }
+
+        const updateTrend = Number(analysis?.updateTrendPerRound);
+        const rewardTrend = Number(analysis?.rewardTrendPerRound);
+        const tdTrend = Number(analysis?.tdAbsTrend);
+        const rewardTrendText = trendWord(rewardTrend, 0.02);
+        const tdTrendText = trendWord(tdTrend, 0.01);
+        const updateTrendText = trendWord(updateTrend, 0.5);
+        const confidenceRounds = sessionRoundCount;
+        let confidenceLabel = 'niedrig';
+        if (confidenceRounds >= 24) {
+            confidenceLabel = 'hoch';
+        } else if (confidenceRounds >= 10) {
+            confidenceLabel = 'mittel';
+        }
+        let stabilityHint = 'Zu wenig Daten fuer eine belastbare Aussage.';
+        if (confidenceLabel !== 'niedrig') {
+            if (Number.isFinite(rewardTrend) && Number.isFinite(tdTrend) && rewardTrend > 0.02 && tdTrend < -0.01) {
+                stabilityHint = 'Gutes Signal: Reward steigt und TD sinkt, Verhalten wird stabiler.';
+            } else if (Number.isFinite(rewardTrend) && Number.isFinite(tdTrend) && rewardTrend < -0.02 && tdTrend > 0.01) {
+                stabilityHint = 'Warnung: Reward faellt und TD steigt, Training schwankt aktuell stark.';
+            } else {
+                stabilityHint = 'Gemischtes Bild: Teilmetriken sind noch nicht klar in einer Richtung.';
+            }
+        }
+
+        const backupMissing = backupStorage.total > 0 && backupStorage.existing === 0;
+        const saveTooOld = Number.isFinite(saveAgeSec) && saveAgeSec > 40;
+        let persistenceHint = 'Persistenz ist stabil: letzter Save vorhanden, Backups verfuegbar.';
+        if (pendingUpdates > 0) {
+            persistenceHint = `Es stehen ${pendingUpdates} Updates fuer den naechsten Save an.`;
+        } else if (backupMissing) {
+            persistenceHint = 'Warnung: kein Backup gefunden. Lerndaten besser manuell speichern.';
+        } else if (saveTooOld) {
+            persistenceHint = `Hinweis: letzter Save ist ${saveAgeLabel} alt.`;
+        }
+        if (this._learningDiskSync?.available === false) {
+            persistenceHint = `${persistenceHint} PC-Sync ist aus (lokalen Server mit start_game.bat starten).`;
+        } else if (this._learningDiskSync?.available === true) {
+            persistenceHint = `${persistenceHint} PC-Sync aktiv.`;
+        }
+
         const statusClassByAnalysis = {
             IMPROVING: 'status-improving',
             PLATEAU: 'status-plateau',
@@ -2212,24 +2682,101 @@ export class Game {
             NO_DATA: 'status-no_learning',
         };
         const overlayStatusClass = statusClassByAnalysis[analysisStatus] || 'status-plateau';
+        const statusMetaByAnalysis = {
+            IMPROVING: {
+                label: 'Verbesserung',
+                explain: 'Der Bot zeigt aktuell konsistent positive Lernsignale.',
+            },
+            PLATEAU: {
+                label: 'Plateau',
+                explain: 'Kurzfristig wenig Veraenderung. Das ist nach laengerem Training normal.',
+            },
+            UNSTABLE: {
+                label: 'Schwankend',
+                explain: 'Werte schwanken stark. Training braucht mehr Runden oder stabilere Bedingungen.',
+            },
+            NO_LEARNING: {
+                label: 'Kein Lernen',
+                explain: onlineLearningPaused
+                    ? 'Online-Lernen ist pausiert.'
+                    : 'Es werden aktuell keine Learning-Updates erzeugt.',
+            },
+            NO_DATA: {
+                label: 'Zu wenig Daten',
+                explain: 'Noch nicht genug Runden fuer eine belastbare Bewertung.',
+            },
+        };
+        const statusMeta = statusMetaByAnalysis[analysisStatus] || statusMetaByAnalysis.NO_DATA;
+        const overlayStatusChipLabel = statusMeta.label;
+        const overlayStatusExplanation = `${statusMeta.explain} Konfidenz: ${confidenceLabel} (Session ${confidenceRounds} Runden, Gesamt ${absoluteRoundCount}).`;
+
+        const overlayActivityMain = `Runden gesamt/session ${absoluteRoundCount}/${sessionRoundCount} | Upd/Runde ${fmt(aggregate.learningUpdatesPerRound, 2)}`;
+        const overlayActivitySub = `${activityHint} Trend Upd/Runde: ${fmt(updateTrend, 2)} (${updateTrendText}).`;
+        const overlayStabilityMain = `Reward-Trend ${fmt(rewardTrend, 3)} (${rewardTrendText}) | TD-Trend ${fmt(tdTrend, 3)} (${tdTrendText})`;
+        const overlayStabilitySub = `${stabilityHint} Konfidenz: ${confidenceLabel}.`;
+        const overlayPersistenceMain = `Save ${saveTimeLabel} (${saveAgeLabel}) | Backup ${backupStorage.existing}/${backupStorage.total} | Start ${absoluteStartLabel}`;
+        const overlayPersistenceSub = persistenceHint;
+        const fmtDelta = (value, digits = 3) => {
+            if (!Number.isFinite(value)) return 'n/a';
+            const sign = value > 0 ? '+' : '';
+            return `${sign}${value.toFixed(digits)}`;
+        };
+
+        let baselineSummary = baselineDefaultSummary;
+        let baselineLineMenu = baselineDefaultSummary;
+        let baselineLineOverlay = baselineDefaultSummary;
+        if (baseline) {
+            const baselineTimeLabel = baseline.createdAt > 0
+                ? new Date(baseline.createdAt).toLocaleString('de-DE', { hour12: false })
+                : 'n/a';
+            const dRewardRound = aggregate.learningRewardPerRound - (baseline.aggregate?.learningRewardPerRound || 0);
+            const dTdAbs = aggregate.learningTdAbsMean - (baseline.aggregate?.learningTdAbsMean || 0);
+            const dSurvival = aggregate.averageBotSurvival - (baseline.aggregate?.averageBotSurvival || 0);
+            const dSelfCollisions = aggregate.selfCollisionsPerRound - (baseline.aggregate?.selfCollisionsPerRound || 0);
+            const dUpdatesRound = aggregate.learningUpdatesPerRound - (baseline.aggregate?.learningUpdatesPerRound || 0);
+            const dUpdatesTotal = updateCount - (baseline.learning?.updateCount || 0);
+            const dStatesTotal = stateCount - (baseline.learning?.stateCount || 0);
+            const dRounds = absoluteRoundCount - (baseline.absoluteRoundCount || 0);
+
+            let abScore = 0;
+            if (dRewardRound > 0.03) abScore++;
+            else if (dRewardRound < -0.03) abScore--;
+            if (dSurvival > 0.12) abScore++;
+            else if (dSurvival < -0.12) abScore--;
+            if (dSelfCollisions < -0.03) abScore++;
+            else if (dSelfCollisions > 0.03) abScore--;
+            if (dTdAbs < -0.005) abScore++;
+            else if (dTdAbs > 0.005) abScore--;
+
+            const abLabel = abScore >= 2 ? 'BESSER' : (abScore <= -2 ? 'SCHLECHTER' : 'GEMISCHT');
+            baselineSummary = `A/B seit ${baselineTimeLabel} (R${baseline.absoluteRoundCount}, +${Math.max(0, dRounds)} Runden): ${abLabel}`;
+            baselineLineMenu = `A/B: ${abLabel} | Reward/Runde Δ ${fmtDelta(dRewardRound, 3)} | TD Δ ${fmtDelta(dTdAbs, 3)} | Survival Δ ${fmtDelta(dSurvival, 2)}s | SelfColl Δ ${fmtDelta(dSelfCollisions, 3)}`;
+            baselineLineOverlay = `A/B zu ${baselineTimeLabel}: Reward/Runde Δ ${fmtDelta(dRewardRound, 3)} | TD Δ ${fmtDelta(dTdAbs, 3)} | Survival Δ ${fmtDelta(dSurvival, 2)}s | SelfColl Δ ${fmtDelta(dSelfCollisions, 3)} | Upd/Runde Δ ${fmtDelta(dUpdatesRound, 2)} | Updates Δ ${fmtDelta(dUpdatesTotal, 0)} | States Δ ${fmtDelta(dStatesTotal, 0)}`;
+        }
 
         const menuLines = [
-            `Learning: ${training.enabled ? 'AN' : 'AUS'} | BotOnly: ${training.botVsBotOnly ? 'JA' : 'NEIN'} | Mortal: ${training.mortalBots ? 'JA' : 'NEIN'}`,
-            `Split: ${this._isTrainingSpectatorSplitMode() ? 'JA' : 'NEIN'} | Dual-Welten: ${this._isTrainingDualWorldsMode() ? 'JA' : 'NEIN'} | Auto-Restart: ${training.autoRestart ? 'JA' : 'NEIN'}`,
+            `Policy: AN | Online-Lernen: ${onlineLearningPaused ? 'PAUSIERT' : 'AN'} | Dev-Training: ${training.enabled ? 'AN' : 'AUS'}`,
+            `BotOnly: ${training.botVsBotOnly ? 'JA' : 'NEIN'} | Mortal: ${training.mortalBots ? 'JA' : 'NEIN'} | Auto-Restart: ${training.autoRestart ? 'JA' : 'NEIN'}`,
+            `Split: ${this._isTrainingSpectatorSplitMode() ? 'JA' : 'NEIN'} | Dual-Welten: ${this._isTrainingDualWorldsMode() ? 'JA' : 'NEIN'}`,
+            `Runden gesamt/session: ${absoluteRoundCount}/${sessionRoundCount} | Trainingsstart: ${absoluteStartLabel}`,
+            `Status: ${overlayStatusChipLabel} | ${overlayStatusExplanation}`,
             `States(3D/Planar/Total): ${stats3D?.states || 0}/${statsPlanar?.states || 0}/${stateCount} | Updates: ${updateCount}`,
             `Epsilon(3D/Planar): ${epsilon3D}/${epsilonPlanar} | RewardSum: ${rewardSum.toFixed(2)} | TimeScale: ${this._getTrainingBaseTimeScale().toFixed(1)}x`,
             `Analyse: ${analysisStatus} | LearnUpd/Round: ${fmt(aggregate.learningUpdatesPerRound, 2)} | Reward/Round: ${fmt(aggregate.learningRewardPerRound, 3)} | TD-Abs(mean): ${fmt(aggregate.learningTdAbsMean, 3)}`,
             `Trend (12 Runden): Updates ${fmt(analysis?.updateTrendPerRound, 2)} | Reward ${fmt(analysis?.rewardTrendPerRound, 3)} | TD ${fmt(analysis?.tdAbsTrend, 3)}`,
             `Loop: Ziel ${this._getTrainingBaseTimeScale().toFixed(1)}x | Ist ${fmt(effectiveScale, 1)}x | Steps/Frame ${stepsPerFrame} | BudgetHits ${loopDiag?.totalBudgetHits || 0}`,
-            `Persistenz: pending ${pendingUpdates} | letzter Save vor ${fmt(saveAgeSec, 1)}s | DroppedFrames ${loopDiag?.totalDroppedFrames || 0}`,
+            `Persistenz: pending ${pendingUpdates} | Save ${saveTimeLabel} (${saveAgeLabel}) | Backup ${backupStorage.existing}/${backupStorage.total} | DroppedFrames ${loopDiag?.totalDroppedFrames || 0}`,
+            baselineLineMenu,
             `Avg Ueberleben pro Bot: ${perBotSurvivalText}`,
         ];
 
         const overlayLines = [
-            `Runden: ${aggregate.rounds || 0} | Updates: ${updateCount} | States: ${stateCount}`,
-            `Upd/Runde: ${fmt(aggregate.learningUpdatesPerRound, 2)} | Reward/Runde: ${fmt(aggregate.learningRewardPerRound, 3)} | TD: ${fmt(aggregate.learningTdAbsMean, 3)}`,
-            `Analyse: ${analysisStatus} | Epsilon 3D/Planar: ${epsilon3D}/${epsilonPlanar}`,
-            `Scale Ziel/Ist: ${this._getTrainingBaseTimeScale().toFixed(1)}x/${fmt(effectiveScale, 1)}x | Save in Queue: ${pendingUpdates}`,
+            `Runden gesamt/session: ${absoluteRoundCount}/${sessionRoundCount} | Trainingsstart: ${absoluteStartLabel}`,
+            baselineLineOverlay,
+            'So lesen: Reward-Trend steigend und TD-Trend fallend ist ein gutes Stabilitaetssignal.',
+            `Aktuell: Reward-Trend ${fmt(rewardTrend, 3)} (${rewardTrendText}) | TD-Trend ${fmt(tdTrend, 3)} (${tdTrendText})`,
+            `Konfidenz: ${confidenceLabel} (Session ${confidenceRounds} Runden) | Runden-Updates: ${fmt(aggregate.learningUpdatesPerRound, 2)}`,
+            `Loop Ziel/Ist: ${this._getTrainingBaseTimeScale().toFixed(1)}x/${fmt(effectiveScale, 1)}x | Steps ${stepsPerFrame} | BudgetHits ${loopDiag?.totalBudgetHits || 0}`,
             `Avg Ueberleben/Bot: ${perBotSurvivalText}`,
         ];
 
@@ -2238,8 +2785,26 @@ export class Game {
             menuLines,
             overlayLines,
             overlayStatusClass,
+            overlayStatusChipLabel,
+            overlayStatusExplanation,
             overlayProgressPct,
             overlayProgressLabel: `${overlayProgressPct.toFixed(1)}%`,
+            overlayProgressSummary,
+            overlayProgressExplainer,
+            overlayStorageSummary,
+            overlayGraphLinePoints: progressGraph.linePoints,
+            overlayGraphAreaPoints: progressGraph.areaPoints,
+            overlayGraphRangeLabel,
+            overlayActivityMain,
+            overlayActivitySub,
+            overlayStabilityMain,
+            overlayStabilitySub,
+            overlayPersistenceMain,
+            overlayPersistenceSub,
+            menuSummaryMain,
+            menuSummaryStorage,
+            baselineAvailable: !!baseline,
+            baselineSummary,
         };
     }
 
@@ -2248,8 +2813,9 @@ export class Game {
         if (!overlay) return;
 
         const gameVisibleState = this.state === 'PLAYING' || this.state === 'ROUND_END' || this.state === 'MATCH_END';
-        const trainingEnabled = !!this.settings?.training?.enabled;
-        const visible = gameVisibleState && trainingEnabled;
+        const botCount = Number.isFinite(this.numBots) ? this.numBots : (this.entityManager?.bots?.length || 0);
+        const trainingModeActive = !!this.settings?.training?.enabled;
+        const visible = gameVisibleState && trainingModeActive && botCount > 0;
 
         overlay.classList.toggle('hidden', !visible);
         if (!visible) return;
@@ -2262,6 +2828,48 @@ export class Game {
         if (this.ui.trainingOverlayLines) {
             this.ui.trainingOverlayLines.textContent = (data.overlayLines || []).join('\n');
         }
+        if (this.ui.trainingOverlayStatusChip) {
+            this.ui.trainingOverlayStatusChip.textContent = data.overlayStatusChipLabel || 'Zu wenig Daten';
+        }
+        if (this.ui.trainingOverlayStatusExplanation) {
+            this.ui.trainingOverlayStatusExplanation.textContent = data.overlayStatusExplanation || 'Noch nicht genug Daten fuer eine Bewertung.';
+        }
+        if (this.ui.trainingOverlayProgressSummary) {
+            this.ui.trainingOverlayProgressSummary.textContent = data.overlayProgressSummary || 'Gesamtfortschritt: 0.0%';
+        }
+        if (this.ui.trainingOverlayProgressExplainer) {
+            this.ui.trainingOverlayProgressExplainer.textContent = data.overlayProgressExplainer || 'Erklaerung: 70% Explorations-Abbau + 30% State-Coverage.';
+        }
+        if (this.ui.trainingOverlayStorageSummary) {
+            this.ui.trainingOverlayStorageSummary.textContent = data.overlayStorageSummary || 'Speicher: keine Daten';
+        }
+        if (this.ui.trainingOverlayActivityMain) {
+            this.ui.trainingOverlayActivityMain.textContent = data.overlayActivityMain || 'Upd/Runde: n/a';
+        }
+        if (this.ui.trainingOverlayActivitySub) {
+            this.ui.trainingOverlayActivitySub.textContent = data.overlayActivitySub || 'Mehr Updates beschleunigen Lernen.';
+        }
+        if (this.ui.trainingOverlayStabilityMain) {
+            this.ui.trainingOverlayStabilityMain.textContent = data.overlayStabilityMain || 'Reward-Trend: n/a';
+        }
+        if (this.ui.trainingOverlayStabilitySub) {
+            this.ui.trainingOverlayStabilitySub.textContent = data.overlayStabilitySub || 'Reward hoch und TD runter ist ein gutes Zeichen.';
+        }
+        if (this.ui.trainingOverlayPersistenceMain) {
+            this.ui.trainingOverlayPersistenceMain.textContent = data.overlayPersistenceMain || 'Save: n/a';
+        }
+        if (this.ui.trainingOverlayPersistenceSub) {
+            this.ui.trainingOverlayPersistenceSub.textContent = data.overlayPersistenceSub || 'Backup hilft bei versehentlichem Reset.';
+        }
+        if (this.ui.trainingOverlayGraphLine) {
+            this.ui.trainingOverlayGraphLine.setAttribute('points', data.overlayGraphLinePoints || '');
+        }
+        if (this.ui.trainingOverlayGraphArea) {
+            this.ui.trainingOverlayGraphArea.setAttribute('points', data.overlayGraphAreaPoints || '');
+        }
+        if (this.ui.trainingOverlayGraphRange) {
+            this.ui.trainingOverlayGraphRange.textContent = data.overlayGraphRangeLabel || 'Trendfenster: keine Daten';
+        }
         if (this.ui.trainingOverlayProgressFill) {
             const pct = clamp(Number(data.overlayProgressPct) || 0, 0, 100);
             this.ui.trainingOverlayProgressFill.style.width = `${pct.toFixed(1)}%`;
@@ -2273,10 +2881,265 @@ export class Game {
 
     _updateTrainingStatus() {
         const telemetry = this._buildTrainingTelemetry();
+        if (this.ui.trainingStatusMain) {
+            this.ui.trainingStatusMain.textContent = telemetry.menuSummaryMain || 'Updates: 0 | States: 0 | Reward: 0.00';
+        }
+        if (this.ui.trainingStatusStorage) {
+            this.ui.trainingStatusStorage.textContent = telemetry.menuSummaryStorage || 'Save: n/a | Pending: 0 | Backup: n/a';
+        }
         if (this.ui.trainingStatus) {
             this.ui.trainingStatus.textContent = (telemetry.menuLines || []).join('\n');
         }
+        if (this.ui.trainingBaselineStatus) {
+            this.ui.trainingBaselineStatus.textContent = telemetry.baselineSummary || 'A/B: keine Baseline gesetzt (Button "Benchmark A setzen").';
+        }
+        if (this.ui.trainingBaselineClearButton) {
+            this.ui.trainingBaselineClearButton.disabled = !telemetry.baselineAvailable;
+        }
         this._updateTrainingOverlay(telemetry);
+    }
+
+    _collectLearningEngineEntries() {
+        const engineMap = [
+            { key: 'mode3d', fallbackKey: 'planar', engine: this.botLearning3D },
+            { key: 'planar', fallbackKey: 'mode3d', engine: this.botLearningPlanar },
+        ];
+        const unique = [];
+        const seen = new Set();
+        for (let i = 0; i < engineMap.length; i++) {
+            const entry = engineMap[i];
+            if (!entry.engine || seen.has(entry.engine)) continue;
+            seen.add(entry.engine);
+            unique.push(entry);
+        }
+        return unique;
+    }
+
+    _buildLearningPersistencePayload(version = 2) {
+        const payload = {
+            version: Math.max(1, Math.floor(Number(version) || 2)),
+            savedAt: Date.now(),
+            trainingMeta: this._sanitizeTrainingMeta(this.trainingMeta),
+            learningBaseline: this._sanitizeLearningBaseline(this.learningBaseline),
+            settings: {
+                training: {
+                    onlineLearningPaused: !!this.settings?.training?.onlineLearningPaused,
+                },
+            },
+            engines: {},
+        };
+
+        const entries = this._collectLearningEngineEntries();
+        let exported = 0;
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            if (typeof entry.engine.exportDump !== 'function') continue;
+            const dump = entry.engine.exportDump(payload.savedAt);
+            if (!dump || !Array.isArray(dump.states)) continue;
+            payload.engines[entry.key] = dump;
+            exported++;
+        }
+        return exported > 0 ? payload : null;
+    }
+
+    _applyLearningPersistencePayload(rawPayload, options = {}) {
+        const payload = (rawPayload && typeof rawPayload === 'object') ? rawPayload : null;
+        if (!payload) return 0;
+        const useMerge = options.merge !== false;
+        const applyPausedSetting = !!options.applyPausedSetting;
+        const engines = (payload.engines && typeof payload.engines === 'object') ? payload.engines : {};
+
+        let restored = 0;
+        const entries = this._collectLearningEngineEntries();
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const preferredDump = engines?.[entry.key];
+            const fallbackDump = engines?.[entry.fallbackKey];
+            const dump = (preferredDump && Array.isArray(preferredDump.states))
+                ? preferredDump
+                : ((fallbackDump && Array.isArray(fallbackDump.states)) ? fallbackDump : null);
+            if (!dump) continue;
+
+            let ok = false;
+            if (useMerge && typeof entry.engine.mergeDumpAndSave === 'function') {
+                ok = entry.engine.mergeDumpAndSave(dump) !== false;
+            } else if (typeof entry.engine.importDumpAndSave === 'function') {
+                ok = entry.engine.importDumpAndSave(dump) !== false;
+            }
+            if (ok) restored++;
+        }
+        if (restored <= 0) return 0;
+
+        const previousMeta = this._sanitizeTrainingMeta(this.trainingMeta);
+        this.trainingMeta = this._mergeTrainingMeta(this.trainingMeta, payload.trainingMeta || null);
+        const nextMeta = this._sanitizeTrainingMeta(this.trainingMeta);
+        const trainingMetaChanged = (
+            previousMeta.totalTrainingRounds !== nextMeta.totalTrainingRounds
+            || previousMeta.firstTrainingAt !== nextMeta.firstTrainingAt
+            || previousMeta.lastTrainingAt !== nextMeta.lastTrainingAt
+        );
+        if (trainingMetaChanged) {
+            this._saveTrainingMeta();
+        }
+
+        const incomingBaseline = this._sanitizeLearningBaseline(payload.learningBaseline);
+        if (incomingBaseline) {
+            const currentBaselineCreatedAt = Math.max(0, Math.floor(Number(this.learningBaseline?.createdAt) || 0));
+            const currentBaselineRounds = Math.max(0, Math.floor(Number(this.learningBaseline?.absoluteRoundCount) || 0));
+            const shouldReplaceBaseline = (
+                !this.learningBaseline
+                || incomingBaseline.createdAt >= currentBaselineCreatedAt
+                || incomingBaseline.absoluteRoundCount > currentBaselineRounds
+            );
+            if (shouldReplaceBaseline) {
+                this._saveLearningBaseline(incomingBaseline);
+            }
+        }
+
+        if (applyPausedSetting && this.settings?.training) {
+            this.settings.training.onlineLearningPaused = !!payload.settings?.training?.onlineLearningPaused;
+            this._onSettingsChanged();
+        }
+
+        this._clearTrainingProgressHistory();
+        this._updateTrainingStatus();
+        return restored;
+    }
+
+    _buildLearningDiskSyncFingerprint() {
+        const stats3D = this.botLearning3D ? this.botLearning3D.getStats() : null;
+        const statsPlanar = this.botLearningPlanar ? this.botLearningPlanar.getStats() : null;
+        const updates = Math.max(0, Math.floor(Number(stats3D?.totalUpdates || 0)))
+            + Math.max(0, Math.floor(Number(statsPlanar?.totalUpdates || 0)));
+        const states = Math.max(0, Math.floor(Number(stats3D?.states || 0)))
+            + Math.max(0, Math.floor(Number(statsPlanar?.states || 0)));
+        const rounds = Math.max(0, Math.floor(Number(this.trainingMeta?.totalTrainingRounds || 0)));
+        const baselineRounds = Math.max(0, Math.floor(Number(this.learningBaseline?.absoluteRoundCount || 0)));
+        const baselineAt = Math.max(0, Math.floor(Number(this.learningBaseline?.createdAt || 0)));
+        return `${updates}|${states}|${rounds}|${baselineRounds}|${baselineAt}`;
+    }
+
+    async _bootstrapLearningDiskSync() {
+        if (this._learningDiskSync.initStarted) return;
+        this._learningDiskSync.initStarted = true;
+        try {
+            const restored = await this._loadLearningDataFromDisk();
+            if (restored) {
+                this._showStatusToast('Lerndaten vom PC geladen', 1700, 'success');
+            }
+            await this._syncLearningDataToDisk(true);
+        } catch {
+            // Disk sync remains optional; localStorage fallback still works.
+        }
+    }
+
+    async _loadLearningDataFromDisk(showToast = false) {
+        if (typeof fetch !== 'function') return false;
+        try {
+            const response = await fetch(`${LEARNING_DISK_SYNC_ENDPOINT}?t=${Date.now()}`, {
+                method: 'GET',
+                cache: 'no-store',
+            });
+            if (response.status === 404) {
+                this._learningDiskSync.available = false;
+                return false;
+            }
+            if (response.status === 204) {
+                this._learningDiskSync.available = true;
+                this._learningDiskSync.lastError = '';
+                return false;
+            }
+            if (!response.ok) {
+                throw new Error(`DiskSync GET HTTP ${response.status}`);
+            }
+            const payload = await response.json();
+            const restored = this._applyLearningPersistencePayload(payload, {
+                merge: true,
+                applyPausedSetting: false,
+            });
+            this._learningDiskSync.available = true;
+            this._learningDiskSync.lastError = '';
+            if (restored > 0) {
+                this._learningDiskSync.lastLoadedAt = Date.now();
+                if (showToast) {
+                    this._showStatusToast(`PC-Sync geladen (${restored} Engine${restored > 1 ? 's' : ''})`, 1900, 'success');
+                }
+                return true;
+            }
+            return false;
+        } catch (error) {
+            this._learningDiskSync.lastError = String(error?.message || error || 'unknown');
+            if (this._learningDiskSync.available === null) {
+                this._learningDiskSync.available = false;
+            }
+            if (showToast) {
+                this._showStatusToast('PC-Sync Laden fehlgeschlagen', 1800, 'error');
+            }
+            return false;
+        }
+    }
+
+    async _syncLearningDataToDisk(force = false, options = {}) {
+        if (typeof fetch !== 'function') return false;
+        if (this._learningDiskSync.inFlight) return false;
+        if (!force && this._learningDiskSync.available === false) return false;
+
+        const now = Date.now();
+        if (!force && (now - this._learningDiskSync.lastSavedAt) < LEARNING_DISK_SYNC_MIN_INTERVAL_MS) {
+            return false;
+        }
+
+        const fingerprint = this._buildLearningDiskSyncFingerprint();
+        if (!force && fingerprint === this._learningDiskSync.lastFingerprint) {
+            return false;
+        }
+
+        const payload = this._buildLearningPersistencePayload(2);
+        if (!payload) return false;
+        const serialized = JSON.stringify(payload);
+        const requestedKeepalive = !!options.keepalive;
+        const useKeepalive = requestedKeepalive && serialized.length < 60000;
+
+        this._learningDiskSync.inFlight = true;
+        try {
+            const response = await fetch(LEARNING_DISK_SYNC_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: serialized,
+                keepalive: useKeepalive,
+            });
+            if (response.status === 404) {
+                this._learningDiskSync.available = false;
+                if (options.showToast) {
+                    this._showStatusToast('PC-Sync nicht verfuegbar (lokalen Server starten)', 2200, 'error');
+                }
+                return false;
+            }
+            if (!response.ok) {
+                throw new Error(`DiskSync POST HTTP ${response.status}`);
+            }
+            this._learningDiskSync.available = true;
+            this._learningDiskSync.lastSavedAt = now;
+            this._learningDiskSync.lastFingerprint = fingerprint;
+            this._learningDiskSync.lastError = '';
+            if (options.showToast) {
+                this._showStatusToast('Lerndaten auf PC synchronisiert', 1600, 'success');
+            }
+            return true;
+        } catch (error) {
+            this._learningDiskSync.lastError = String(error?.message || error || 'unknown');
+            if (this._learningDiskSync.available === null) {
+                this._learningDiskSync.available = false;
+            }
+            if (options.showToast) {
+                this._showStatusToast('PC-Sync Speichern fehlgeschlagen', 1800, 'error');
+            }
+            return false;
+        } finally {
+            this._learningDiskSync.inFlight = false;
+        }
     }
 
     _saveLearningData(showToast = false, force = true) {
@@ -2288,6 +3151,7 @@ export class Game {
         }
         if (ok) {
             this._lastLearningAutoSaveAt = Date.now();
+            this._syncLearningDataToDisk(false);
         }
         this._updateTrainingStatus();
         if (showToast) {
@@ -2296,18 +3160,289 @@ export class Game {
         return ok;
     }
 
-    _tickLearningAutoPersist() {
-        if (!this.settings?.training?.enabled) {
-            this._lastLearningAutoSaveAt = Date.now();
-            return;
+    _saveLearningSnapshot(showToast = false) {
+        if (typeof localStorage === 'undefined') {
+            if (showToast) {
+                this._showStatusToast('Snapshot-Speicher nicht verfuegbar', 1500, 'error');
+            }
+            return false;
         }
 
+        const payload = {
+            version: 1,
+            savedAt: Date.now(),
+            trainingMeta: this._sanitizeTrainingMeta(this.trainingMeta),
+            settings: {
+                training: {
+                    onlineLearningPaused: !!this.settings?.training?.onlineLearningPaused,
+                },
+            },
+            engines: {},
+        };
+
+        const engineMap = [
+            { key: 'mode3d', engine: this.botLearning3D },
+            { key: 'planar', engine: this.botLearningPlanar },
+        ];
+        const seenEngines = new Set();
+
+        let exported = 0;
+        for (let i = 0; i < engineMap.length; i++) {
+            const entry = engineMap[i];
+            if (seenEngines.has(entry.engine)) continue;
+            seenEngines.add(entry.engine);
+            if (!entry.engine || typeof entry.engine.exportDump !== 'function') continue;
+            const dump = entry.engine.exportDump(payload.savedAt);
+            if (!dump || !Array.isArray(dump.states)) continue;
+            payload.engines[entry.key] = dump;
+            exported++;
+        }
+
+        if (exported === 0) {
+            if (showToast) {
+                this._showStatusToast('Snapshot fehlgeschlagen: keine Engine-Daten', 1800, 'error');
+            }
+            return false;
+        }
+
+        try {
+            localStorage.setItem(LEARNING_SNAPSHOT_STORAGE_KEY, JSON.stringify(payload));
+        } catch {
+            if (showToast) {
+                this._showStatusToast('Snapshot konnte nicht gespeichert werden', 1800, 'error');
+            }
+            return false;
+        }
+
+        if (showToast) {
+            this._showStatusToast(`Snapshot gespeichert (${exported} Engine${exported > 1 ? 's' : ''})`, 1600, 'success');
+        }
+        return true;
+    }
+
+    _sanitizeLearningBaseline(rawBaseline) {
+        if (!rawBaseline || typeof rawBaseline !== 'object') return null;
+        const baseline = {
+            version: 1,
+            createdAt: 0,
+            absoluteRoundCount: 0,
+            sessionRoundCount: 0,
+            aggregate: {
+                averageBotSurvival: 0,
+                selfCollisionsPerRound: 0,
+                learningUpdatesPerRound: 0,
+                learningRewardPerRound: 0,
+                learningTdAbsMean: 0,
+            },
+            learning: {
+                updateCount: 0,
+                stateCount: 0,
+                rewardSum: 0,
+            },
+        };
+
+        baseline.version = Math.max(1, Math.floor(Number(rawBaseline.version) || 1));
+        baseline.createdAt = Math.max(0, Math.floor(Number(rawBaseline.createdAt) || 0));
+        baseline.absoluteRoundCount = Math.max(0, Math.floor(Number(rawBaseline.absoluteRoundCount) || 0));
+        baseline.sessionRoundCount = Math.max(0, Math.floor(Number(rawBaseline.sessionRoundCount) || 0));
+
+        const aggregate = rawBaseline.aggregate || {};
+        baseline.aggregate.averageBotSurvival = Number.isFinite(aggregate.averageBotSurvival) ? aggregate.averageBotSurvival : 0;
+        baseline.aggregate.selfCollisionsPerRound = Number.isFinite(aggregate.selfCollisionsPerRound) ? aggregate.selfCollisionsPerRound : 0;
+        baseline.aggregate.learningUpdatesPerRound = Number.isFinite(aggregate.learningUpdatesPerRound) ? aggregate.learningUpdatesPerRound : 0;
+        baseline.aggregate.learningRewardPerRound = Number.isFinite(aggregate.learningRewardPerRound) ? aggregate.learningRewardPerRound : 0;
+        baseline.aggregate.learningTdAbsMean = Number.isFinite(aggregate.learningTdAbsMean) ? aggregate.learningTdAbsMean : 0;
+
+        const learning = rawBaseline.learning || {};
+        baseline.learning.updateCount = Math.max(0, Math.floor(Number(learning.updateCount) || 0));
+        baseline.learning.stateCount = Math.max(0, Math.floor(Number(learning.stateCount) || 0));
+        baseline.learning.rewardSum = Number.isFinite(learning.rewardSum) ? learning.rewardSum : 0;
+        return baseline;
+    }
+
+    _loadLearningBaseline() {
+        if (typeof localStorage === 'undefined') return null;
+        try {
+            const raw = localStorage.getItem(LEARNING_BASELINE_STORAGE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            return this._sanitizeLearningBaseline(parsed);
+        } catch {
+            return null;
+        }
+    }
+
+    _saveLearningBaseline(baseline) {
+        if (typeof localStorage === 'undefined') return false;
+        const sanitized = this._sanitizeLearningBaseline(baseline);
+        if (!sanitized) return false;
+        try {
+            localStorage.setItem(LEARNING_BASELINE_STORAGE_KEY, JSON.stringify(sanitized));
+            this.learningBaseline = sanitized;
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    _createLearningBaseline() {
+        const stats3D = this.botLearning3D ? this.botLearning3D.getStats() : null;
+        const statsPlanar = this.botLearningPlanar ? this.botLearningPlanar.getStats() : null;
+        if (!stats3D && !statsPlanar) return null;
+
+        const aggregate = this.recorder?.getAggregateMetrics?.() || {};
+        const sessionRoundCount = Number.isFinite(aggregate?.rounds) ? aggregate.rounds : 0;
+        const absoluteRoundCount = this._getAbsoluteTrainingRoundCount(sessionRoundCount);
+        const updateCount = (stats3D?.totalUpdates || 0) + (statsPlanar?.totalUpdates || 0);
+        const stateCount = (stats3D?.states || 0) + (statsPlanar?.states || 0);
+        const rewardSum = (stats3D?.totalReward || 0) + (statsPlanar?.totalReward || 0);
+
+        return this._sanitizeLearningBaseline({
+            version: 1,
+            createdAt: Date.now(),
+            absoluteRoundCount,
+            sessionRoundCount,
+            aggregate: {
+                averageBotSurvival: Number.isFinite(aggregate.averageBotSurvival) ? aggregate.averageBotSurvival : 0,
+                selfCollisionsPerRound: Number.isFinite(aggregate.selfCollisionsPerRound) ? aggregate.selfCollisionsPerRound : 0,
+                learningUpdatesPerRound: Number.isFinite(aggregate.learningUpdatesPerRound) ? aggregate.learningUpdatesPerRound : 0,
+                learningRewardPerRound: Number.isFinite(aggregate.learningRewardPerRound) ? aggregate.learningRewardPerRound : 0,
+                learningTdAbsMean: Number.isFinite(aggregate.learningTdAbsMean) ? aggregate.learningTdAbsMean : 0,
+            },
+            learning: {
+                updateCount,
+                stateCount,
+                rewardSum,
+            },
+        });
+    }
+
+    _setLearningBaseline(showToast = false) {
+        const baseline = this._createLearningBaseline();
+        if (!baseline) {
+            if (showToast) {
+                this._showStatusToast('Baseline nicht moeglich: keine Lerndaten', 1800, 'error');
+            }
+            return false;
+        }
+        const ok = this._saveLearningBaseline(baseline);
+        this._updateTrainingStatus();
+        if (showToast) {
+            const timeLabel = baseline.createdAt > 0
+                ? new Date(baseline.createdAt).toLocaleTimeString('de-DE', { hour12: false })
+                : 'unbekannt';
+            this._showStatusToast(ok ? `Benchmark A gesetzt (${timeLabel})` : 'Benchmark A konnte nicht gespeichert werden', 1800, ok ? 'success' : 'error');
+        }
+        return ok;
+    }
+
+    _clearLearningBaseline(showToast = false) {
+        this.learningBaseline = null;
+        if (typeof localStorage !== 'undefined') {
+            try {
+                localStorage.removeItem(LEARNING_BASELINE_STORAGE_KEY);
+            } catch {
+                // ignore storage errors
+            }
+        }
+        this._updateTrainingStatus();
+        if (showToast) {
+            this._showStatusToast('Benchmark A geloescht', 1400, 'success');
+        }
+        return true;
+    }
+
+    _loadLearningSnapshot() {
+        if (typeof localStorage === 'undefined') return null;
+        try {
+            const raw = localStorage.getItem(LEARNING_SNAPSHOT_STORAGE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return null;
+            const engines = (parsed.engines && typeof parsed.engines === 'object') ? parsed.engines : {};
+            const hasDump3D = !!(engines.mode3d && Array.isArray(engines.mode3d.states));
+            const hasDumpPlanar = !!(engines.planar && Array.isArray(engines.planar.states));
+            if (!hasDump3D && !hasDumpPlanar) return null;
+            return {
+                version: Number(parsed.version) || 1,
+                savedAt: Number.isFinite(parsed.savedAt) ? Math.max(0, Math.floor(parsed.savedAt)) : 0,
+                trainingMeta: parsed.trainingMeta && typeof parsed.trainingMeta === 'object'
+                    ? this._sanitizeTrainingMeta(parsed.trainingMeta)
+                    : null,
+                settings: parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : null,
+                engines,
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    _restoreLearningSnapshot(showToast = false) {
+        const snapshot = this._loadLearningSnapshot();
+        if (!snapshot) {
+            if (showToast) {
+                this._showStatusToast('Kein Snapshot gefunden', 1500, 'error');
+            }
+            return false;
+        }
+
+        let restored = 0;
+        const engineMap = [
+            { key: 'mode3d', engine: this.botLearning3D },
+            { key: 'planar', engine: this.botLearningPlanar },
+        ];
+        const seenEngines = new Set();
+        for (let i = 0; i < engineMap.length; i++) {
+            const entry = engineMap[i];
+            if (seenEngines.has(entry.engine)) continue;
+            seenEngines.add(entry.engine);
+            if (!entry.engine || typeof entry.engine.importDumpAndSave !== 'function') continue;
+            const dump = snapshot.engines?.[entry.key];
+            if (!dump || !Array.isArray(dump.states)) continue;
+            const ok = entry.engine.importDumpAndSave(dump);
+            if (ok !== false) restored++;
+        }
+        if (restored === 0) {
+            if (showToast) {
+                this._showStatusToast('Snapshot konnte nicht wiederhergestellt werden', 1800, 'error');
+            }
+            return false;
+        }
+
+        if (snapshot.trainingMeta) {
+            this.trainingMeta = this._sanitizeTrainingMeta(snapshot.trainingMeta);
+            this._saveTrainingMeta();
+        }
+
+        const pausedInSnapshot = !!snapshot.settings?.training?.onlineLearningPaused;
+        if (this.settings?.training) {
+            this.settings.training.onlineLearningPaused = pausedInSnapshot;
+            this._onSettingsChanged();
+        }
+
+        this._clearTrainingProgressHistory();
+        this._updateTrainingStatus();
+        this._syncLearningDataToDisk(true);
+        if (showToast) {
+            const timeLabel = snapshot.savedAt > 0
+                ? new Date(snapshot.savedAt).toLocaleTimeString('de-DE', { hour12: false })
+                : 'unbekannt';
+            this._showStatusToast(`Snapshot geladen (${restored} Engine${restored > 1 ? 's' : ''}, ${timeLabel})`, 1900, 'success');
+        }
+        return true;
+    }
+
+    _tickLearningAutoPersist() {
         const now = Date.now();
         const minIntervalMs = 2500;
         if (now - this._lastLearningAutoSaveAt < minIntervalMs) return;
 
         let pending = 0;
         const engines = this._getLearningEngines();
+        if (engines.length === 0) {
+            this._lastLearningAutoSaveAt = now;
+            return;
+        }
         for (let i = 0; i < engines.length; i++) {
             const stats = engines[i].getStats ? engines[i].getStats() : null;
             pending += stats?.updatesSinceSave || 0;
@@ -2327,26 +3462,27 @@ export class Game {
         for (let i = 0; i < engines.length; i++) {
             engines[i].reset(true);
         }
+        this._clearTrainingProgressHistory();
         this._updateTrainingStatus();
+        this._syncLearningDataToDisk(true);
         this._showStatusToast('Lerndaten zurueckgesetzt', 1500, 'success');
     }
 
     _startDeveloperTraining() {
         const bounds = this._getTrainingTimeScaleBounds();
         this.settings.training.enabled = true;
-        this.settings.training.botVsBotOnly = true;
-        this.settings.training.mortalBots = true;
+        // Keep training conditions close to normal gameplay rules.
+        this.settings.training.botVsBotOnly = false;
+        this.settings.training.mortalBots = false;
         this.settings.training.autoRestart = true;
-        this.settings.training.spectatorSplit = true;
-        this.settings.training.dualWorlds = true;
+        this.settings.training.spectatorSplit = false;
+        this.settings.training.dualWorlds = false;
+        this.settings.training.onlineLearningPaused = false;
         this.settings.training.timeScale = bounds.max;
         this.settings.training.autoSaveRounds = 1;
-        if (this.settings.gameplay) {
-            this.settings.gameplay.planarMode = false;
-        }
-        this.settings.numBots = 4;
+        this.settings.numBots = Math.max(1, Number(this.settings.numBots) || 1);
         this._onSettingsChanged();
-        this._showStatusToast('Developer-Training gestartet', 1200, 'success');
+        this._showStatusToast('Developer-Training gestartet (Normalspiel-Botregeln)', 1500, 'success');
         this.startMatch();
     }
 
@@ -2464,22 +3600,28 @@ export class Game {
     _onRoundEnd(winner) {
         this.state = 'ROUND_END';
         this.roundPause = 3.0;
+        const botOnlyTraining = this._isTrainingBotOnlyMode();
 
-        console.log('--- ROUND END ---');
+        if (!botOnlyTraining) {
+            console.log('--- ROUND END ---');
+        }
         let roundMetrics = null;
         try {
             roundMetrics = this.recorder.finalizeRound(winner, this.entityManager.players);
-            if (roundMetrics) {
+            if (roundMetrics && !botOnlyTraining) {
                 console.log('[Recorder] Round KPI:', roundMetrics);
             }
-            // Recording Dump
-            this.recorder.dump(); // Log to console only
+            if (!botOnlyTraining) {
+                // Recording Dump for manual debugging only.
+                this.recorder.dump();
+            }
         } catch (e) {
             console.error('Recorder Dump Failed:', e);
         }
 
-        const trainingEnabled = !!this.settings.training?.enabled;
-        if (trainingEnabled && this._getLearningEngines().length > 0) {
+        const hasBots = Number.isFinite(this.numBots) ? this.numBots > 0 : (this.entityManager?.bots?.length || 0) > 0;
+        if (hasBots && this._getLearningEngines().length > 0) {
+            this._recordAbsoluteTrainingRound();
             const rounds = this.recorder.getAggregateMetrics().rounds;
             const autoSaveRounds = clamp(parseInt(this.settings.training?.autoSaveRounds ?? 5, 10), 1, 50);
             if (rounds > 0 && rounds % autoSaveRounds === 0) {
@@ -2491,7 +3633,7 @@ export class Game {
         const autoTrainingLoop = this._isTrainingBotOnlyMode() && !!this.settings.training?.autoRestart;
         if (autoTrainingLoop) {
             this.ui.messageOverlay.classList.add('hidden');
-            this.roundPause = 0.35;
+            this.roundPause = 0.1;
             return;
         }
 

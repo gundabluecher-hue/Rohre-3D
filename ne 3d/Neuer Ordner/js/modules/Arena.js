@@ -3,6 +3,7 @@
 // ============================================
 
 import * as THREE from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { CONFIG } from './Config.js';
 
 export class Arena {
@@ -10,6 +11,7 @@ export class Arena {
         this.renderer = renderer;
         this.obstacles = [];
         this.portals = [];
+        this.models = [];
         this.portalsEnabled = true;
         this.bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
         this._tmpSphere = new THREE.Sphere();  // Wiederverwendbar für Kollision
@@ -123,8 +125,44 @@ export class Arena {
         // ---- Portale ----
         this._buildPortals(map, scale);
 
+        // ---- Models ----
+        if (map.models) {
+            this._loadModels(map.models, scale);
+        }
+
         // ---- Umgebungseffekte ----
         this._addParticles(sx, sy, sz);
+    }
+
+    _loadModels(modelsConf, scale) {
+        const loader = new OBJLoader();
+        for (const mod of modelsConf) {
+            loader.load(mod.file, (object) => {
+                const material = new THREE.MeshStandardMaterial({
+                    color: mod.color || 0xffffff,
+                    roughness: 0.3,
+                    metalness: 0.5,
+                });
+                object.traverse((child) => {
+                    if (child.isMesh) {
+                        child.material = material;
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+
+                const s = (mod.scale || 1.0) * scale;
+                object.scale.set(s, s, s);
+                if (mod.pos) {
+                    object.position.set(mod.pos[0] * scale, mod.pos[1] * scale, mod.pos[2] * scale);
+                }
+
+                this.renderer.addToScene(object);
+                this.models.push(object);
+            }, undefined, (error) => {
+                console.error(`[Arena] Failed to load model ${mod.file}`, error);
+            });
+        }
     }
 
     _buildPortals(map, scale) {

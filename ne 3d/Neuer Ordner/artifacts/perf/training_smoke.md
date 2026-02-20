@@ -1,9 +1,9 @@
 # Bot Training Smoke Test
 
-- Timestamp: 2026-02-20T02:47:51.453Z
+- Timestamp: 2026-02-20T16:30:02.521Z
 - Passed: YES
-- Rounds target/play: 1/1
-- Time scale: 1000.0x
+- Rounds target/play: 1/2
+- Time scale: 80.0x
 
 ## Checks
 
@@ -15,19 +15,19 @@
 
 ## Learning Delta
 
-- updates delta (3D/Planar/Total): 104/77/181
-- states delta (3D/Planar/Total): 18/12/30
-- reward delta (3D/Planar/Total): -2.337/-3.852/-6.190
+- updates delta (3D/Planar/Total): 112/180/292
+- states delta (3D/Planar/Total): 17/1/18
+- reward delta (3D/Planar/Total): -4.300/-0.592/-4.892
 
 ## Recorder Aggregate
 
-- learningUpdatesPerRound: 136.000
-- learningRewardPerRound: -5.002
+- learningUpdatesPerRound: 117.500
+- learningRewardPerRound: -1.176
 - stuckEventsPerMinute: 0.000
-- selfCollisionsPerRound: 0.000
+- selfCollisionsPerRound: 1.000
 
 ## Persistence
 
-- updates before reload (3D/Planar/Total): 128/111/239
-- updates after reload (3D/Planar/Total): 183/166/349
-- states after reload (3D/Planar/Total): 42/22/64
+- updates before reload (3D/Planar/Total): 1560/1582/3142
+- updates after reload (3D/Planar/Total): 2774/2775/5549
+- states after reload (3D/Planar/Total): 221/168/389

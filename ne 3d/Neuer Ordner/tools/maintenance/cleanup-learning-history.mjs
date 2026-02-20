@@ -82,24 +82,66 @@ function toFiniteNumber(value, fallback = 0) {
 function extractSnapshotMetrics(payload) {
     const src = payload && typeof payload === 'object' ? payload : {};
     const engine3D = src.engine3D && typeof src.engine3D === 'object' ? src.engine3D : {};
+    const enginePlanar = src.enginePlanar && typeof src.enginePlanar === 'object' ? src.enginePlanar : {};
     const states3D = Array.isArray(src.states3D) ? src.states3D : [];
+    const statesPlanar = Array.isArray(src.statesPlanar) ? src.statesPlanar : [];
     const states = Array.isArray(src.states) ? src.states : [];
 
-    const updates = Math.max(
+    const updatesTotal = Math.max(
         0,
         Math.floor(
-            toFiniteNumber(engine3D.totalUpdates, toFiniteNumber(src.totalUpdates, 0))
+            toFiniteNumber(src.totalUpdates, 0)
         )
     );
-    const reward = toFiniteNumber(engine3D.totalReward, toFiniteNumber(src.totalReward, 0));
-    const stateCount = Math.max(
+    const updates3D = Math.max(
         0,
         Math.floor(
-            toFiniteNumber(
-                toFiniteNumber(src.statesCount, NaN),
-                states3D.length || states.length || 0
-            )
+            toFiniteNumber(engine3D.totalUpdates, 0)
         )
+    );
+    const updatesPlanar = Math.max(
+        0,
+        Math.floor(
+            toFiniteNumber(enginePlanar.totalUpdates, 0)
+        )
+    );
+
+    const updates = Math.max(
+        updatesTotal,
+        updates3D,
+        updatesPlanar,
+        updates3D + updatesPlanar
+    );
+
+    const rewardTotal = toFiniteNumber(src.totalReward, 0);
+    const reward3D = toFiniteNumber(engine3D.totalReward, 0);
+    const rewardPlanar = toFiniteNumber(enginePlanar.totalReward, 0);
+    const reward = (() => {
+        const hasTotal = Number.isFinite(src.totalReward);
+        if (hasTotal) return rewardTotal;
+        if (Number.isFinite(engine3D.totalReward) && Number.isFinite(enginePlanar.totalReward)) {
+            return reward3D + rewardPlanar;
+        }
+        if (Number.isFinite(engine3D.totalReward)) return reward3D;
+        if (Number.isFinite(enginePlanar.totalReward)) return rewardPlanar;
+        return 0;
+    })();
+
+    const statesTotal = Math.max(0, Math.floor(toFiniteNumber(src.statesCount, 0)));
+    const statesFromEngines = Math.max(
+        0,
+        Math.floor(toFiniteNumber(engine3D.states, 0))
+    ) + Math.max(
+        0,
+        Math.floor(toFiniteNumber(enginePlanar.states, 0))
+    );
+    const statesFromRows = states3D.length + statesPlanar.length;
+
+    const stateCount = Math.max(
+        statesTotal,
+        statesFromEngines,
+        statesFromRows,
+        states.length
     );
 
     return {

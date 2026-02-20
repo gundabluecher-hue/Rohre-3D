@@ -1,0 +1,17 @@
+# Dependencies and build output
+node_modules/
+dist/
+.vite/
+
+# Generated training snapshots (runtime uses localStorage; snapshots are archival)
+learning_history/bot_intelligence_*.json
+learning_history_archive/
+
+# Generated benchmark artifacts
+artifacts/perf/*.json
+artifacts/perf/*.md
+
+# Local OS/editor noise
+.DS_Store
+Thumbs.db
+*.log

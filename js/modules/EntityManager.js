@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Player } from '../entities/player.js';
-import { AircraftMesh } from '../entities/aircraft-mesh.js';
+import { createVehicleMesh, getSelectedVehicle } from '../entities/vehicle-registry.js';
 import { CONFIG, POWER_TYPES, POWER_MULT } from './Config.js';
 import { updateBot } from '../bot.js';
 
@@ -44,7 +44,7 @@ export class EntityManager {
 
         // Create P1
         const p1 = new Player(1);
-        p1.aircraftMesh = new AircraftMesh(p1.color);
+        p1.aircraftMesh = createVehicleMesh(getSelectedVehicle(1), p1.color);
         this.scene.add(p1.aircraftMesh);
         this.scene.add(p1.trailGroup);
         if (p1.shieldMesh) this.scene.add(p1.shieldMesh);
@@ -53,7 +53,7 @@ export class EntityManager {
         // Create P2 if needed
         if (count > 1) {
             const p2 = new Player(2);
-            p2.aircraftMesh = new AircraftMesh(p2.color);
+            p2.aircraftMesh = createVehicleMesh(getSelectedVehicle(2), p2.color);
             this.scene.add(p2.aircraftMesh);
             this.scene.add(p2.trailGroup);
             if (p2.shieldMesh) this.scene.add(p2.shieldMesh);
@@ -103,6 +103,11 @@ export class EntityManager {
 
             // 5. VISUALS
             p.updateMesh();
+
+            // 6. MESH-ANIMATION (z.B. Orb-Ringe)
+            if (p.aircraftMesh && typeof p.aircraftMesh.tick === 'function') {
+                p.aircraftMesh.tick(dt);
+            }
         });
     }
 

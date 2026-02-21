@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Mini Curve Fever – Map Editor (Pro)</title>
+  <style>
+    :root{
+      --bg-0:#020617;
+      --bg-1:#030712;
+      --panel:#0b1324cc;
+      --border:#1f2937;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --accent:#60a5fa;
+      --danger:#f97373;
+      --safe:#34d399;
+    }
+    *{box-sizing:border-box;}
+    html,body{height:100%;}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color:var(--text);
+      background: radial-gradient(1100px 800px at 10% 10%, #111827 0%, #020617 60%, #020617 100%);
+      overflow:hidden;
+    }
+    .wrap{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:12px;
+      padding:10px;
+      height:100%;
+    }
+    .panel{
+      background: linear-gradient(180deg, var(--panel), #020617ee);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:10px 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.45);
+      backdrop-filter: blur(10px);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      min-height:0;
+      overflow-y:auto;
+    }
+    h1{font-size:16px;margin:0 0 4px 0;}
+    .sub{font-size:11px;color:var(--muted);line-height:1.35;margin:0 0 6px 0;}
+    .toolRow{
+      display:flex;flex-wrap:wrap;gap:6px;
+      margin-bottom:4px;
+    }
+    button{
+      appearance:none;border:1px solid #25324a;
+      background: linear-gradient(180deg, #0f1b2f 0%, #020617 100%);
+      color:var(--text);padding:6px 8px;border-radius:10px;
+      font-weight:600;font-size:11px;cursor:pointer;
+      transition: transform .08s ease, border-color .15s ease, background .15s ease;
+    }
+    button:hover{transform:translateY(-1px); border-color:#324563;}
+    button:active{transform:translateY(0px) scale(.99);}
+    button:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+    button.tool.active{border-color:var(--accent); background:#0b1730;}
+    button.small{font-size:10px;padding:4px 6px;}
+    .row{
+      display:grid;grid-template-columns: 1fr auto;
+      gap:6px;align-items:center;
+      padding:4px 0;border-top:1px dashed #1f2937;
+    }
+    .row:first-of-type{border-top:none;}
+    label{font-size:11px;color:var(--muted);}
+    input[type="range"]{width:120px;}
+    input[type="number"]{
+      width:70px;background:#020617;border:1px solid var(--border);
+      color:var(--text);border-radius:5px;padding:3px 5px;font-size:11px;
+    }
+    select{
+      background:#020617;border:1px solid var(--border);
+      color:var(--text);border-radius:5px;padding:3px 5px;font-size:11px;
+    }
+    .pill{
+      display:inline-flex;align-items:center;gap:6px;
+      border-radius:999px;border:1px solid #233047;
+      background:#020617;
+      padding:3px 7px;
+      font-size:10px;color:var(--muted);
+      margin-right:4px;margin-bottom:4px;
+    }
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      font-size:10px;padding:1px 4px;border-radius:5px;
+      background:#020617;border:1px solid #223047;color:#cbd5e1;
+    }
+    textarea{
+      width:100%;min-height:90px;resize:vertical;
+      background:#020617;border-radius:10px;
+      border:1px solid #1f2937;
+      color:var(--text);font-size:11px;
+      padding:6px 8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+    }
+    .canvasShell{
+      position:relative;
+      border-radius:16px;
+      border:1px solid #111827;
+      overflow:hidden;
+      background:#020617;
+      box-shadow:0 18px 40px rgba(0,0,0,.6);
+    }
+    #mapCanvas{
+      width:100%;height:100%;display:block;
+      cursor:crosshair;
+    }
+    .hud{
+      position:absolute;left:10px;bottom:10px;
+      background:#020617dd;border-radius:10px;
+      border:1px solid #1f2937;
+      padding:4px 7px;
+      font-size:11px;color:var(--muted);
+      pointer-events:none;
+    }
+    .badge{
+      display:inline-flex;align-items:center;gap:5px;
+      padding:2px 6px;border-radius:999px;
+      border:1px solid #1f2937;background:#020617;
+      font-size:10px;margin-right:4px;
+    }
+    @media(max-width:980px){
+      .wrap{grid-template-columns: 1fr;}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <div>
+      <h1>Mini Curve Fever – Map Editor (Pro)</h1>
+      <p class="sub">
+        Erweiterter Editor für Tunnel, Blöcke, Spawns, Bots, Portale & Items.
+      </p>
+      <div>
+        <span class="pill"><span class="kbd">Linksklick</span> platzieren</span>
+        <span class="pill"><span class="kbd">Tunnel</span> 2× klicken</span>
+        <span class="pill"><span class="kbd">Strg+Z</span> Undo</span>
+        <span class="pill"><span class="kbd">Strg+Y</span> Redo</span>
+      </div>
+    </div>
+
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong style="font-size:12px;">Werkzeuge</strong>
+        <div>
+          <button id="btnUndo" class="small" disabled>↶ Undo</button>
+          <button id="btnRedo" class="small" disabled>↷ Redo</button>
+        </div>
+      </div>
+      <div class="toolRow" style="margin-top:6px;">
+        <button class="tool" data-tool="tunnel">Tunnel</button>
+        <button class="tool" data-tool="hard">Block hart</button>
+        <button class="tool" data-tool="foam">Block Schaum</button>
+        <button class="tool" data-tool="spawn">Spieler Spawn</button>
+        <button class="tool" data-tool="botSpawn">Bot Spawn</button>
+        <button class="tool" data-tool="portal">Portal</button>
+        <button class="tool" data-tool="item">Item</button>
+        <button class="tool" data-tool="erase" style="color:var(--danger)">Radieren</button>
+      </div>
+    </div>
+
+    <div id="itemTypeRow" class="row" style="display:none; border-top:none; padding-top:0;">
+      <label for="selItemType" style="color:var(--accent)">Item-Typ wählen:</label>
+      <select id="selItemType">
+        <option value="item_crystal">Kristall</option>
+        <option value="item_star">Stern</option>
+        <option value="item_battery">Batterie</option>
+        <option value="item_shield">Schild</option>
+        <option value="item_box">Item-Box</option>
+        <option value="item_pyramid">Pyramide</option>
+      </select>
+    </div>
+
+    <div>
+      <strong style="font-size:12px;">Arena Einstellungen</strong>
+      <div class="row">
+        <label>Breite (X)</label>
+        <input id="numArenaW" type="number" value="2800" step="100"/>
+      </div>
+      <div class="row">
+        <label>Tiefe (Z)</label>
+        <input id="numArenaD" type="number" value="2400" step="100"/>
+      </div>
+      <div class="row">
+        <label>Höhe (Y)</label>
+        <input id="numArenaH" type="number" value="950" step="50"/>
+      </div>
+    </div>
+
+    <div>
+      <strong style="font-size:12px;">Pinsel Parameter</strong>
+      <div class="row">
+        <label for="rngTunnelHeight">Tunnel/Portal/Item-Höhe (%)</label>
+        <input id="rngTunnelHeight" type="range" min="0" max="100" step="1" value="55" />
+      </div>
+      <div class="row">
+        <label for="rngBlockHeight">Block-Höhe (%)</label>
+        <input id="rngBlockHeight" type="range" min="0" max="100" step="1" value="35" />
+      </div>
+      <div class="row">
+        <label for="rngTunnelRadius">Tunnel-Radius</label>
+        <input id="rngTunnelRadius" type="range" min="80" max="400" step="10" value="160" />
+      </div>
+      <div class="row">
+        <label for="rngBlockSize">Block-Größe</label>
+        <input id="rngBlockSize" type="range" min="30" max="250" step="5" value="70" />
+      </div>
+    </div>
+
+    <div style="flex-grow:1;display:flex;flex-direction:column;">
+      <strong style="font-size:12px;">JSON Export / Import</strong>
+      <textarea id="jsonOutput" spellcheck="false" style="flex-grow:1;margin:4px 0;"></textarea>
+      <div style="display:flex;gap:6px;">
+        <button id="btnExport" class="small">Export</button>
+        <button id="btnImport" class="small">Import</button>
+        <button id="btnNew" class="small">Neu löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvasShell">
+    <canvas id="mapCanvas"></canvas>
+    <div class="hud" id="hud">
+      <div style="margin-bottom:2px;">
+        <span class="badge" id="hudArenaSize">Arena: 2800 × 2400 (x/z)</span>
+        <span class="badge" id="hudArenaHeight">Höhe: 950</span>
+      </div>
+      <div style="font-size:10px;">
+        Tool: <span id="hudTool">Tunnel</span> ·
+        Maus: <span id="hudPos">x=0, z=0</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ==========================
+  // Welt-Variablen
+  // ==========================
+  let ARENA_W = 2800; // X
+  let ARENA_D = 2400; // Z
+  let ARENA_H = 950;  // Y
+
+  // UI Elemente
+  const numArenaW = document.getElementById("numArenaW");
+  const numArenaD = document.getElementById("numArenaD");
+  const numArenaH = document.getElementById("numArenaH");
+  const hudArenaSize = document.getElementById("hudArenaSize");
+  const hudArenaHeight = document.getElementById("hudArenaHeight");
+  const itemTypeRow = document.getElementById("itemTypeRow");
+  const selItemType = document.getElementById("selItemType");
+
+  const btnUndo = document.getElementById("btnUndo");
+  const btnRedo = document.getElementById("btnRedo");
+
+  // Slider
+  const rngTunnelHeight = document.getElementById("rngTunnelHeight");
+  const rngBlockHeight  = document.getElementById("rngBlockHeight");
+  const rngTunnelRadius = document.getElementById("rngTunnelRadius");
+  const rngBlockSize    = document.getElementById("rngBlockSize");
+
+  // JSON IO
+  const jsonOutput = document.getElementById("jsonOutput");
+  const btnExport  = document.getElementById("btnExport");
+  const btnImport  = document.getElementById("btnImport");
+  const btnNew     = document.getElementById("btnNew");
+
+  // HUD
+  const hudToolEl = document.getElementById("hudTool");
+  const hudPosEl  = document.getElementById("hudPos");
+
+  // Canvas
+  const canvas = document.getElementById("mapCanvas");
+  const ctx = canvas.getContext("2d");
+
+  // Tools
+  const toolButtons = Array.from(document.querySelectorAll("button.tool"));
+
+  let state = {
+    currentTool:"tunnel",
+    tunnels:[],
+    hardBlocks:[],
+    foamBlocks:[],
+    playerSpawn:{ x:-800, y:ARENA_H*0.55, z:0 },
+    botSpawns:[],
+    portals:[],
+    items:[],
+    tempTunnelStart:null,
+    mouseX:0,
+    mouseZ:0
+  };
+
+  let history = [];
+  let historyIndex = -1;
+
+  function setTool(tool){
+    state.currentTool = tool;
+    toolButtons.forEach(b => {
+      b.classList.toggle("active", b.dataset.tool === tool);
+    });
+    
+    // zeige Item-Auswahl nur wenn Item-Tool aktiv
+    itemTypeRow.style.display = (tool === "item") ? "flex" : "none";
+
+    hudToolEl.textContent =
+      tool === "tunnel" ? "Tunnel" :
+      tool === "hard"   ? "Block hart" :
+      tool === "foam"   ? "Block Schaum" :
+      tool === "spawn"  ? "Spieler Spawn" :
+      tool === "botSpawn"? "Bot Spawn" :
+      tool === "portal" ? "Portal" :
+      tool === "item"   ? "Item" :
+      "Radieren";
+      
+    state.tempTunnelStart = null;
+    draw();
+  }
+
+  toolButtons.forEach(btn => {
+    btn.addEventListener("click", () => setTool(btn.dataset.tool));
+  });
+  setTool("tunnel");
+
+  // Updates Area Sizes
+  function updateArenaSize() {
+    ARENA_W = parseInt(numArenaW.value) || 2800;
+    ARENA_D = parseInt(numArenaD.value) || 2400;
+    ARENA_H = parseInt(numArenaH.value) || 950;
+    hudArenaSize.textContent = `Arena: ${ARENA_W} × ${ARENA_D} (x/z)`;
+    hudArenaHeight.textContent = `Höhe: ${ARENA_H}`;
+    draw();
+  }
+  
+  numArenaW.addEventListener("change", () => { updateArenaSize(); saveState(); });
+  numArenaD.addEventListener("change", () => { updateArenaSize(); saveState(); });
+  numArenaH.addEventListener("change", () => { updateArenaSize(); saveState(); });
+
+  // ==========================
+  // Undo / Redo
+  // ==========================
+  function saveState() {
+    const snapshot = {
+      tunnels: JSON.parse(JSON.stringify(state.tunnels)),
+      hardBlocks: JSON.parse(JSON.stringify(state.hardBlocks)),
+      foamBlocks: JSON.parse(JSON.stringify(state.foamBlocks)),
+      playerSpawn: JSON.parse(JSON.stringify(state.playerSpawn)),
+      botSpawns: JSON.parse(JSON.stringify(state.botSpawns)),
+      portals: JSON.parse(JSON.stringify(state.portals)),
+      items: JSON.parse(JSON.stringify(state.items)),
+      ARENA_W, ARENA_D, ARENA_H
+    };
+    
+    if (historyIndex < history.length - 1) {
+      history = history.slice(0, historyIndex + 1);
+    }
+    history.push(snapshot);
+    if (history.length > 50) history.shift(); // Max 50 Schritte
+    historyIndex = history.length - 1;
+    updateUndoRedoButtons();
+  }
+
+  function loadStateSnapshot(snapshot) {
+    if(!snapshot) return;
+    state.tunnels = JSON.parse(JSON.stringify(snapshot.tunnels));
+    state.hardBlocks = JSON.parse(JSON.stringify(snapshot.hardBlocks));
+    state.foamBlocks = JSON.parse(JSON.stringify(snapshot.foamBlocks));
+    state.playerSpawn = JSON.parse(JSON.stringify(snapshot.playerSpawn));
+    state.botSpawns = JSON.parse(JSON.stringify(snapshot.botSpawns || []));
+    state.portals = JSON.parse(JSON.stringify(snapshot.portals || []));
+    state.items = JSON.parse(JSON.stringify(snapshot.items || []));
+    
+    ARENA_W = snapshot.ARENA_W || 2800;
+    ARENA_D = snapshot.ARENA_D || 2400;
+    ARENA_H = snapshot.ARENA_H || 950;
+    
+    numArenaW.value = ARENA_W;
+    numArenaD.value = ARENA_D;
+    numArenaH.value = ARENA_H;
+    
+    hudArenaSize.textContent = `Arena: ${ARENA_W} × ${ARENA_D} (x/z)`;
+    hudArenaHeight.textContent = `Höhe: ${ARENA_H}`;
+    
+    updateUndoRedoButtons();
+    draw();
+  }
+
+  function undo() {
+    if (historyIndex > 0) {
+      historyIndex--;
+      loadStateSnapshot(history[historyIndex]);
+    }
+  }
+
+  function redo() {
+    if (historyIndex < history.length - 1) {
+      historyIndex++;
+      loadStateSnapshot(history[historyIndex]);
+    }
+  }
+  
+  function updateUndoRedoButtons() {
+      btnUndo.disabled = (historyIndex <= 0);
+      btnRedo.disabled = (historyIndex >= history.length - 1);
+  }
+
+  btnUndo.addEventListener("click", undo);
+  btnRedo.addEventListener("click", redo);
+  
+  document.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+      if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
+  });
+
+  // ==========================
+  // Koordinaten-Umrechnung
+  // ==========================
+  function worldToScreen(x,z){
+    const w = canvas.width;
+    const h = canvas.height;
+    const sx = (x / ARENA_W + 0.5) * w;
+    const sz = (z / ARENA_D + 0.5) * h;
+    return { x:sx, y:sz };
+  }
+  function screenToWorld(sx,sy){
+    const w = canvas.width;
+    const h = canvas.height;
+    const x = (sx / w - 0.5) * ARENA_W;
+    const z = (sy / h - 0.5) * ARENA_D;
+    return { x, z };
+  }
+
+  // ==========================
+  // Höhe / Parameter aus Slidern
+  // ==========================
+  function tunnelHeightY(){
+    return ARENA_H * (Number(rngTunnelHeight.value) / 100);
+  }
+  function blockHeightY(){
+    return ARENA_H * (Number(rngBlockHeight.value) / 100);
+  }
+  function tunnelRadius(){
+    return Number(rngTunnelRadius.value);
+  }
+  function blockSize(){
+    return Number(rngBlockSize.value);
+  }
+
+  // ==========================
+  // Zeichnen
+  // ==========================
+  function drawGrid(){
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.fillStyle = "#020617";
+    ctx.fillRect(0,0,w,h);
+
+    ctx.save();
+    ctx.strokeStyle = "#111827"; // Dark grid
+    ctx.lineWidth = 1;
+    const step = 40;
+    for(let x=0;x<=w;x+=step){
+      ctx.beginPath();
+      ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+    }
+    for(let y=0;y<=h;y+=step){
+      ctx.beginPath();
+      ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+    }
+    
+    // Bounds
+    ctx.strokeStyle = "rgba(40, 50, 70, 0.4)";
+    ctx.strokeRect(0,0,w,h);
+    ctx.restore();
+
+    // Achsen-Marker (0/0)
+    const c = worldToScreen(0,0);
+    ctx.save();
+    ctx.strokeStyle = "#1d4ed8";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(c.x-10,c.y);ctx.lineTo(c.x+10,c.y);ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(c.x,c.y-10);ctx.lineTo(c.x,c.y+10);ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = "#64748b";
+    ctx.font = "10px system-ui";
+    ctx.fillText("x+", worldToScreen(ARENA_W/2-50,0).x, c.y-8);
+    ctx.fillText("z+", c.x+4, worldToScreen(0,ARENA_D/2-40).y);
+    ctx.restore();
+  }
+
+  function drawTunnels(){
+    ctx.save();
+    for(const t of state.tunnels){
+      const a = worldToScreen(t.ax, t.az);
+      const b = worldToScreen(t.bx, t.bz);
+      ctx.lineCap = "round";
+
+      // Radius-Andeutung
+      ctx.strokeStyle = "rgba(56,189,248,0.12)";
+      ctx.lineWidth = Math.max(1, (t.radius/160)*12);
+      ctx.beginPath();
+      ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+
+      // Kern
+      ctx.strokeStyle = "#60a5fa";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+    }
+    ctx.restore();
+
+    // Tunnel-Vorschau
+    if (state.currentTool === "tunnel" && state.tempTunnelStart){
+      const s = worldToScreen(state.tempTunnelStart.x, state.tempTunnelStart.z);
+      const e = worldToScreen(state.mouseX, state.mouseZ);
+      ctx.save();
+      ctx.setLineDash([6,4]);
+      ctx.strokeStyle = "#a855f7";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(s.x,s.y);ctx.lineTo(e.x,e.y);ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawBlocks(){
+    ctx.save();
+    for(const b of state.hardBlocks){
+      const p = worldToScreen(b.x, b.z);
+      const size = 10 + (b.size/120)*18;
+      ctx.fillStyle = "rgba(248,113,113,0.14)";
+      ctx.fillRect(p.x-size, p.y-size, size*2, size*2);
+      ctx.strokeStyle = "#f97373";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(p.x-size, p.y-size, size*2, size*2);
+    }
+    for(const b of state.foamBlocks){
+      const p = worldToScreen(b.x, b.z);
+      const size = 10 + (b.size/120)*18;
+      ctx.fillStyle = "rgba(34,197,94,0.14)";
+      ctx.fillRect(p.x-size, p.y-size, size*2, size*2);
+      ctx.strokeStyle = "#34d399";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(p.x-size, p.y-size, size*2, size*2);
+    }
+    ctx.restore();
+  }
+
+  function drawSpawner(){
+    // Player
+    const s = state.playerSpawn;
+    if(s) {
+        const p = worldToScreen(s.x, s.z);
+        ctx.save();
+        ctx.translate(p.x,p.y);
+        ctx.fillStyle = "#eab308";
+        ctx.strokeStyle = "#facc15";
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(0,-10);
+        ctx.lineTo(8,10);
+        ctx.lineTo(-8,10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    }
+    
+    // Bots
+    ctx.save();
+    for(const bot of state.botSpawns){
+      const p = worldToScreen(bot.x, bot.z);
+      ctx.translate(p.x,p.y);
+      ctx.fillStyle = "#ef4444"; 
+      ctx.strokeStyle = "#f87171";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(0,-8);
+      ctx.lineTo(6,8);
+      ctx.lineTo(-6,8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.translate(-p.x,-p.y);
+    }
+    ctx.restore();
+  }
+  
+  function drawPortals(){
+    ctx.save();
+    for(const p of state.portals){
+      const pos = worldToScreen(p.x, p.z);
+      // const visualRadius = Math.max(8, (p.radius / ARENA_W) * canvas.width); // proportional
+      const visualRadius = 12 + (p.radius/160)*6;
+      ctx.fillStyle = "rgba(168, 85, 247, 0.25)";
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, visualRadius, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = "#c084fc";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // inner circle
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, visualRadius*0.5, 0, Math.PI*2);
+      ctx.strokeStyle = "rgba(192, 132, 252, 0.5)";
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function getItemColor(type) {
+      switch(type) {
+          case 'item_crystal': return '#34d399'; // grün
+          case 'item_star': return '#fbbf24'; // gelb
+          case 'item_battery': return '#fb7185'; // rot
+          case 'item_shield': return '#38bdf8'; // blau
+          case 'item_box': return '#a78bfa'; // lila
+          case 'item_pyramid': return '#f472b6'; // pink
+          default: return '#fff';
+      }
+  }
+
+  function drawItems(){
+    ctx.save();
+    for(const item of state.items){
+      const pos = worldToScreen(item.x, item.z);
+      ctx.fillStyle = getItemColor(item.type);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 6, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawMouse(){
+    const p = worldToScreen(state.mouseX, state.mouseZ);
+    ctx.save();
+    
+    // Draw cursor preview
+    if(state.currentTool === 'portal') {
+        ctx.strokeStyle = "rgba(192, 132, 252, 0.5)";
+        ctx.beginPath();
+        const r = 12 + (tunnelRadius()/160)*6;
+        ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+        ctx.stroke();
+    } else if(state.currentTool === 'item') {
+        ctx.strokeStyle = getItemColor(selItemType.value);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+        ctx.stroke();
+    } else if(state.currentTool === 'erase') {
+        ctx.strokeStyle = "rgba(249, 115, 115, 0.7)";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 10, 0, Math.PI*2);
+        ctx.stroke();
+    } else {
+        ctx.strokeStyle = "rgba(148,163,184,0.7)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(p.x-6,p.y);ctx.lineTo(p.x+6,p.y);ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(p.x,p.y-6);ctx.lineTo(p.x,p.y+6);ctx.stroke();
+    }
+    
+    ctx.restore();
+  }
+
+  function draw(){
+    drawGrid();
+    drawTunnels();
+    drawBlocks();
+    drawPortals();
+    drawItems();
+    drawSpawner();
+    drawMouse();
+  }
+
+  // ==========================
+  // Objekte hinzufügen
+  // ==========================
+  function addTunnel(startX,startZ,endX,endZ){
+    const y = tunnelHeightY();
+    const radius = tunnelRadius();
+    state.tunnels.push({
+      ax:startX, ay:y, az:startZ,
+      bx:endX,   by:y, bz:endZ,
+      radius
+    });
+  }
+
+  function addBlock(type,x,z){
+    const y = blockHeightY();
+    const size = blockSize();
+    const block = { x, y, z, size };
+    if (type === "hard") state.hardBlocks.push(block);
+    else state.foamBlocks.push(block);
+  }
+
+  function setSpawn(x,z){
+    state.playerSpawn.x = x;
+    state.playerSpawn.z = z;
+    state.playerSpawn.y = tunnelHeightY();
+  }
+
+  // ==========================
+  // Löschen (Radier-Funktion)
+  // ==========================
+  function distToSegmentSq(px,py, ax,ay, bx,by){
+    const abx = bx-ax, aby = by-ay;
+    const apx = px-ax, apy = py-ay;
+    const abLenSq = abx*abx+aby*aby || 1e-9;
+    let t = (apx*abx + apy*aby)/abLenSq;
+    t = Math.max(0, Math.min(1,t));
+    const cx = ax + abx*t;
+    const cy = ay + aby*t;
+    const dx = px-cx, dy = py-cy;
+    return dx*dx + dy*dy;
+  }
+
+  function eraseAt(x,z){
+    let best = { type:null, index:-1, dist:Infinity };
+    const checkObj = (type, i, ox, oz) => {
+        const dx = x-ox, dz = z-oz;
+        const d2 = dx*dx+dz*dz;
+        if(d2 < best.dist) best = { type, index:i, dist:d2 };
+    };
+
+    // Tunnel
+    for(let i=0;i<state.tunnels.length;i++){
+      const t = state.tunnels[i];
+      const d2 = distToSegmentSq(x,z, t.ax,t.az, t.bx,t.bz);
+      if (d2 < best.dist) best = { type:"tunnel", index:i, dist:d2 };
+    }
+
+    // Blöcke
+    for(let i=0;i<state.hardBlocks.length;i++) checkObj("hard", i, state.hardBlocks[i].x, state.hardBlocks[i].z);
+    for(let i=0;i<state.foamBlocks.length;i++) checkObj("foam", i, state.foamBlocks[i].x, state.foamBlocks[i].z);
+    
+    // Spawns, Portals, Items
+    for(let i=0;i<state.botSpawns.length;i++) checkObj("botSpawn", i, state.botSpawns[i].x, state.botSpawns[i].z);
+    for(let i=0;i<state.portals.length;i++) checkObj("portal", i, state.portals[i].x, state.portals[i].z);
+    for(let i=0;i<state.items.length;i++) checkObj("item", i, state.items[i].x, state.items[i].z);
+
+    // Player Spawn
+    {
+      const s = state.playerSpawn;
+      const dx = x-s.x, dz = z-s.z;
+      const d2 = dx*dx+dz*dz;
+      if (d2 < best.dist) best = { type:"spawn", index:0, dist:d2 };
+    }
+
+    const THRESHOLD = (ARENA_W/40)**2;
+
+    if (best.type && best.dist < THRESHOLD){
+      if (best.type === "tunnel") state.tunnels.splice(best.index,1);
+      else if (best.type === "hard") state.hardBlocks.splice(best.index,1);
+      else if (best.type === "foam") state.foamBlocks.splice(best.index,1);
+      else if (best.type === "botSpawn") state.botSpawns.splice(best.index,1);
+      else if (best.type === "portal") state.portals.splice(best.index,1);
+      else if (best.type === "item") state.items.splice(best.index,1);
+      else if (best.type === "spawn") {
+        state.playerSpawn.x = -800;
+        state.playerSpawn.z = 0;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // ==========================
+  // Canvas Interaktion
+  // ==========================
+  function updateMouseFromEvent(e){
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const w = screenToWorld(sx,sy);
+    state.mouseX = w.x;
+    state.mouseZ = w.z;
+    hudPosEl.textContent = `x=${w.x.toFixed(0)}, z=${w.z.toFixed(0)}`;
+  }
+
+  canvas.addEventListener("mousemove", (e)=>{
+    updateMouseFromEvent(e);
+    draw();
+  });
+
+  canvas.addEventListener("mousedown", (e)=>{
+    updateMouseFromEvent(e);
+    const x = state.mouseX;
+    const z = state.mouseZ;
+
+    if (state.currentTool === "tunnel"){
+      if (!state.tempTunnelStart){
+        state.tempTunnelStart = { x, z };
+      } else {
+        addTunnel(state.tempTunnelStart.x, state.tempTunnelStart.z, x, z);
+        state.tempTunnelStart = null;
+        saveState();
+      }
+    } else if (state.currentTool === "hard"){
+      addBlock("hard", x, z);
+      saveState();
+    } else if (state.currentTool === "foam"){
+      addBlock("foam", x, z);
+      saveState();
+    } else if (state.currentTool === "spawn"){
+      setSpawn(x,z);
+      saveState();
+    } else if (state.currentTool === "botSpawn"){
+      state.botSpawns.push({ x, y: tunnelHeightY(), z });
+      saveState();
+    } else if (state.currentTool === "portal"){
+      const radius = tunnelRadius() * 0.5; // Typischerweise kleiner
+      state.portals.push({ x, y: tunnelHeightY(), z, radius });
+      saveState();
+    } else if (state.currentTool === "item"){
+      const type = document.getElementById("selItemType").value;
+      state.items.push({ type, x, y: tunnelHeightY(), z });
+      saveState();
+    } else if (state.currentTool === "erase"){
+      if(eraseAt(x,z)) saveState();
+    }
+    draw();
+  });
+
+  // ==========================
+  // Export / Import
+  // ==========================
+  function exportJSON(){
+    const payload = {
+      arenaSize:{ width:ARENA_W, height:ARENA_H, depth:ARENA_D },
+      tunnels:state.tunnels,
+      hardBlocks:state.hardBlocks,
+      foamBlocks:state.foamBlocks,
+      playerSpawn:state.playerSpawn,
+      botSpawns:state.botSpawns,
+      portals:state.portals,
+      items:state.items
+    };
+    jsonOutput.value = JSON.stringify(payload, null, 2);
+  }
+
+  function importJSON(){
+    try{
+      const txt = jsonOutput.value.trim();
+      if (!txt) return;
+      const obj = JSON.parse(txt);
+      state.tunnels    = Array.isArray(obj.tunnels) ? obj.tunnels : [];
+      state.hardBlocks = Array.isArray(obj.hardBlocks) ? obj.hardBlocks : [];
+      state.foamBlocks = Array.isArray(obj.foamBlocks) ? obj.foamBlocks : [];
+      state.botSpawns  = Array.isArray(obj.botSpawns) ? obj.botSpawns : [];
+      state.portals    = Array.isArray(obj.portals) ? obj.portals : [];
+      state.items      = Array.isArray(obj.items) ? obj.items : [];
+      if (obj.playerSpawn){
+        state.playerSpawn = {
+          x: obj.playerSpawn.x || 0,
+          y: obj.playerSpawn.y || ARENA_H*0.55,
+          z: obj.playerSpawn.z || 0
+        };
+      }
+      if(obj.arenaSize){
+          ARENA_W = obj.arenaSize.width || 2800;
+          ARENA_H = obj.arenaSize.height || 950;
+          ARENA_D = obj.arenaSize.depth || 2400;
+          
+          numArenaW.value = ARENA_W;
+          numArenaH.value = ARENA_H;
+          numArenaD.value = ARENA_D;
+      }
+      saveState();
+      draw();
+    }catch(err){
+      alert("Fehler beim Import: " + err.message);
+    }
+  }
+
+  function newMap(){
+    state.tunnels.length = 0;
+    state.hardBlocks.length = 0;
+    state.foamBlocks.length = 0;
+    state.botSpawns.length = 0;
+    state.portals.length = 0;
+    state.items.length = 0;
+    state.playerSpawn = { x:-800, y:ARENA_H*0.55, z:0 };
+    state.tempTunnelStart = null;
+    jsonOutput.value = "";
+    saveState();
+    draw();
+  }
+
+  btnExport.addEventListener("click", exportJSON);
+  btnImport.addEventListener("click", importJSON);
+  btnNew.addEventListener("click", newMap);
+
+  // ==========================
+  // Resize
+  // ==========================
+  function resize(){
+    const shell = canvas.parentElement;
+    const rect = shell.getBoundingClientRect();
+    const w = Math.max(400, rect.width);
+    const h = Math.max(300, rect.height);
+    canvas.width = w * window.devicePixelRatio;
+    canvas.height = h * window.devicePixelRatio;
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    ctx.setTransform(window.devicePixelRatio,0,0,window.devicePixelRatio,0,0);
+    draw();
+  }
+  window.addEventListener("resize", resize);
+
+  // ==========================
+  // Start
+  // ==========================
+  function init(){
+    saveState(); // Initiale State (leer)
+    resize();
+    draw();
+  }
+  init();
+
+})();
+</script>
+</body>
+</html>

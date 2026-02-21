@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Mini Curve Fever – 3D Map Editor</title>
+    <style>
+        :root {
+            --bg-0: #020617;
+            --bg-1: #030712;
+            --panel: #0b1324cc;
+            --border: #1f2937;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --accent: #60a5fa;
+            --danger: #f97373;
+            --safe: #34d399;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+            color: var(--text);
+            background: var(--bg-0);
+            overflow: hidden;
+        }
+
+        .wrap {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 12px;
+            padding: 10px;
+            height: 100%;
+        }
+
+        .panel {
+            background: linear-gradient(180deg, var(--panel), #020617ee);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 10px 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 0;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 16px;
+            margin: 0 0 4px 0;
+        }
+
+        .sub {
+            font-size: 11px;
+            color: var(--muted);
+            line-height: 1.35;
+            margin: 0 0 6px 0;
+        }
+
+        .toolRow {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 4px;
+        }
+
+        button {
+            appearance: none;
+            border: 1px solid #25324a;
+            background: linear-gradient(180deg, #0f1b2f 0%, #020617 100%);
+            color: var(--text);
+            padding: 6px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: transform .08s ease, border-color .15s ease, background .15s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            border-color: #324563;
+        }
+
+        button:active {
+            transform: translateY(0px) scale(.99);
+        }
+
+        button.tool.active {
+            border-color: var(--accent);
+            background: #0b1730;
+        }
+
+        button.small {
+            font-size: 10px;
+            padding: 4px 6px;
+        }
+
+        button.icon-btn {
+            padding: 4px 8px;
+            font-size: 14px;
+            font-family: monospace;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 6px;
+            align-items: center;
+            padding: 4px 0;
+            border-top: 1px dashed #1f2937;
+        }
+
+        .row:first-of-type {
+            border-top: none;
+        }
+
+        label {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        input[type="range"] {
+            width: 120px;
+        }
+
+        input[type="number"] {
+            width: 70px;
+            background: #020617;
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 5px;
+            padding: 3px 5px;
+            font-size: 11px;
+        }
+
+        select {
+            background: #020617;
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 5px;
+            padding: 3px 5px;
+            font-size: 11px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 90px;
+            resize: vertical;
+            background: #020617;
+            border-radius: 10px;
+            border: 1px solid #1f2937;
+            color: var(--text);
+            font-size: 11px;
+            padding: 6px 8px;
+            font-family: ui-monospace, monospace;
+        }
+
+        .canvasShell {
+            position: relative;
+            border-radius: 16px;
+            border: 1px solid #111827;
+            overflow: hidden;
+            background: #020617;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, .6);
+        }
+
+        #threeCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .hud {
+            position: absolute;
+            left: 10px;
+            bottom: 10px;
+            background: #020617dd;
+            border-radius: 10px;
+            border: 1px solid #1f2937;
+            padding: 4px 7px;
+            font-size: 11px;
+            color: var(--muted);
+            pointer-events: none;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            border: 1px solid #1f2937;
+            background: #020617;
+            font-size: 10px;
+            margin-right: 4px;
+        }
+
+        .help {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background: #020617cc;
+            border: 1px solid #1f2937;
+            padding: 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            color: #9ca3af;
+            pointer-events: none;
+            line-height: 1.4;
+            backdrop-filter: blur(4px);
+        }
+
+        .kbd {
+            font-family: monospace;
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 4px;
+            background: #111827;
+            border: 1px solid #374151;
+            color: #e5e7eb;
+        }
+
+        #propPanel {
+            display: none;
+            background: rgba(11, 19, 36, 0.95);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            padding: 8px;
+            margin-top: 8px;
+        }
+    </style>
+
+    <!-- Three.js wird über Vite aus node_modules aufgelöst -->
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="panel">
+            <div>
+                <h1>Mini Curve Fever – 3D Editor</h1>
+                <p class="sub">
+                    Wähle ein Werkzeug und klicke in die Szene. Nutze die Transform-Gizmos, um Objekte zu bewegen.
+                </p>
+            </div>
+
+            <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <strong style="font-size:12px;">Modus</strong>
+                    <div>
+                        <button id="btnDelSelected" class="small" style="color:var(--danger)">Ausgewähltes Löschen
+                            (Entf)</button>
+                    </div>
+                </div>
+                <div class="toolRow" style="margin-top:6px;">
+                    <button class="tool active" data-tool="select">Auswahl / Bewegen</button>
+                    <button class="tool" data-tool="hard">Block hart</button>
+                    <button class="tool" data-tool="foam">Block Schaum</button>
+                    <button class="tool" data-tool="tunnel">Tunnel Punkt</button>
+                    <button class="tool" data-tool="portal">Portal</button>
+                    <button class="tool" data-tool="spawn">Spieler / Bot Spawn</button>
+                    <button class="tool" data-tool="item">Item</button>
+                    <button class="tool" data-tool="aircraft">✈ Flugzeug</button>
+                </div>
+            </div>
+
+            <!-- Sub-Menüs je nach Tool -->
+            <div id="subSpawn" class="row sub-menu" style="display:none; border-top:none; padding-top:0;">
+                <label style="color:var(--accent)">Typ:</label>
+                <select id="selSpawnType">
+                    <option value="player">Player Spawn</option>
+                    <option value="bot">Bot Spawn</option>
+                </select>
+            </div>
+
+            <div id="subItem" class="row sub-menu" style="display:none; border-top:none; padding-top:0;">
+                <label style="color:var(--accent)">Item-Typ:</label>
+                <select id="selItemType">
+                    <option value="item_crystal">Kristall</option>
+                    <option value="item_star">Stern</option>
+                    <option value="item_battery">Batterie</option>
+                    <option value="item_shield">Schild</option>
+                    <option value="item_box">Item-Box</option>
+                    <option value="item_pyramid">Pyramide</option>
+
+                    <!-- Neue 3D Objekte -->
+                    <option value="item_arrow">Pfeil (Arrow)</option>
+                    <option value="item_capsule">Kapsel (Capsule)</option>
+                    <option value="item_coin">Münze (Coin)</option>
+                    <option value="item_crate">Kiste (Crate)</option>
+                    <option value="item_gem">Edelstein (Gem)</option>
+                    <option value="item_health">Medipack (Health)</option>
+                    <option value="item_orb">Kugel (Orb)</option>
+                    <option value="item_ring">Ring (Ring)</option>
+                    <option value="item_rocket">Rakete (Rocket)</option>
+                    <option value="item_sphere">Sphäre (Sphere)</option>
+                    <option value="item_torus">Torus (Torus)</option>
+                </select>
+            </div>
+
+            <div id="subAircraft" class="row sub-menu" style="display:none; border-top:none; padding-top:0;">
+                <label style="color:var(--accent)">Flugzeug:</label>
+                <select id="selAircraftType">
+                    <option value="jet_wwi">WWI Airplane</option>
+                    <option value="jet_funky_low">Funky Aircraft Low</option>
+                    <option value="jet_funky_high">Funky Aircraft High</option>
+                    <option value="jet_funky_control">Funky Aircraft Control</option>
+                    <option value="jet_pinnace_lo">Pinnace Lo</option>
+                    <option value="jet_ship1">Ship 1</option>
+                    <option value="jet_ship2">Ship 2</option>
+                    <option value="jet_ship3">Ship 3</option>
+                    <option value="jet_ship4">Ship 4</option>
+                    <option value="jet_ship5" selected>Ship 5 (Standard)</option>
+                    <option value="jet_ship6">Ship 6</option>
+                    <option value="jet_ship7">Ship 7</option>
+                    <option value="jet_ship8">Ship 8</option>
+                    <option value="jet_ship9">Ship 9</option>
+                </select>
+            </div>
+
+            <!-- Neues UI in den div=wrap -->
+            <div id="propPanel">
+                <strong style="font-size:12px; color:var(--accent)">Eigenschaften (Selektiert)</strong>
+                <div class="row" id="propSizeRow" style="display:none;">
+                    <label>Größe / Radius</label>
+                    <input id="propSize" type="number" step="10" />
+                </div>
+                <div class="row" id="propWidthRow" style="display:none;">
+                    <label>Breite (X)</label>
+                    <input id="propWidth" type="number" step="10" />
+                </div>
+                <div class="row" id="propDepthRow" style="display:none;">
+                    <label>Tiefe (Z)</label>
+                    <input id="propDepth" type="number" step="10" />
+                </div>
+                <div class="row" id="propHeightRow" style="display:none;">
+                    <label>Höhe (Y-Scale)</label>
+                    <input id="propHeight" type="number" step="10" />
+                </div>
+                <div class="row" id="propScaleRow" style="display:none;">
+                    <label>Skalierung</label>
+                    <input id="propScale" type="number" step="0.1" min="0.1" />
+                </div>
+                <div class="row">
+                    <label>Y-Position (Höhe)</label>
+                    <input id="propY" type="number" step="10" />
+                </div>
+            </div>
+
+            <div>
+                <strong style="font-size:12px;">Ansicht & Raster</strong>
+                <div class="row">
+                    <label>Snap to Grid (Einrasten)</label>
+                    <input id="chkSnap" type="checkbox" />
+                </div>
+                <div class="row">
+                    <label>Grid Größe</label>
+                    <input id="numGrid" type="number" value="50" step="10" />
+                </div>
+            </div>
+
+            <div>
+                <strong style="font-size:12px;">Arena Rahmen</strong>
+                <div class="row">
+                    <label>Breite (X)</label>
+                    <input id="numArenaW" type="number" value="2800" step="100" />
+                </div>
+                <div class="row">
+                    <label>Tiefe (Z)</label>
+                    <input id="numArenaD" type="number" value="2400" step="100" />
+                </div>
+                <div class="row">
+                    <label>Höhe (Y)</label>
+                    <input id="numArenaH" type="number" value="950" step="50" />
+                </div>
+            </div>
+
+            <div>
+                <strong style="font-size:12px;">Höhen-Ebene (Y-Layer)</strong>
+                <div class="row">
+                    <label>Bauen auf diesem Level</label>
+                    <input id="chkYLayer" type="checkbox" />
+                </div>
+                <div class="row">
+                    <label>Y-Höhe</label>
+                    <input id="numYLayer" type="number" value="0" step="10" />
+                </div>
+            </div>
+
+            <div>
+                <strong style="font-size:12px;">Kamera</strong>
+                <div class="row">
+                    <label>Fly Mode (WASD)</label>
+                    <input id="chkFly" type="checkbox" />
+                    <span style="font-size:10px; color:#9ca3af">Kamera folgt Bewegung</span>
+                </div>
+            </div>
+
+            <div style="flex-grow:1;display:flex;flex-direction:column; margin-top:8px;">
+                <strong style="font-size:12px;">JSON Export / Import</strong>
+                <button id="btnPlaytest"
+                    style="margin:4px 0; background-color: #3b82f6; color:white; border:none; padding:8px; border-radius:4px; cursor:pointer;">▶
+                    Map im Browser Spielen</button>
+                <div style="display:flex;gap:6px;margin:4px 0;">
+                    <button id="btnExport" class="small">Export to JSON</button>
+                    <button id="btnImport" class="small">Import JSON</button>
+                    <button id="btnNew" class="small">Neu (Leeren)</button>
+                </div>
+                <textarea id="jsonOutput" spellcheck="false" style="flex-grow:1;"></textarea>
+            </div>
+        </div>
+
+        <div class="canvasShell">
+            <div id="threeCanvas"></div>
+            <div class="help">
+                <span class="kbd">Maus Links</span> = Selektieren / Anwenden<br>
+                <span class="kbd">Maus Rechts</span> = Kamera drehen<br>
+                <span class="kbd">Maus Rad</span> = Zoom<br>
+                <span class="kbd">T</span> = Bewegen (Translate) | <span class="kbd">R</span> = Rotieren<br>
+                <span class="kbd">Strg+C / Strg+V</span> = Duplizieren<br>
+                <span class="kbd">Entf</span> = Löschen<br><br>
+                <em>Bei Tunneln: Jeder Punkt wird eigenständig platziert und im Export pärchenweise (Start+End)
+                    verdrahtet.</em>
+            </div>
+            <div class="hud" id="hud">
+                <span class="badge" id="hudObjCount">Objekte: 0</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { EditorCore } from './js/EditorCore.js';
+        import { EditorAssetLoader } from './js/EditorAssetLoader.js';
+        import { EditorUI } from './js/EditorUI.js';
+        import { EditorMapManager } from './js/EditorMapManager.js';
+
+        async function initEditor() {
+            try {
+                // Instanziere Assets Loader und warte auf Models
+                const assetLoader = new EditorAssetLoader();
+                await assetLoader.loadAll();
+
+                // Instanziere Core Components
+                const core = new EditorCore("threeCanvas");
+                const ui = new EditorUI(core);
+                const mapManager = new EditorMapManager(core, ui, assetLoader);
+
+                // Verknüpfe UI mit Manager (gegenseitige Referenz)
+                ui.setMapManager(mapManager);
+
+                // Start Render Loop
+                core.animate();
+                console.log("3D Map Editor successfully initialized.");
+
+            } catch (err) {
+                console.error("Editor initialization failed:", err);
+                alert("Fehler beim Starten des 3D Map Editors. Details in der Konsole.");
+            }
+        }
+
+        initEditor();
+    </script>
+</body>
+
+</html>

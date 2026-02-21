@@ -1,0 +1,24 @@
+# item_crate.obj – Kistenform (einfacher Einheits-Würfel)
+o Crate
+
+v -0.5 -0.5 -0.5
+v  0.5 -0.5 -0.5
+v  0.5  0.5 -0.5
+v -0.5  0.5 -0.5
+v -0.5 -0.5  0.5
+v  0.5 -0.5  0.5
+v  0.5  0.5  0.5
+v -0.5  0.5  0.5
+
+# Vorne
+f 5 6 7 8
+# Hinten
+f 2 1 4 3
+# Links
+f 1 5 8 4
+# Rechts
+f 6 2 3 7
+# Oben
+f 8 7 3 4
+# Unten
+f 1 2 6 5

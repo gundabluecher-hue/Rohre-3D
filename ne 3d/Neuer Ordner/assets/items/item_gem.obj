@@ -1,0 +1,53 @@
+# item_gem.obj – Edelstein / Diamant
+o Gem
+
+# Krone-Ring (oben, y=0.3)
+v  0.0000  0.3  0.5000
+v  0.4714  0.3  0.1667
+v  0.2910  0.3 -0.4330
+v -0.2910  0.3 -0.4330
+v -0.4714  0.3  0.1667
+
+# Oberer Gürtel (y=0.0)
+v  0.0000  0.0  0.6500
+v  0.6124  0.0  0.2165
+v  0.3780  0.0 -0.5625
+v -0.3780  0.0 -0.5625
+v -0.6124  0.0  0.2165
+
+# Untere Spitze
+v  0.0  -0.8  0.0
+
+# Spitze der Krone
+v  0.0   0.7  0.0
+
+# Krone-Seiten (Dreieck von Spitze zu Ring)
+f 12 1 2
+f 12 2 3
+f 12 3 4
+f 12 4 5
+f 12 5 1
+
+# Krone zu Gürtel
+f 1 6 2
+f 2 6 7
+f 6 7 2
+f 2 7 3
+f 3 7 8
+f 7 8 3
+f 3 8 4
+f 4 8 9
+f 8 9 4
+f 4 9 5
+f 5 9 10
+f 9 10 5
+f 5 10 1
+f 1 10 6
+f 10 6 1
+
+# Untere Spitze
+f 6 11 7
+f 7 11 8
+f 8 11 9
+f 9 11 10
+f 10 11 6
